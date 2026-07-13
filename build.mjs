@@ -20,6 +20,7 @@ html += tail;
 fs.mkdirSync("public", { recursive: true });
 fs.writeFileSync("public/index.html", html);
 fs.copyFileSync("_logos.js", "public/_logos.js");
+if (fs.existsSync("_supabase.js")) fs.copyFileSync("_supabase.js", "public/_supabase.js");
 fs.writeFileSync("dashboard.html", html); // local dev convenience
 
 console.log(`Built public/index.html from ${templates.length} templates.`);

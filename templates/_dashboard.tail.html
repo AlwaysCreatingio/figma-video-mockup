@@ -123,6 +123,51 @@ async function idbDel(id) { const db = await idbOpen(); return new Promise((res,
 const toDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
 const srcToDataURL = async (src) => (src && src.startsWith("blob:")) ? toDataURL(await fetch(src).then(r => r.blob())) : src;
 
+/* Demo store: cloud (Supabase) when window.__SUPABASE is configured, else local (IndexedDB).
+   Records look the same to the app: { id, name, templateId, thumb, vids{slot:{url,img}},
+   logos, boxText, showPlus, hiddenLogos, overrides }. On save, rec.vids holds { blob, img, type }. */
+const SB = (typeof window !== "undefined" && window.__SUPABASE && window.__SUPABASE.url && window.supabase)
+  ? window.supabase.createClient(window.__SUPABASE.url, window.__SUPABASE.anonKey) : null;
+const SB_BUCKET = "demo-media";
+const demoStore = {
+  cloud: !!SB,
+  async list() {
+    if (SB) {
+      const { data, error } = await SB.from("demos").select("*").order("created_at", { ascending: false });
+      if (error) { console.warn("[supabase] list:", error.message); return []; }
+      return (data || []).map(r => ({ id: r.id, name: r.name, templateId: r.template_id, thumb: r.thumb, ...(r.payload || {}) }));
+    }
+    const db = await idbOpen();
+    return new Promise(res => { const g = db.transaction("demos", "readonly").objectStore("demos").getAll(); g.onsuccess = () => res((g.result || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))); g.onerror = () => res([]); });
+  },
+  async save(rec) {
+    if (SB) {
+      const vids = {};
+      for (const k in rec.vids) {
+        const v = rec.vids[k], ext = ((v.type || "video/mp4").split("/")[1] || "bin").split(";")[0], p = rec.id + "/" + k + "." + ext;
+        const up = await SB.storage.from(SB_BUCKET).upload(p, v.blob, { upsert: true, contentType: v.type });
+        if (up.error) console.warn("[supabase] upload:", up.error.message);
+        vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
+      }
+      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, overrides: rec.overrides } });
+      if (error) { console.warn("[supabase] insert:", error.message); throw error; }
+      return;
+    }
+    const vids = {};
+    for (const k in rec.vids) vids[k] = { url: await toDataURL(rec.vids[k].blob), img: rec.vids[k].img };
+    return idbPut({ ...rec, vids, createdAt: Date.now() });
+  },
+  async remove(id) {
+    if (SB) {
+      const { data } = await SB.storage.from(SB_BUCKET).list(id);
+      if (data && data.length) await SB.storage.from(SB_BUCKET).remove(data.map(f => id + "/" + f.name));
+      await SB.from("demos").delete().eq("id", id);
+      return;
+    }
+    return idbDel(id);
+  },
+};
+
 /* a demo gallery card: renders the real template with its saved media/logos, then applies the saved
    text/style overrides so the thumbnail matches exactly what was saved (not the template defaults). */
 function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
@@ -166,14 +211,16 @@ function App() {
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState("templates");
   const [soundOn, setSoundOn] = useState(false);
-  const [demos, setDemos] = useState(() => { try { return JSON.parse(localStorage.getItem("aoDemos") || "[]"); } catch (e) { return []; } });
+  const [demos, setDemos] = useState([]);
   const [demoRecs, setDemoRecs] = useState({});
   const [saved, setSaved] = useState(false);
-  useEffect(() => { (async () => { try { const db = await idbOpen(); const tx = db.transaction("demos", "readonly"); const rq = tx.objectStore("demos").getAll(); rq.onsuccess = () => { const m = {}; (rq.result || []).forEach(r => m[r.id] = r); setDemoRecs(m); }; } catch (e) {} })(); }, [demos.length]);
+  const refreshDemos = async () => { const list = await demoStore.list(); setDemos(list); const m = {}; list.forEach(r => m[r.id] = r); setDemoRecs(m); };
+  useEffect(() => { refreshDemos(); }, []);
   const demoPreload = (rec) => rec ? {
     vids: rec.vids || {},
     boxText: rec.boxText || {},
     showPlus: rec.showPlus,
+    hiddenLogos: rec.hiddenLogos || {},
     logos: Object.fromEntries(Object.entries(rec.logos || {}).map(([k, v]) => [k, v.uri])),
     logoScales: Object.fromEntries(Object.entries(rec.logos || {}).map(([k, v]) => [k, v.scale])),
     logoBgs: Object.fromEntries(Object.entries(rec.logos || {}).map(([k, v]) => [k, v.bg])),
@@ -355,6 +402,7 @@ function App() {
       }
       if (api.setBoxText && rec.boxText) api.setBoxText(rec.boxText);
       if (api.setShowPlus && rec.showPlus != null) api.setShowPlus(rec.showPlus);
+      if (api.setHiddenLogos && rec.hiddenLogos) api.setHiddenLogos(rec.hiddenLogos);
       requestAnimationFrame(applyAll);
     };
     const tid = setTimeout(inject, 200);
@@ -366,7 +414,8 @@ function App() {
     const vids = {};
     for (const el of root.querySelectorAll("[data-vslot] video, [data-vslot] img")) {
       const slot = el.closest("[data-vslot]").getAttribute("data-vslot");
-      vids[slot] = { url: await srcToDataURL(el.currentSrc || el.src), img: el.tagName === "IMG" };
+      const blob = await fetch(el.currentSrc || el.src).then(r => r.blob());
+      vids[slot] = { blob, img: el.tagName === "IMG", type: blob.type };
     }
     if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as a demo."); return; }
     const logos = {};
@@ -380,6 +429,7 @@ function App() {
     const boxText = {};
     root.querySelectorAll("[data-boxtext]").forEach(inp => { if (inp.value) boxText[inp.getAttribute("data-boxtext")] = inp.value; });
     const showPlus = !!root.querySelector("[data-plus]");
+    const hiddenLogos = (window.__slotAPI && window.__slotAPI.hiddenLogos) || {};
     let thumb = null;
     try {
       const m = root.querySelector("[data-vslot] video, [data-vslot] img");
@@ -387,26 +437,24 @@ function App() {
         const c = document.createElement("canvas"); c.width = 240; c.height = Math.round(240 * vh / vw);
         c.getContext("2d").drawImage(m, 0, 0, c.width, c.height); thumb = c.toDataURL("image/jpeg", 0.7); }
     } catch (e) {}
-    const id = "d" + (demos.length + 1) + "_" + t.id;
-    const rec = { id, name: t.name, templateId: t.id, vids, logos, boxText, showPlus, overrides: ov, thumb, createdAt: 0 };
-    await idbPut(rec);
-    const idx = [{ id, name: rec.name, templateId: t.id, thumb }, ...demos.filter(d => d.id !== id)];
-    localStorage.setItem("aoDemos", JSON.stringify(idx));
-    setDemos(idx);
-    setSaved(true); setTimeout(() => setSaved(false), 1800);
+    const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("d_" + Date.now());
+    setSaved("saving");
+    try {
+      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, showPlus, hiddenLogos, overrides: ov, thumb });
+      await refreshDemos();
+      setSaved(true); setTimeout(() => setSaved(false), 1800);
+    } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
   }
   async function openDemo(id) {
-    const rec = await idbGet(id); if (!rec) return;
+    const rec = demoRecs[id]; if (!rec) return;
     overrides.current[rec.templateId] = rec.overrides || {};
     window.__demoPending = rec;
     setSel(rec.templateId);
   }
   async function deleteDemo(id, e) {
     if (e) e.stopPropagation();
-    await idbDel(id);
-    const idx = demos.filter(d => d.id !== id);
-    localStorage.setItem("aoDemos", JSON.stringify(idx));
-    setDemos(idx);
+    await demoStore.remove(id);
+    await refreshDemos();
   }
 
   const EXPORT_BASE = (typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050";
@@ -461,7 +509,8 @@ function App() {
       for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); merged[p] = { ...(merged[p] || {}), text: inp.value }; }
       if (ambient && ambientSrc) ambient.videoId = idBySrc[ambientSrc] || (idBySrc[ambientSrc] = await uploadBlob(ambientSrc));
       const showPlus = !!root.querySelector("[data-plus]");
-      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus };
+      const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
+      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos };
       const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
       if (!res.ok) throw new Error(await res.text());
       const mp4 = await res.blob();
@@ -525,6 +574,7 @@ function App() {
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Defaults to the logo's main color.</p>
                 </div>
               </section>
+              {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
             </div>}
 
             {insp && !insp.isLogo && <div className="space-y-5">
@@ -607,7 +657,7 @@ function App() {
           <div className="px-5 py-4 border-t border-neutral-100 space-y-2">
             <button onClick={saveDemo}
               className="w-full text-sm px-3 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-medium transition">
-              {saved ? "Saved to Demos ✓" : "Save to Demos"}</button>
+              {saved === "saving" ? "Saving…" : saved ? "Saved to Demos ✓" : "Save to Demos"}</button>
             <button onClick={exportMp4} disabled={exporting}
               className="w-full text-sm px-3 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition disabled:opacity-60 disabled:cursor-wait">
               {exporting ? "Rendering MP4…" : "Export MP4"}</button>

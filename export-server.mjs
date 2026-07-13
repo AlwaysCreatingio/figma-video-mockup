@@ -55,8 +55,14 @@ function finalize(){
     const fit=l.fit||"cover", pad=fit==="cover"?"0":"10px", sc=(l.scale!=null?l.scale:1);
     if(l.bg) el.style.backgroundColor=l.bg;
     el.innerHTML='<img src="'+l.uri+'" style="width:100%;height:100%;object-fit:'+fit+';padding:'+pad+';box-sizing:border-box;transform:scale('+sc+');transform-origin:center">'; }
-  // honour the "+"-between-logos toggle (elements marked data-plus)
-  if (X.showPlus === false) frame.querySelectorAll("[data-plus]").forEach(e => e.remove());
+  // drop removed logo tiles (client sends the slots still visible), then reconcile the "+" count
+  if (Array.isArray(X.visibleLogos)) {
+    frame.querySelectorAll("[data-lslot]").forEach(el => { if (X.visibleLogos.indexOf(el.getAttribute("data-lslot")) < 0) el.remove(); });
+  }
+  { const pluses = Array.from(frame.querySelectorAll("[data-plus]"));
+    if (pluses.length) { const row = pluses[0].parentElement; const tiles = row ? row.querySelectorAll("[data-lslot]").length : 0;
+      const keep = X.showPlus === false ? 0 : Math.max(0, tiles - 1);
+      pluses.slice(keep).forEach(e => e.remove()); } }
   // record the frame's own background, then make it transparent so slot holes fall through to the
   // ffmpeg base layer (painted with this colour). Decorative children/gradients stay in the plate.
   window.__FRAMEBG = getComputedStyle(frame).backgroundColor;
@@ -210,9 +216,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null } = spec;
       const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-      const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus }, W, H, plate);
+      const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos }, W, H, plate);
       const videoFiles = rects.map(r => path.join(WORK, r.videoId));
       const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
       const out = path.join(WORK, "out_" + Date.now() + ".mp4");
