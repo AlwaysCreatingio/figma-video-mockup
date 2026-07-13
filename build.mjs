@@ -23,4 +23,12 @@ fs.copyFileSync("_logos.js", "public/_logos.js");
 if (fs.existsSync("_supabase.js")) fs.copyFileSync("_supabase.js", "public/_supabase.js");
 fs.writeFileSync("dashboard.html", html); // local dev convenience
 
+// /demos works as a plain path: tiny stubs redirect to the hash route.
+const redirect = (to) =>
+  `<!doctype html><meta charset="utf-8"><script>location.replace(${JSON.stringify(to)});</script>`;
+fs.mkdirSync("public/demos", { recursive: true });
+fs.writeFileSync("public/demos/index.html", redirect("/#/demos"));
+fs.mkdirSync("demos", { recursive: true });                          // local python server
+fs.writeFileSync("demos/index.html", redirect("/dashboard.html#/demos"));
+
 console.log(`Built public/index.html from ${templates.length} templates.`);
