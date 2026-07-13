@@ -2,7 +2,6 @@
 (function () {
   function Component(props) {
     const { useState } = React;
-    const bg = "https://www.figma.com/api/mcp/asset/9336dcc1-64cd-4a98-8156-dc490f05bcc3";
 
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
@@ -62,9 +61,7 @@
             z-index: 20;
           }
         `}</style>
-        <div className="absolute blur-[360.956px] bottom-[-2911.75px] h-[4801.124px] left-[-2103.83px] opacity-30 w-[4634.49px]">
-          <img alt="" className="absolute inset-0 max-w-none object-bottom pointer-events-none w-full h-full" src={bg} />
-        </div>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[16px] items-center">
           <Card k="slot1" text="RAW FOOTAGE" />
           

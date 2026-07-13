@@ -17,8 +17,6 @@
   function Component(props) {
     const { useState } = React;
 
-    const imgBg = "https://www.figma.com/api/mcp/asset/3dce3689-7085-4940-8142-51c675312aad";
-
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
     const pick = k => {
@@ -61,9 +59,7 @@
 
     return (
       <div className="relative overflow-hidden bg-[#181818]" style={{ width: 1024, height: 576 }}>
-        <div className="absolute blur-[360.956px] bottom-[-2911.75px] h-[4801.124px] left-[-2103.83px] opacity-30 w-[4634.49px]">
-          <img alt="" className="absolute inset-0 max-w-none object-bottom pointer-events-none size-full" src={imgBg} />
-        </div>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
         <div className="-translate-x-1/2 absolute flex gap-[40px] items-center left-1/2 top-[61px]">
           <Card k="slot1" label="RAW FOOTAGE" />
           

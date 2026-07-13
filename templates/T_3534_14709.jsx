@@ -3,8 +3,6 @@
   function Component(props) {
     const { useState } = React;
 
-    const imgScreenshot = "https://www.figma.com/api/mcp/asset/a556daf2-3acb-432e-a6e7-f20a4c0eccb9";
-
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
     const pick = k => {
@@ -48,9 +46,7 @@
             filter: drop-shadow(0 0 6px rgba(255,255,255,0.7));
           }
         `}</style>
-        <div className="absolute blur-[360.956px] bottom-[-2911.75px] h-[4801.124px] left-[-2103.83px] opacity-30 w-[4634.49px] z-0">
-          <img alt="" className="absolute inset-0 max-w-none object-bottom pointer-events-none size-full" src={imgScreenshot} />
-        </div>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
         <div className="-translate-x-1/2 absolute flex gap-[40px] items-center left-1/2 top-[60.32px] z-10">
           <div className="flex flex-col gap-[10px] items-start relative shrink-0 w-[300px]">
             <div className="flex items-center justify-center p-[11.979px] relative rounded-[9.583px] shrink-0 w-full" style={labelBg}>
