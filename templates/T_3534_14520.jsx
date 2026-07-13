@@ -16,7 +16,9 @@
     const [logoBgs, setLogoBgs] = useState(() => (props && props.preload && props.preload.logoBgs) || {});
     const [logoScales, setLogoScales] = useState(() => (props && props.preload && props.preload.logoScales) || { logo1: 0.7 });
     const [logoBgDefault, setLogoBgDefault] = useState({});
-    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setLogos = setLogos; window.__slotAPI.setLogoScales = setLogoScales; window.__slotAPI.setLogoBgs = setLogoBgs; } }, []);
+    const [logosHidden, setLogosHidden] = useState(() => (props && props.preload && props.preload.logosHidden) || false);
+    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setLogos = setLogos; window.__slotAPI.setLogoScales = setLogoScales; window.__slotAPI.setLogoBgs = setLogoBgs; window.__slotAPI.setLogosHidden = setLogosHidden; } }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.logosHidden = logosHidden; }, [logosHidden]);
     React.useEffect(() => { let on = true; Object.keys(logos).forEach(k => { const u = logos[k]; if (u && window.__logoDominant) window.__logoDominant(u).then(c => { if (on && c) setLogoBgDefault(m => (m[k] === c ? m : { ...m, [k]: c })); }); }); return () => { on = false; }; }, [logos]);
     const __logoBg = (k) => (logoBgs[k] != null ? logoBgs[k] : (logoBgDefault[k] != null ? logoBgDefault[k] : (window.__LOGO_BG || {})[logos[k]]));
     const __logoScale = (k) => (logoScales[k] != null ? logoScales[k] : 1);
@@ -40,13 +42,16 @@
         {/* centered column */}
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-[42px]">
           {/* logo-tile row: two white rounded tiles + plus */}
-          <div className="flex gap-[20px] items-center shrink-0">
-            <LogoSlot k="logo1" className="bg-white rounded-[15.75px] shrink-0 size-[90px]" />
-            <div className="relative shrink-0 flex items-center justify-center size-[34px]">
-              <span className="text-white text-[30px] leading-none font-light">+</span>
-            </div>
-            <LogoSlot k="logo2" className="bg-white rounded-[15.75px] shrink-0 size-[90px]" />
-          </div>
+          {logosHidden
+            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
+            : <div data-logogroup className="relative group flex gap-[20px] items-center shrink-0">
+                <LogoSlot k="logo1" className="bg-white rounded-[15.75px] shrink-0 size-[90px]" />
+                <div className="relative shrink-0 flex items-center justify-center size-[34px]">
+                  <span className="text-white text-[30px] leading-none font-light">+</span>
+                </div>
+                <LogoSlot k="logo2" className="bg-white rounded-[15.75px] shrink-0 size-[90px]" />
+                <button data-ctl onClick={() => setLogosHidden(true)} className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Hide logos</button>
+              </div>}
 
           {/* centered framed media */}
           <Slot k="slot3" className="bg-neutral-800 shrink-0" style={{ width: 594, height: 334 }} />

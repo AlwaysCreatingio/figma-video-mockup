@@ -41,8 +41,9 @@
     const [logoBgDefault, setLogoBgDefault] = useState({});
     const [showPlus, setShowPlus] = useState(() => (props && props.preload && props.preload.showPlus != null) ? props.preload.showPlus : true);
     const [hidden, setHidden] = useState(() => (props && props.preload && props.preload.hiddenLogos) || {});
-    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setLogos = setLogos; window.__slotAPI.setLogoScales = setLogoScales; window.__slotAPI.setLogoBgs = setLogoBgs; window.__slotAPI.setShowPlus = setShowPlus; window.__slotAPI.setHiddenLogos = setHidden; } }, []);
-    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.hiddenLogos = hidden; }, [hidden]);
+    const [logosHidden, setLogosHidden] = useState(() => (props && props.preload && props.preload.logosHidden) || false);
+    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setLogos = setLogos; window.__slotAPI.setLogoScales = setLogoScales; window.__slotAPI.setLogoBgs = setLogoBgs; window.__slotAPI.setShowPlus = setShowPlus; window.__slotAPI.setHiddenLogos = setHidden; window.__slotAPI.setLogosHidden = setLogosHidden; } }, []);
+    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.hiddenLogos = hidden; window.__slotAPI.logosHidden = logosHidden; } }, [hidden, logosHidden]);
     React.useEffect(() => { let on = true; Object.keys(logos).forEach(k => { const u = logos[k]; if (u && window.__logoDominant) window.__logoDominant(u).then(c => { if (on && c) setLogoBgDefault(m => (m[k] === c ? m : { ...m, [k]: c })); }); }); return () => { on = false; }; }, [logos]);
     const __logoBg = (k) => (logoBgs[k] != null ? logoBgs[k] : (logoBgDefault[k] != null ? logoBgDefault[k] : (window.__LOGO_BG || {})[logos[k]]));
     const __logoScale = (k) => (logoScales[k] != null ? logoScales[k] : 1);
@@ -60,25 +61,28 @@
       <div className="bg-[#ededed] relative overflow-hidden" style={{ width: 594, height: 1056 }}>
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex flex-col gap-[42px] items-center left-1/2 top-1/2 w-[522.941px]">
           {/* Top avatar squares — visible tiles only, with "+" between when enabled */}
-          {(() => {
-            const vis = ["logo1", "logo2", "logo3"].filter(k => !hidden[k]);
-            return (
-              <div className="relative group flex flex-col items-center">
-                <div className={"flex items-center relative shrink-0 " + (showPlus ? "gap-[18px]" : "gap-[33px]")}>
-                  {vis.map((k, i) => (
-                    <React.Fragment key={k}>
-                      {i > 0 && showPlus && <span data-plus className="text-neutral-500 text-[30px] leading-none font-light">+</span>}
-                      <LogoSlot k={k} className="bg-[#565656] relative rounded-[14px] shrink-0 size-[80px]" />
-                    </React.Fragment>
-                  ))}
+          {logosHidden
+            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
+            : (() => {
+              const vis = ["logo1", "logo2", "logo3"].filter(k => !hidden[k]);
+              return (
+                <div data-logogroup className="relative group flex flex-col items-center">
+                  <div className={"flex items-center relative shrink-0 " + (showPlus ? "gap-[18px]" : "gap-[33px]")}>
+                    {vis.map((k, i) => (
+                      <React.Fragment key={k}>
+                        {i > 0 && showPlus && <span data-plus className="text-neutral-500 text-[30px] leading-none font-light">+</span>}
+                        <LogoSlot k={k} className="bg-[#565656] relative rounded-[14px] shrink-0 size-[80px]" />
+                      </React.Fragment>
+                    ))}
+                  </div>
+                  <div data-ctl className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition flex gap-1">
+                    <button onClick={() => setShowPlus(v => !v)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">{showPlus ? "Remove +" : "Add +"}</button>
+                    {Object.keys(hidden).some(k => hidden[k]) && <button onClick={() => setHidden({})} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Reset logos</button>}
+                    <button onClick={() => setLogosHidden(true)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Hide logos</button>
+                  </div>
                 </div>
-                <div data-ctl className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition flex gap-1">
-                  <button onClick={() => setShowPlus(v => !v)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">{showPlus ? "Remove +" : "Add +"}</button>
-                  {Object.keys(hidden).some(k => hidden[k]) && <button onClick={() => setHidden({})} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Reset logos</button>}
-                </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
           {/* Two comparison columns */}
           <div className="flex gap-[40px] items-start relative shrink-0 w-full">

@@ -55,6 +55,10 @@ function finalize(){
     const fit=l.fit||"cover", pad=fit==="cover"?"0":"10px", sc=(l.scale!=null?l.scale:1);
     if(l.bg) el.style.backgroundColor=l.bg;
     el.innerHTML='<img src="'+l.uri+'" style="width:100%;height:100%;object-fit:'+fit+';padding:'+pad+';box-sizing:border-box;transform:scale('+sc+');transform-origin:center">'; }
+  // editor-only affordances never belong in the export
+  frame.querySelectorAll("[data-ctl]").forEach(e => e.remove());
+  // hide-all-logos: drop the whole logo group so the layout re-centers with no gap
+  if (X.logosHidden) frame.querySelectorAll("[data-logogroup]").forEach(e => e.remove());
   // drop removed logo tiles (client sends the slots still visible), then reconcile the "+" count
   if (Array.isArray(X.visibleLogos)) {
     frame.querySelectorAll("[data-lslot]").forEach(el => { if (X.visibleLogos.indexOf(el.getAttribute("data-lslot")) < 0) el.remove(); });
@@ -216,9 +220,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false } = spec;
       const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-      const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos }, W, H, plate);
+      const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden }, W, H, plate);
       const videoFiles = rects.map(r => path.join(WORK, r.videoId));
       const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
       const out = path.join(WORK, "out_" + Date.now() + ".mp4");

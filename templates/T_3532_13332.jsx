@@ -8,7 +8,9 @@
     const [logoBgs, setLogoBgs] = useState(() => (props && props.preload && props.preload.logoBgs) || {});
     const [logoScales, setLogoScales] = useState(() => (props && props.preload && props.preload.logoScales) || { logo1: 0.7 });
     const [logoBgDefault, setLogoBgDefault] = useState({});
-    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setLogos = setLogos; window.__slotAPI.setLogoScales = setLogoScales; window.__slotAPI.setLogoBgs = setLogoBgs; } }, []);
+    const [logosHidden, setLogosHidden] = useState(() => (props && props.preload && props.preload.logosHidden) || false);
+    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setLogos = setLogos; window.__slotAPI.setLogoScales = setLogoScales; window.__slotAPI.setLogoBgs = setLogoBgs; window.__slotAPI.setLogosHidden = setLogosHidden; } }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.logosHidden = logosHidden; }, [logosHidden]);
     React.useEffect(() => { let on = true; Object.keys(logos).forEach(k => { const u = logos[k]; if (u && window.__logoDominant) window.__logoDominant(u).then(c => { if (on && c) setLogoBgDefault(m => (m[k] === c ? m : { ...m, [k]: c })); }); }); return () => { on = false; }; }, [logos]);
     const __logoBg = (k) => (logoBgs[k] != null ? logoBgs[k] : (logoBgDefault[k] != null ? logoBgDefault[k] : (window.__LOGO_BG || {})[logos[k]]));
     const __logoScale = (k) => (logoScales[k] != null ? logoScales[k] : 1);
@@ -59,7 +61,9 @@
         <style>{`@property --ao-angle{syntax:"<angle>";initial-value:0deg;inherits:false}@keyframes ao-spin{to{--ao-angle:360deg}}.ao-glow::after{content:"";position:absolute;inset:-2px;border-radius:inherit;padding:2px;background:conic-gradient(from var(--ao-angle,0deg),transparent 0deg,rgba(255,255,255,.12) 70deg,#ffffff 140deg,rgba(255,255,255,.12) 210deg,transparent 300deg);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:ao-spin 3s linear infinite;filter:drop-shadow(0 0 6px rgba(255,255,255,.6));pointer-events:none;z-index:2}`}</style>
         <div className="absolute inset-0 opacity-40" style={{ background: "radial-gradient(120% 80% at 50% -10%, rgba(255,87,10,.18), transparent 60%)" }} />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[42px] items-center w-[522.941px]">
-          <div className="flex gap-[20px] items-center"><LogoSlot k="logo1" className="bg-white rounded-[15.75px] size-[90px]" /><div className="relative size-[34px]"><span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-[34px] leading-none font-light">+</span></div><LogoSlot k="logo2" className="bg-white rounded-[15.75px] size-[90px]" /></div>
+          {logosHidden
+            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
+            : <div data-logogroup className="relative group flex gap-[20px] items-center"><LogoSlot k="logo1" className="bg-white rounded-[15.75px] size-[90px]" /><div className="relative size-[34px]"><span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-[34px] leading-none font-light">+</span></div><LogoSlot k="logo2" className="bg-white rounded-[15.75px] size-[90px]" /><button data-ctl onClick={() => setLogosHidden(true)} className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Hide logos</button></div>}
           <div className="flex gap-[40px]">
             <div className="flex flex-col gap-[20px] items-center w-[241.471px]"><input value={titles.left} onChange={e => setTitles(t => ({ ...t, left: e.target.value }))} className="bg-transparent text-center uppercase text-white font-medium text-[32px] tracking-[-0.16px] w-full outline-none" style={{ lineHeight: "1" }} />{renderBox("left")}</div>
             <div className="flex flex-col gap-[20px] items-center w-[241.471px]"><img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[34px] object-contain mx-auto" />{renderBox("right")}</div>
