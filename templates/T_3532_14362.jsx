@@ -38,7 +38,7 @@
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col gap-[34px] items-center w-[522.941px]">
           {/* brand tiles + plus */}
           {logosHidden
-            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
+            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="absolute left-1/2 top-3 -translate-x-1/2 z-30 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
             : <div data-logogroup className="relative group flex gap-[20px] items-center shrink-0">
                 <LogoSlot k="logo1" className="bg-white rounded-[15.75px] shrink-0 size-[90px]" />
                 <div className="relative size-[34px] flex items-center justify-center">

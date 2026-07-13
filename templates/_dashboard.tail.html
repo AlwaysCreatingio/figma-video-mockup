@@ -203,13 +203,21 @@ function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
   );
 }
 
+const routeFromHash = () => {
+  const parts = (typeof location !== "undefined" ? location.hash || "" : "").replace(/^#\/?/, "").split("/");
+  if (parts[0] === "template" && parts[1]) return { sel: decodeURIComponent(parts[1]), page: "templates" };
+  if (parts[0] === "demos") return { sel: null, page: "demos" };
+  if (parts[0] === "projects") return { sel: null, page: "showcase" };
+  return { sel: null, page: "templates" };
+};
+
 function App() {
-  const [sel, setSel] = useState(null);
+  const [sel, setSel] = useState(() => routeFromHash().sel);
   const [editMode, setEditMode] = useState(true);
   const [insp, setInsp] = useState(null);
   const [picker, setPicker] = useState(null);
   const [exporting, setExporting] = useState(false);
-  const [page, setPage] = useState("templates");
+  const [page, setPage] = useState(() => routeFromHash().page);
   const [soundOn, setSoundOn] = useState(false);
   const [demos, setDemos] = useState([]);
   const [demoRecs, setDemoRecs] = useState({});

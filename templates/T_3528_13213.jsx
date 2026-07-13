@@ -62,7 +62,7 @@
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex flex-col gap-[42px] items-center left-1/2 top-1/2 w-[522.941px]">
           {/* Top avatar squares — visible tiles only, with "+" between when enabled */}
           {logosHidden
-            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
+            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="absolute left-1/2 top-3 -translate-x-1/2 z-30 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
             : (() => {
               const vis = ["logo1", "logo2", "logo3"].filter(k => !hidden[k]);
               return (
