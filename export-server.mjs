@@ -1,0 +1,230 @@
+// MP4 export server: renders the design plate (Playwright) and composites videos into slots (FFmpeg).
+import http from "http";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { spawn } from "child_process";
+import { chromium } from "playwright";
+
+const PORT = 5050;
+const TDIR = "/Users/stevenvan/figma-video-mockup/templates";
+const WORK = path.join(os.tmpdir(), "figma-export");
+fs.mkdirSync(WORK, { recursive: true });
+
+const HEAD = `<!doctype html><html><head>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>html,body{margin:0;background:transparent;}#root{display:inline-block;}*{font-family:'Geist',sans-serif;} @property --ao-a { syntax:'<angle>'; initial-value:0deg; inherits:false; } @keyframes ao-rot { to { --ao-a:360deg; } } .ao-glow::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:3px;background:conic-gradient(from var(--ao-a),transparent 50%,rgba(255,255,255,.85) 74%,#fff 82%,transparent 92%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:5;}</style>
+</head><body><div id="root"></div>`;
+
+const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius"];
+
+let LOGOS_JS = "";
+try { LOGOS_JS = fs.readFileSync("/Users/stevenvan/figma-video-mockup/_logos.js", "utf8"); } catch {}
+
+function buildHtml(tplSrc, X) {
+  return HEAD + `<script>${LOGOS_JS}</script>` +
+`<script type="text/babel">window.TEMPLATES=[];window.__logoPicker=function(){};</script>
+<script type="text/babel">${tplSrc}</script>
+<script type="text/babel">
+const t = window.TEMPLATES[window.TEMPLATES.length-1];
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(t.Component));
+</script>
+<script>
+const X = ${JSON.stringify(X)};
+const SP = ${JSON.stringify(STYLE_PROPS)};
+function pathAt(root,p){ if(p==="")return root; let n=root; for(const i of p.split(".")){ if(!n)return null; n=n.children[+i]; } return n; }
+function finalize(){
+  // paths from the client are relative to its container (which wraps the template as child 0),
+  // so use #root as the base here — #root also has the template as its only child.
+  const base = document.getElementById("root");
+  const frame = base && base.firstElementChild;
+  if(!frame){ return setTimeout(finalize, 60); }
+  // apply text + style overrides
+  for(const p in X.overrides){ const el=pathAt(base,p); if(!el)continue; const o=X.overrides[p];
+    if(el.tagName==="INPUT"){ if(o.text!=null){ el.value=o.text; el.setAttribute("value",o.text); } }
+    else if(o.html!=null) el.innerHTML=o.html;
+    else if(o.text!=null) el.textContent=o.text;
+    if(o.style) for(const k of SP) if(o.style[k]!=null) el.style[k]=o.style[k];
+  }
+  // set logos (matched by stable data-lslot id) — background tint + per-logo scale mirror the editor
+  for(const l of X.logos){ const el=frame.querySelector('[data-lslot="'+l.slot+'"]'); if(!el)continue;
+    const fit=l.fit||"cover", pad=fit==="cover"?"0":"10px", sc=(l.scale!=null?l.scale:1);
+    if(l.bg) el.style.backgroundColor=l.bg;
+    el.innerHTML='<img src="'+l.uri+'" style="width:100%;height:100%;object-fit:'+fit+';padding:'+pad+';box-sizing:border-box;transform:scale('+sc+');transform-origin:center">'; }
+  // honour the "+"-between-logos toggle (elements marked data-plus)
+  if (X.showPlus === false) frame.querySelectorAll("[data-plus]").forEach(e => e.remove());
+  // record the frame's own background, then make it transparent so slot holes fall through to the
+  // ffmpeg base layer (painted with this colour). Decorative children/gradients stay in the plate.
+  window.__FRAMEBG = getComputedStyle(frame).backgroundColor;
+  frame.style.backgroundColor = "transparent";
+  // Cut each video slot into a TRANSPARENT, ROUNDED hole (no chroma key). We capture the rect + a
+  // rounded-corner alpha mask so ffmpeg can round the composited video — nothing magenta ever exists,
+  // so there is no fringe/purple and translucent overlays render correctly.
+  function rr(ctx, x, y, w, h, r){ r = Math.min(r, w/2, h/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function measure(attempt){
+    const rects=[]; let ok=true;
+    for(const s of X.videoSlots){ const el=frame.querySelector('[data-vslot="'+s.slot+'"]'); if(!el){ ok=false; continue; }
+      const r=el.getBoundingClientRect();
+      if(r.width<2 || r.height<2){ ok=false; }
+      const radius=parseFloat(getComputedStyle(el).borderTopLeftRadius)||0;
+      const w=Math.round(r.width/2)*2, h=Math.round(r.height/2)*2, S=2;
+      const c=document.createElement("canvas"); c.width=w*S; c.height=h*S;
+      const ctx=c.getContext("2d"); ctx.fillStyle="#000"; ctx.fillRect(0,0,c.width,c.height);
+      ctx.fillStyle="#fff"; rr(ctx,0,0,c.width,c.height,radius*S); ctx.fill();
+      rects.push({ slot:s.slot, videoId:s.videoId, x:Math.round(r.left), y:Math.round(r.top), w, h, mask:c.toDataURL("image/png") });
+      // punch the hole
+      el.innerHTML=''; el.style.background='transparent'; el.style.backgroundImage='none'; el.style.opacity='1';
+    }
+    if(!ok && attempt<15){ return setTimeout(()=>measure(attempt+1), 200); }
+    window.__RECTS = rects;
+    setTimeout(()=>{ window.__DONE = true; }, 300);
+  }
+  measure(0);
+}
+window.addEventListener("load", ()=>setTimeout(finalize, 600));
+</script></body></html>`;
+}
+
+function run(cmd, args) {
+  return new Promise((res, rej) => {
+    const p = spawn(cmd, args);
+    let err = "";
+    p.stderr.on("data", d => { err += d; });
+    p.on("close", c => c === 0 ? res(err) : rej(new Error(cmd + " exited " + c + "\n" + err.slice(-1500))));
+  });
+}
+function probeDur(file) {
+  return new Promise((res) => {
+    const p = spawn("ffprobe", ["-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1", file]);
+    let out = ""; p.stdout.on("data", d => out += d);
+    p.on("close", () => res(parseFloat(out) || 0));
+  });
+}
+function hasAudio(file) {
+  return new Promise((res) => {
+    const p = spawn("ffprobe", ["-v","error","-select_streams","a","-show_entries","stream=index","-of","csv=p=0", file]);
+    let out = ""; p.stdout.on("data", d => out += d);
+    p.on("close", () => res(out.trim().length > 0));
+  });
+}
+
+async function renderPlate(templateId, X, W, H, plateOut) {
+  const file = path.join(TDIR, "T_" + templateId.replace(/-/g, "_") + ".jsx");
+  const tplSrc = fs.readFileSync(file, "utf8");
+  const html = buildHtml(tplSrc, X);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: W + 40, height: H + 40 }, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => window.__DONE === true, { timeout: 20000 });
+    const rects = await page.evaluate(() => window.__RECTS);
+    const frameBg = await page.evaluate(() => window.__FRAMEBG);
+    const el = await page.$("#root > *");
+    await el.screenshot({ path: plateOut, omitBackground: true });
+    return { rects, frameBg };
+  } finally { await browser.close(); }
+}
+
+function cssToHex(c) {
+  const m = (c || "").match(/\d+(\.\d+)?/g);
+  if (!m || m.length < 3 || (m[3] != null && +m[3] === 0)) return "0x101010";
+  const [r, g, b] = m.map(Number);
+  return "0x" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
+}
+
+async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg) {
+  // bound output to the shortest clip so the looped plate/color source can't run forever
+  const durs = await Promise.all(videoFiles.map(probeDur));
+  const ambDur = ambient ? await probeDur(ambientFile) : 0;
+  const finite = durs.filter(d => d > 0);
+  const DUR = Math.max(0.5, Math.min(...(finite.length ? finite : [ambDur > 0 ? ambDur : 4])));
+  const S = 2;                    // plate is rendered at 2x (deviceScaleFactor) — supersample for crisp text/edges
+  const OW = W * S, OH = H * S;
+  // write each slot's rounded-corner alpha mask to disk
+  const maskFiles = rects.map((r, i) => { const f = path.join(WORK, "mask_" + Date.now() + "_" + i + ".png"); fs.writeFileSync(f, Buffer.from(r.mask.split(",")[1], "base64")); return f; });
+  const nVid = rects.length;
+  const args = ["-y"];
+  rects.forEach((r, i) => { if (durs[i] === 0) args.push("-loop", "1"); args.push("-i", videoFiles[i]); }); // 0..nVid-1 videos
+  maskFiles.forEach(f => { args.push("-loop", "1", "-i", f); });                                            // nVid..2n-1 masks
+  if (ambient) { if (ambDur === 0) args.push("-loop", "1"); args.push("-i", ambientFile); }
+  args.push("-loop", "1", "-i", plate);
+  const ambIdx = ambient ? nVid * 2 : -1;
+  const plateIdx = nVid * 2 + (ambient ? 1 : 0);
+  const fc = [];
+  // base = the frame's own background colour (so rounded-corner gaps match the design); ambient adds blur
+  fc.push(`color=c=${cssToHex(frameBg)}:s=${OW}x${OH}:r=30:d=${DUR.toFixed(2)}[base]`);
+  let last = "base";
+  if (ambient) {
+    const sigma = Math.max(8, Math.round((ambient.blur || 60) / 2) * S);
+    const op = Math.min(1, Math.max(0, ambient.opacity != null ? ambient.opacity : 0.3));
+    fc.push(`[${ambIdx}:v]scale=${OW}:${OH}:force_original_aspect_ratio=increase,crop=${OW}:${OH},gblur=sigma=${sigma},format=yuva420p,colorchannelmixer=aa=${op.toFixed(2)}[amb]`);
+    fc.push(`[base][amb]overlay=0:0:eof_action=repeat[bg0]`);
+    last = "bg0";
+  }
+  // each video: fill its slot, then round its corners with the slot mask, then overlay
+  rects.forEach((r, i) => {
+    const x = r.x * S, y = r.y * S, w = r.w * S, h = r.h * S;
+    fc.push(`[${i}:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1,format=yuva420p[vc${i}]`);
+    fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
+    fc.push(`[vc${i}][mk${i}]alphamerge[vr${i}]`);
+    fc.push(`[${last}][vr${i}]overlay=${x}:${y}:eof_action=repeat[s${i}]`);
+    last = `s${i}`;
+  });
+  // the design plate (slots are transparent holes) goes straight on top — no colour keying at all
+  fc.push(`[${last}][${plateIdx}:v]overlay=0:0[out]`);
+  // carry the source audio from the first slot video that has an audio track
+  const audioFlags = await Promise.all(videoFiles.map(hasAudio));
+  const aIdx = audioFlags.findIndex(Boolean);
+  args.push("-filter_complex", fc.join(";"), "-map", "[out]");
+  if (aIdx >= 0) args.push("-map", `${aIdx}:a`, "-c:a", "aac", "-b:a", "160k");
+  args.push("-t", DUR.toFixed(2), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+    "-pix_fmt", "yuv420p", "-r", "30", "-movflags", "+faststart");
+  if (aIdx < 0) args.push("-an");
+  args.push(outFile);
+  await run("ffmpeg", args);
+}
+
+function cors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Ext");
+}
+function readBody(req) { return new Promise((res) => { const c = []; req.on("data", d => c.push(d)); req.on("end", () => res(Buffer.concat(c))); }); }
+
+const server = http.createServer(async (req, res) => {
+  cors(res);
+  if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
+  try {
+    if (req.method === "POST" && req.url === "/upload") {
+      const buf = await readBody(req);
+      const ext = (req.headers["x-ext"] || "mp4").replace(/[^a-z0-9]/gi, "");
+      const id = "v" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+      const f = path.join(WORK, id + "." + ext);
+      fs.writeFileSync(f, buf);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ id: path.basename(f) }));
+    }
+    if (req.method === "POST" && req.url === "/export") {
+      const spec = JSON.parse((await readBody(req)).toString());
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true } = spec;
+      const plate = path.join(WORK, "plate_" + Date.now() + ".png");
+      const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus }, W, H, plate);
+      const videoFiles = rects.map(r => path.join(WORK, r.videoId));
+      const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
+      const out = path.join(WORK, "out_" + Date.now() + ".mp4");
+      await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg);
+      const data = fs.readFileSync(out);
+      res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
+      return res.end(data);
+    }
+    res.writeHead(404); res.end("not found");
+  } catch (e) {
+    console.error(e);
+    res.writeHead(500, { "Content-Type": "text/plain" }); res.end(String(e.message || e));
+  }
+});
+server.listen(PORT, () => console.log("export server on http://localhost:" + PORT));

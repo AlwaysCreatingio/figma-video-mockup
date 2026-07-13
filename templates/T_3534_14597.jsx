@@ -1,0 +1,79 @@
+/* Template 3534-14597 — Dual 16:9 Video Compare */
+(function () {
+  function Component(props) {
+    const { useState } = React;
+    const bg = "https://www.figma.com/api/mcp/asset/9336dcc1-64cd-4a98-8156-dc490f05bcc3";
+
+    const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
+    React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
+    const pick = k => {
+      const i = document.createElement('input');
+      i.type = 'file';
+      i.accept = 'video/*,image/*';
+      i.onchange = e => { const f = e.target.files[0]; if (f) setVids(v => ({ ...v, [k]: { url: URL.createObjectURL(f), img: (f.type||"").startsWith("image") } })); };
+      i.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0';document.body.appendChild(i);i.addEventListener('change',function(){setTimeout(function(){i.remove();},0);},{once:true});i.click();
+    };
+    const Slot = ({ k, className, style }) => (
+      <div data-vslot={k} onClick={() => pick(k)} className={'overflow-hidden cursor-pointer group flex items-center justify-center ' + (className || '')} style={style}>
+        {vids[k]
+          ? (vids[k].img ? <img src={vids[k].url} className="w-full h-full object-cover" /> : <video src={vids[k].url} autoPlay loop muted playsInline className="w-full h-full object-cover" />)
+          : <div className="flex flex-col items-center justify-center gap-1 text-neutral-400 group-hover:text-neutral-600">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M10 9l5 3-5 3z" /></svg>
+              <span className="text-xs font-medium">Add video</span>
+            </div>}
+      </div>
+    );
+
+    const pillStyle = { backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" };
+    const Label = ({ text, logo }) => (
+      <div className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
+        {logo
+          ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
+          : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap" style={{ fontFamily: "'Geist', sans-serif" }}>{text}</p>}
+      </div>
+    );
+
+    const Card = ({ k, text, logo }) => (
+      <div className="relative shrink-0 w-[504px] h-[283.5px]">
+        <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)] rounded-[20px]" />
+        <Label text={text} logo={logo} />
+      </div>
+    );
+
+    return (
+      <div className="relative overflow-hidden bg-[#181818]" style={{ width: 1056, height: 594 }}>
+        <style>{`
+          @property --ao-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+          @keyframes ao-spin { to { --ao-angle: 360deg; } }
+          .ao-glow::after {
+            content: "";
+            position: absolute;
+            inset: -2px;
+            border-radius: inherit;
+            padding: 2px;
+            background: conic-gradient(from var(--ao-angle), rgba(255,255,255,0) 0deg, rgba(255,255,255,0.05) 60deg, #ffffff 160deg, #ffffff 200deg, rgba(255,255,255,0.05) 300deg, rgba(255,255,255,0) 360deg);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            filter: drop-shadow(0 0 6px rgba(255,255,255,0.8));
+            animation: ao-spin 3s linear infinite;
+            pointer-events: none;
+            z-index: 20;
+          }
+        `}</style>
+        <div className="absolute blur-[360.956px] bottom-[-2911.75px] h-[4801.124px] left-[-2103.83px] opacity-30 w-[4634.49px]">
+          <img alt="" className="absolute inset-0 max-w-none object-bottom pointer-events-none w-full h-full" src={bg} />
+        </div>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[16px] items-center">
+          <Card k="slot1" text="RAW FOOTAGE" />
+          
+            <Card k="slot2" logo />
+          
+        </div>
+      </div>
+    );
+  }
+  window.TEMPLATES = window.TEMPLATES || [];
+  window.TEMPLATES.push({ id: "3534-14597", name: "Dual 16:9 Video Compare", width: 1056, height: 594, slots: 2, desc: "Two side-by-side rounded 16:9 media cards with labeled pills on a blurred dark backdrop.", Component });
+})();

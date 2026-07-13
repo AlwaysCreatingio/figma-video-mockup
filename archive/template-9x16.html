@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>9:16 Comparison Template — Video Mockup</title>
+<style>
+  :root{
+    --bg:#0c0c0f; --panel:#15151b; --border:#2a2a34; --text:#e7e7ea;
+    --muted:#9a9aa6; --accent:#7c6cff; --accent-2:#00d0b0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg);color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:grid;grid-template-columns:300px 1fr;height:100vh;
+  }
+  aside{background:var(--panel);border-right:1px solid var(--border);padding:20px;overflow-y:auto;}
+  h1{font-size:15px;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:12px;margin:0 0 18px;}
+  .step{font-size:13px;color:var(--muted);margin:14px 0 6px;font-weight:600;}
+  button{cursor:pointer;border:none;border-radius:8px;font-weight:600;font-size:13px;
+    padding:10px 14px;color:#fff;background:var(--accent);width:100%;margin-top:8px;transition:filter .15s,opacity .15s;}
+  button:hover{filter:brightness(1.1);}
+  button.ghost{background:#1f1f27;border:1px solid var(--border);}
+  button.ghost:hover{background:#262631;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .badge{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;background:#1f1f27;border:1px solid var(--border);color:var(--muted);margin-left:6px;}
+  .hint{font-size:11px;color:var(--muted);margin-top:8px;}
+  .divider{height:1px;background:var(--border);margin:18px 0;}
+  .field{margin:10px 0;}
+  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
+  .field input{width:100%;padding:8px 10px;background:#1f1f27;border:1px solid var(--border);
+    border-radius:8px;color:var(--text);font-size:13px;outline:none;}
+  .field input:focus{border-color:var(--accent);}
+
+  main{position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;padding:24px;}
+
+  /* ---- The recreated Figma frame: 594 x 1056 ---- */
+  #frame{
+    position:relative;width:594px;height:1056px;background:#181818;
+    overflow:hidden;transform-origin:center center;flex:none;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);
+    /* faux blurred backdrop glow (stand-in for the blurred screenshot layer) */
+    background-image:radial-gradient(120% 80% at 50% -10%, rgba(124,108,255,.18), transparent 60%),
+                     radial-gradient(90% 60% at 20% 110%, rgba(0,208,176,.12), transparent 60%);
+  }
+  .content{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:522.94px;height:696.77px;
+    display:flex;flex-direction:column;align-items:center;gap:42px;
+  }
+  /* top icon row */
+  .icons{display:flex;flex-direction:row;align-items:center;gap:20px;height:90px;}
+  .iconbox{
+    width:90px;height:90px;border-radius:15.75px;background:#fff;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
+  }
+  .iconbox img{width:100%;height:100%;object-fit:cover;}
+  .iconbox .plus-tip{color:#181818;font-size:11px;font-weight:700;opacity:.5;}
+  .plus{width:34px;height:34px;position:relative;}
+  .plus::before,.plus::after{content:"";position:absolute;background:#fff;border-radius:2px;}
+  .plus::before{left:12.5%;right:12.5%;top:44%;height:12%;}
+  .plus::after{top:12.5%;bottom:12.5%;left:44%;width:12%;}
+
+  /* two-panel group */
+  .panels{display:flex;flex-direction:row;gap:40px;}
+  .panel{display:flex;flex-direction:column;align-items:center;gap:20px;width:241.47px;}
+  .panel .title{
+    width:100%;height:23px;font-weight:600;font-size:32px;line-height:23px;
+    text-align:center;letter-spacing:-0.005em;text-transform:uppercase;color:#fff;
+    font-family:'Geist',Inter,-apple-system,sans-serif;outline:none;white-space:nowrap;overflow:hidden;
+  }
+  .slot{
+    width:241.47px;height:429.28px;border-radius:20px;background:#fff;overflow:hidden;
+    position:relative;cursor:pointer;
+  }
+  .slot video{width:100%;height:100%;object-fit:cover;display:block;}
+  .slot .placeholder{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;color:#9a9aa6;background:#fff;
+  }
+  .slot .placeholder svg{opacity:.5;}
+  .slot .placeholder span{font-size:14px;font-weight:600;}
+  .slot .placeholder small{font-size:11px;opacity:.7;}
+
+  .caption{
+    width:522.94px;height:50.49px;font-weight:600;font-size:40px;line-height:50px;
+    text-align:center;letter-spacing:-0.005em;color:#fff;
+    font-family:'Geist',Inter,-apple-system,sans-serif;outline:none;
+  }
+</style>
+</head>
+<body>
+<aside>
+  <h1>9:16 Comparison <span class="badge">native rebuild</span></h1>
+  <p class="sub">Your Figma template, recreated in HTML/CSS. Click a white panel to drop a video in.</p>
+
+  <div class="step">1 · Videos</div>
+  <button class="ghost" id="pickL">Upload left video…</button>
+  <button class="ghost" id="pickR">Upload right video…</button>
+
+  <div class="divider"></div>
+  <div class="step">2 · Text</div>
+  <div class="field"><label>Left title</label><input id="titleL" value="Seedance 2.0" /></div>
+  <div class="field"><label>Right title</label><input id="titleR" value="Seedance 2.0" /></div>
+  <div class="field"><label>Caption</label><input id="cap" value="AgentOpus" /></div>
+
+  <div class="divider"></div>
+  <div class="step">3 · Icons (optional)</div>
+  <button class="ghost" id="pickI1">Left app icon…</button>
+  <button class="ghost" id="pickI2">Right app icon…</button>
+
+  <div class="divider"></div>
+  <button id="exportPng">Download PNG snapshot</button>
+  <div class="hint">Live preview + editing works now. MP4 export (baked video) is the next milestone — that needs the server-side FFmpeg step.</div>
+
+  <input id="fileL" type="file" accept="video/*" hidden />
+  <input id="fileR" type="file" accept="video/*" hidden />
+  <input id="fileI1" type="file" accept="image/*" hidden />
+  <input id="fileI2" type="file" accept="image/*" hidden />
+</aside>
+
+<main>
+  <div id="frame">
+    <div class="content">
+      <div class="icons">
+        <div class="iconbox" id="icon1"><span class="plus-tip">logo</span></div>
+        <div class="plus"></div>
+        <div class="iconbox" id="icon2"><span class="plus-tip">logo</span></div>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <div class="title" id="ttlL">SEEDANCE 2.0</div>
+          <div class="slot" id="slotL">
+            <div class="placeholder">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>
+              <span>Add video</span><small>click to upload</small>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="title" id="ttlR">SEEDANCE 2.0</div>
+          <div class="slot" id="slotR">
+            <div class="placeholder">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>
+              <span>Add video</span><small>click to upload</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="caption" id="capText">AgentOpus</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+
+// scale the 594x1056 frame to fit the viewport
+function fit(){
+  const f=$('#frame'), pad=48;
+  const availH=window.innerHeight-pad, availW=window.innerWidth-300-pad;
+  const s=Math.min(1, availH/1056, availW/594);
+  f.style.transform=`scale(${s})`;
+}
+window.addEventListener('resize',fit); fit();
+
+function loadVideo(slotEl, file){
+  if(!file) return;
+  const url=URL.createObjectURL(file);
+  slotEl.querySelectorAll('video,.placeholder').forEach(n=>n.remove());
+  const v=document.createElement('video');
+  v.src=url; v.autoplay=true; v.loop=true; v.muted=true; v.playsInline=true;
+  slotEl.appendChild(v);
+}
+function loadIcon(boxEl, file){
+  if(!file) return;
+  const url=URL.createObjectURL(file);
+  boxEl.innerHTML='';
+  const img=document.createElement('img'); img.src=url; boxEl.appendChild(img);
+}
+
+// wire uploads (sidebar buttons + clicking the panels directly)
+$('#pickL').onclick=()=>$('#fileL').click();
+$('#pickR').onclick=()=>$('#fileR').click();
+$('#slotL').onclick=()=>$('#fileL').click();
+$('#slotR').onclick=()=>$('#fileR').click();
+$('#fileL').onchange=e=>loadVideo($('#slotL'),e.target.files[0]);
+$('#fileR').onchange=e=>loadVideo($('#slotR'),e.target.files[0]);
+
+$('#pickI1').onclick=()=>$('#fileI1').click();
+$('#pickI2').onclick=()=>$('#fileI2').click();
+$('#icon1').onclick=()=>$('#fileI1').click();
+$('#icon2').onclick=()=>$('#fileI2').click();
+$('#fileI1').onchange=e=>loadIcon($('#icon1'),e.target.files[0]);
+$('#fileI2').onchange=e=>loadIcon($('#icon2'),e.target.files[0]);
+
+// live text
+$('#titleL').oninput=e=>$('#ttlL').textContent=e.target.value.toUpperCase();
+$('#titleR').oninput=e=>$('#ttlR').textContent=e.target.value.toUpperCase();
+$('#cap').oninput=e=>$('#capText').textContent=e.target.value;
+
+$('#exportPng').onclick=()=>alert('PNG/MP4 export is the next milestone — it needs the server-side render step (html2canvas for stills, FFmpeg for baked video). Say the word and I\'ll build it.');
+</script>
+</body>
+</html>

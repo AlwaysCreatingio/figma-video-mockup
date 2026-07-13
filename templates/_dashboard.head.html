@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Video Template Dashboard</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;background:#f6f6f8;}
+  *{font-family:'Geist',-apple-system,BlinkMacSystemFont,sans-serif;}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:8px;border:2px solid #f6f6f8}
+  ::-webkit-scrollbar-thumb:hover{background:#b8b8bf}
+  @property --ao-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+  @keyframes ao-rot { to { --ao-a: 360deg; } }
+  .ao-glow::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; padding:3px;
+    background: conic-gradient(from var(--ao-a), transparent 50%, rgba(255,255,255,.85) 74%, #fff 82%, transparent 92%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: ao-rot 2.6s linear infinite; pointer-events:none; z-index:5;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="/_logos.js"></script>
+<script type="text/babel">window.TEMPLATES = window.TEMPLATES || [];</script>

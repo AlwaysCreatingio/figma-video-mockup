@@ -1,0 +1,727 @@
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* dominant (most common opaque) color of a logo image — used as the default tile background.
+   Library logos are precomputed in window.__LOGO_BG; everything else is sampled on a canvas. */
+window.__logoDominant = function (uri) {
+  window.__logoBgCache = window.__logoBgCache || {};
+  const pre = (window.__LOGO_BG || {})[uri];
+  if (pre) return Promise.resolve(pre);
+  if (window.__logoBgCache[uri]) return Promise.resolve(window.__logoBgCache[uri]);
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = function () {
+      try {
+        const N = 48, c = document.createElement("canvas"); c.width = N; c.height = N;
+        const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0, N, N);
+        const d = ctx.getImageData(0, 0, N, N).data, m = {};
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 128) continue;
+          const key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+          const s = m[key] || (m[key] = { n: 0, r: 0, g: 0, b: 0 });
+          s.n++; s.r += d[i]; s.g += d[i + 1]; s.b += d[i + 2];
+        }
+        let best = null; for (const k in m) if (!best || m[k].n > best.n) best = m[k];
+        let hex = null;
+        if (best) hex = "#" + [best.r / best.n, best.g / best.n, best.b / best.n].map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
+        if (hex) window.__logoBgCache[uri] = hex;
+        res(hex);
+      } catch (e) { res(null); }
+    };
+    img.onerror = function () { res(null); };
+    img.src = uri;
+  });
+};
+
+/* ---------- built-in SVG logo library ---------- */
+function claudeSVG() {
+  let rays = "";
+  for (let i = 0; i < 12; i++) rays += `<rect x="46.5" y="6" width="7" height="34" rx="3.5" transform="rotate(${i * 30} 50 50)"/>`;
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><g fill="#D97757">${rays}</g></svg>`;
+}
+function opusClipSVG() {
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="30" fill="none" stroke="#7B5CFF" stroke-width="13"/><path d="M50 20 a30 30 0 0 1 26 15" fill="none" stroke="#0B0B0F" stroke-width="13" stroke-linecap="round"/></svg>`;
+}
+function agentOpusSVG() {
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="8" width="84" height="84" rx="22" fill="#FF570A"/><path d="M40 32 L70 50 L40 68 Z" fill="#fff"/></svg>`;
+}
+function markSVG(kind) {
+  const paths = {
+    star: `<path d="M50 8 L61 38 L93 38 L67 58 L77 90 L50 70 L23 90 L33 58 L7 38 L39 38 Z"/>`,
+    bolt: `<path d="M55 6 L24 54 L46 54 L42 94 L76 42 L52 42 Z"/>`,
+    heart: `<path d="M50 86 C10 58 18 22 42 30 C48 32 50 38 50 38 C50 38 52 32 58 30 C82 22 90 58 50 86 Z"/>`,
+    play: `<path d="M28 18 L82 50 L28 82 Z"/>`,
+    plus: `<path d="M42 12 h16 v30 h30 v16 h-30 v30 h-16 v-30 h-30 v-16 h30 z"/>`,
+  };
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><g fill="#111">${paths[kind]}</g></svg>`;
+}
+function deepmindSVG() {
+  return `<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><g fill="#4285F4"><path d="M2.92978 2.92988C1.09766 4.77007 0.0564972 7.21559 0 9.80639V10.1857C0.0484262 12.7927 1.08959 15.2382 2.92978 17.0703C4.76998 18.9105 7.2155 19.9517 9.8063 20.0001H10.1937C10.2341 20.0001 10.2744 20.0001 10.3067 19.992C10.4278 19.984 10.5408 19.9759 10.6618 19.9678C10.7425 19.9597 10.8152 19.9517 10.8959 19.9436C11.6949 19.8387 12.4536 19.5885 13.1477 19.2172C13.2607 19.1607 13.3656 19.0961 13.4705 19.0316C14.5682 18.3617 15.4722 17.377 16.0452 16.1502C16.4649 15.2624 16.6747 14.31 16.6747 13.3173C16.6747 12.1873 16.3923 11.0816 15.8515 10.0969L15.8273 10.0566C15.1493 8.84594 14.0839 7.8532 12.8249 7.26402C12.7926 7.24788 12.7684 7.23981 12.7361 7.22366C12.6796 7.19945 12.615 7.17524 12.5585 7.14295C12.5504 7.14295 12.5424 7.13488 12.5343 7.13488C13.293 7.81285 13.7853 8.78137 13.8176 9.87096V10.0889C13.7611 12.1147 12.1308 13.7451 10.113 13.8015H9.89508C8.87006 13.7854 7.88539 13.5594 6.97337 13.1317C5.60936 12.494 4.46328 11.4125 3.73688 10.0969L3.71267 10.0405C3.15577 9.00736 2.85714 7.83706 2.85714 6.65062C2.85714 5.59332 3.08313 4.5683 3.52704 3.61592C3.57546 3.51906 3.62389 3.42221 3.67232 3.32536C3.77724 3.13165 3.85795 3.00252 3.91445 2.90567C3.97094 2.81688 4.00323 2.76846 4.13236 2.57475C4.27764 2.36491 4.43099 2.16313 4.60048 1.96943C4.71348 1.84029 4.79419 1.75151 4.88297 1.66273C4.97175 1.56588 5.02018 1.52552 5.0686 1.47709C5.10089 1.44481 5.16546 1.38831 5.24617 1.31567C5.31881 1.25111 5.41566 1.1704 5.52058 1.08161C5.57708 1.03319 5.63358 0.992833 5.69007 0.952478C4.68119 1.46095 3.74496 2.11471 2.92978 2.92988Z"/><path d="M9.82243 0C9.66101 0.00807103 9.50766 0.016142 9.35431 0.0322841C9.12025 0.0564972 8.9669 0.0807102 8.6602 0.129136C8.36158 0.193705 8.06295 0.274415 7.77239 0.371267C7.48991 0.47619 7.34463 0.540759 6.57788 0.871671C5.8757 1.34786 5.28652 1.93705 5.1251 2.09847C4.65698 2.61501 4.2615 3.19613 3.9548 3.84181C3.5351 4.72962 3.32526 5.682 3.32526 6.67474C3.32526 7.79661 3.60774 8.91041 4.1485 9.88701L4.17271 9.92736C4.85068 11.138 5.91606 12.1308 7.17514 12.7199C7.27199 12.7684 7.37691 12.8087 7.47376 12.8491C6.71509 12.1711 6.22275 11.1945 6.19047 10.1049V9.88701C6.24697 7.86118 7.87731 6.2389 9.89507 6.18241H10.2583C10.686 6.20662 10.8717 6.23083 11.0573 6.25504C11.2429 6.28733 11.3317 6.30347 11.5093 6.33575C11.59 6.3519 11.6788 6.37611 11.7998 6.40032C11.8886 6.42454 11.9451 6.44068 12.1792 6.51332C12.4052 6.59403 12.502 6.63438 12.6715 6.69895C12.8329 6.76352 12.9782 6.83616 13.0105 6.84423C14.3745 7.48184 15.5206 8.55529 16.247 9.87893L16.2793 9.93543C16.8362 10.9685 17.1348 12.1388 17.1348 13.3253C17.1348 14.3826 16.9088 15.4076 16.4649 16.36C16.368 16.5617 16.2712 16.7393 16.247 16.7797C16.1743 16.9088 16.0936 17.0379 16.0048 17.1913C15.9645 17.2559 15.908 17.3366 15.8111 17.4899C15.7062 17.6271 15.5771 17.7885 15.5286 17.845C15.3753 18.0307 15.2381 18.184 15.1897 18.2324C15.109 18.3212 15.0686 18.3616 14.891 18.5391C14.7619 18.6602 14.6812 18.7329 14.5278 18.8539C15.3027 18.5553 16.2389 17.8935 17.0541 17.0864C18.8943 15.2462 19.9354 12.8087 19.9839 10.2098V9.82244C19.9354 7.2155 18.8943 4.76998 17.0541 2.93785C15.2542 1.10573 12.8329 0.0645682 10.2502 0.00807103L10.0888 0H9.82243Z"/></g></svg>`;
+}
+const svgURI = (svg) => "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+const LOGO_LIBRARY = [
+  { name: "Claude", uri: window.__CLAUDE_LOGO || svgURI(claudeSVG()) },
+  { name: "OpusClip", uri: window.__CHANNELS_LOGO || svgURI(opusClipSVG()) },
+  { name: "DeepMind", uri: svgURI(deepmindSVG()) },
+  { name: "Gemini", uri: window.__GEMINI_LOGO || svgURI(claudeSVG()) },
+  { name: "Suno", uri: window.__SUNO_LOGO || svgURI(claudeSVG()) },
+];
+
+/* ---------- helpers ---------- */
+const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
+const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius"];
+function parseColor(str) {
+  const m = (str || "").match(/[\d.]+/g);
+  if (!m) return { hex: "#ffffff", a: 1 };
+  const a = m.length > 3 ? +m[3] : 1;
+  const hex = "#" + m.slice(0, 3).map(x => Math.round(+x).toString(16).padStart(2, "0")).join("");
+  return { hex, a };
+}
+function pathOf(el, root) { const idx = []; let n = el; while (n && n !== root) { const p = n.parentNode; if (!p) break; idx.unshift(Array.prototype.indexOf.call(p.children, n)); n = p; } return idx.join("."); }
+function nodeAt(root, path) { if (path === "") return root; let n = root; for (const i of path.split(".")) { if (!n) return null; n = n.children[+i]; } return n; }
+const INLINE_TAGS = ["SPAN", "A", "B", "I", "EM", "STRONG", "BR"];
+function isTextLeaf(el) {
+  if (!el || el.nodeType !== 1) return false;
+  const t = el.tagName;
+  if (t === "INPUT") return true;
+  if (!["P", "SPAN", "H1", "H2", "H3", "H4", "H5", "H6", "A"].includes(t)) return false;
+  if (el.closest(".cursor-pointer")) return false;
+  if (el.textContent.trim().length === 0) return false;
+  const p = el.parentElement;
+  if (p && ["P", "H1", "H2", "H3", "H4", "H5", "H6"].includes(p.tagName)) return false; // inner span → its block is the unit
+  for (const c of el.children) if (!INLINE_TAGS.includes(c.tagName)) return false;
+  return true;
+}
+// resolve a click target to its whole text box (e.g. a <span> inside a caption <p> → the <p>)
+function textUnit(el) {
+  let n = el.closest("p,h1,h2,h3,h4,h5,h6,input,a,span");
+  if (!n) return null;
+  while (n.parentElement && ["P", "H1", "H2", "H3", "H4", "H5", "H6"].includes(n.parentElement.tagName)) n = n.parentElement;
+  return n;
+}
+
+/* light-theme class tokens */
+const ACCENT = "#6d5efc";
+const FIELD = "w-full bg-neutral-100 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-800 outline-none focus:border-[#6d5efc] focus:ring-2 focus:ring-[#6d5efc]/20 transition";
+const LBL = "block text-xs font-medium text-neutral-500 mb-1.5";
+const SEG = "px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 transition";
+const SEG_ON = "px-2.5 py-1.5 text-sm text-white bg-[#6d5efc]";
+
+/* ---------- demos persistence (IndexedDB holds the media-heavy records; localStorage holds a light index) ---------- */
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("aoDemos", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("demos", { keyPath: "id" });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbPut(rec) { const db = await idbOpen(); return new Promise((res, rej) => { const tx = db.transaction("demos", "readwrite"); tx.objectStore("demos").put(rec); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+async function idbGet(id) { const db = await idbOpen(); return new Promise((res, rej) => { const tx = db.transaction("demos", "readonly"); const g = tx.objectStore("demos").get(id); g.onsuccess = () => res(g.result); g.onerror = () => rej(g.error); }); }
+async function idbDel(id) { const db = await idbOpen(); return new Promise((res, rej) => { const tx = db.transaction("demos", "readwrite"); tx.objectStore("demos").delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+const toDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+const srcToDataURL = async (src) => (src && src.startsWith("blob:")) ? toDataURL(await fetch(src).then(r => r.blob())) : src;
+
+/* a demo gallery card: renders the real template with its saved media/logos, then applies the saved
+   text/style overrides so the thumbnail matches exactly what was saved (not the template defaults). */
+function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
+  const ref = useRef(null);
+  const sc = 200 / t.width;
+  useEffect(() => {
+    if (!rec || !rec.overrides) return;
+    const apply = () => {
+      const base = ref.current; if (!base) return;
+      for (const path in rec.overrides) {
+        const el = nodeAt(base, path); if (!el) continue;
+        const o = rec.overrides[path];
+        if (el.tagName === "INPUT") { if (o.text != null) { el.value = o.text; el.setAttribute("value", o.text); } }
+        else if (o.html != null) el.innerHTML = o.html;
+        else if (o.text != null) el.textContent = o.text;
+        if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
+      }
+    };
+    const ids = [80, 400, 900].map(ms => setTimeout(apply, ms)); // re-apply across the template's async settling
+    return () => ids.forEach(clearTimeout);
+  }, [rec]);
+  return (
+    <div className="text-left group w-[200px]">
+      <button onClick={onOpen} className="block w-full text-left">
+        <div className="rounded-2xl overflow-hidden bg-neutral-900 ring-1 ring-neutral-200 group-hover:ring-neutral-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.07] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: 200, height: t.height * sc }}>
+          {pre
+            ? <div ref={ref} className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${sc})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
+            : (d.thumb ? <img src={d.thumb} className="w-full h-full object-cover" /> : null)}
+        </div>
+        <div className="mt-2.5 text-sm font-medium truncate">{d.name}</div>
+      </button>
+    </div>
+  );
+}
+
+function App() {
+  const [sel, setSel] = useState(null);
+  const [editMode, setEditMode] = useState(true);
+  const [insp, setInsp] = useState(null);
+  const [picker, setPicker] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [page, setPage] = useState("templates");
+  const [soundOn, setSoundOn] = useState(false);
+  const [demos, setDemos] = useState(() => { try { return JSON.parse(localStorage.getItem("aoDemos") || "[]"); } catch (e) { return []; } });
+  const [demoRecs, setDemoRecs] = useState({});
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { (async () => { try { const db = await idbOpen(); const tx = db.transaction("demos", "readonly"); const rq = tx.objectStore("demos").getAll(); rq.onsuccess = () => { const m = {}; (rq.result || []).forEach(r => m[r.id] = r); setDemoRecs(m); }; } catch (e) {} })(); }, [demos.length]);
+  const demoPreload = (rec) => rec ? {
+    vids: rec.vids || {},
+    boxText: rec.boxText || {},
+    showPlus: rec.showPlus,
+    logos: Object.fromEntries(Object.entries(rec.logos || {}).map(([k, v]) => [k, v.uri])),
+    logoScales: Object.fromEntries(Object.entries(rec.logos || {}).map(([k, v]) => [k, v.scale])),
+    logoBgs: Object.fromEntries(Object.entries(rec.logos || {}).map(([k, v]) => [k, v.bg])),
+  } : null;
+  const [, force] = useState(0);
+
+  const overrides = useRef({});
+  const containerRef = useRef(null);
+  const applyingRef = useRef(false);
+  const activeRef = useRef(null);
+  const suppressRef = useRef(false);
+  const templates = (window.TEMPLATES || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  useEffect(() => { const f = () => force(x => x + 1); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
+  useEffect(() => { window.__logoPicker = (cb) => setPicker({ cb }); return () => { delete window.__logoPicker; }; }, []);
+  // logo tiles register themselves here on click → show the Logo inspector (replace / size / background)
+  useEffect(() => {
+    window.__selectLogo = (api) => { clearActive(); setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff" }); };
+    return () => { delete window.__selectLogo; };
+  }, []);
+  // a slot can register text: __editText focuses its text layer and opens the text inspector (even when empty)
+  useEffect(() => {
+    window.__editText = (el) => { if (el) { el.style.pointerEvents = "auto"; selectEl(el, true); } };
+    return () => { delete window.__editText; };
+  }, []);
+  // hash routing: #/templates, #/projects, #/template/<id> — gives every template its own URL
+  useEffect(() => {
+    const apply = () => {
+      const parts = (location.hash || "").replace(/^#\/?/, "").split("/");
+      if (parts[0] === "template" && parts[1]) { setSel(decodeURIComponent(parts[1])); setPage("templates"); }
+      else if (parts[0] === "demos") { setSel(null); setPage("demos"); }
+      else if (parts[0] === "projects") { setSel(null); setPage("showcase"); }
+      else { setSel(null); setPage("templates"); }
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
+  useEffect(() => {
+    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : "#/templates");
+    if (location.hash !== want) location.hash = want;
+  }, [sel, page]);
+  const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
+
+  function applyAll() {
+    const root = containerRef.current; if (!root || !sel) return;
+    applyingRef.current = true;
+    const ov = ovFor(sel);
+    for (const path in ov) {
+      const el = nodeAt(root, path); if (!el) continue;
+      const o = ov[path];
+      const active = activeRef.current && activeRef.current.el;
+      if (o.html != null && el.tagName !== "INPUT" && el !== active) el.innerHTML = o.html;
+      else if (o.text != null && el.tagName !== "INPUT" && el !== active) el.textContent = o.text;
+      if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
+    }
+    requestAnimationFrame(() => { applyingRef.current = false; });
+  }
+  useEffect(() => {
+    if (!sel) return;
+    const root = containerRef.current; if (!root) return;
+    applyAll();
+    const mo = new MutationObserver(() => { if (applyingRef.current) return; applyAll(); });
+    mo.observe(root, { childList: true, subtree: true, characterData: true });
+    return () => mo.disconnect();
+  }, [sel]);
+
+  function clearActive() {
+    if (activeRef.current) { const { el } = activeRef.current; if (el) { el.contentEditable = "false"; el.style.outline = ""; el.style.outlineOffset = ""; } activeRef.current = null; }
+  }
+  function selectEl(el, forceText) {
+    const root = containerRef.current; if (!el || !root.contains(el)) return;
+    clearActive();
+    const path = pathOf(el, root);
+    const text = forceText || isTextLeaf(el);
+    const slotEl = el.closest(".cursor-pointer");
+    if (text && el.tagName !== "INPUT") { el.contentEditable = "true"; el.focus(); }
+    el.style.outline = "2px solid #6d5efc"; el.style.outlineOffset = "1px";
+    activeRef.current = { el, path };
+    const cs = getComputedStyle(el);
+    const ovs = (ovFor(sel)[path] || {}).style || {};
+    const bg = parseColor(ovs.backgroundColor || cs.backgroundColor);
+    setInsp({
+      path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
+      bgHex: bg.hex, bgTransparent: bg.a === 0,
+      opacity: Math.round(parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity) * 100),
+      radius: parseInt(ovs.borderRadius != null ? ovs.borderRadius : cs.borderRadius) || 0,
+      font: (ovs.fontFamily || cs.fontFamily || "Geist").replace(/["']/g, "").split(",")[0].trim(),
+      weight: parseInt(ovs.fontWeight || cs.fontWeight) || 400,
+      size: parseInt(ovs.fontSize || cs.fontSize) || 16,
+      color: parseColor(ovs.color || cs.color).hex,
+      align: ovs.textAlign || cs.textAlign || "left",
+      italic: (ovs.fontStyle || cs.fontStyle) === "italic",
+      underline: (ovs.textDecoration || cs.textDecorationLine || "").includes("underline"),
+    });
+  }
+  function setStyle(prop, val, patch) {
+    let el = activeRef.current && activeRef.current.el; if (!el || !insp) return;
+    if (!el.isConnected) el = nodeAt(containerRef.current, insp.path);
+    if (!el) return;
+    const rec = ovFor(sel)[insp.path] = ovFor(sel)[insp.path] || {};
+    rec.style = rec.style || {};
+    rec.style[prop] = val; el.style[prop] = val;
+    if (prop === "backgroundColor") { rec.style.backgroundImage = "none"; el.style.backgroundImage = "none"; }
+    setInsp({ ...insp, ...(patch || {}) });
+  }
+  function onTextInput(e) {
+    if (!activeRef.current) return;
+    const el = activeRef.current.el;
+    if (!el || el.tagName === "INPUT") return;
+    const rec = ovFor(sel)[activeRef.current.path] = ovFor(sel)[activeRef.current.path] || {};
+    if (el.children.length) rec.html = el.innerHTML; else rec.text = el.textContent;
+  }
+  function onEditorClick(e) {
+    if (!editMode || suppressRef.current) return;
+    const el = e.target;
+    // in-slot control buttons (video/text switch) handle their own clicks
+    if (el.closest("[data-ctl]")) return;
+    // clicking a media slot opens its uploader directly (video/image file picker, or logo library)
+    const mslot = el.closest("[data-vslot], [data-lslot]");
+    if (mslot && containerRef.current.contains(mslot)) {
+      e.preventDefault(); e.stopPropagation();
+      const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
+      const onClick = pk && mslot[pk] && mslot[pk].onClick;
+      if (onClick) onClick({ stopPropagation() {}, preventDefault() {} });
+      return;
+    }
+    const unit = textUnit(el);
+    if (unit && containerRef.current.contains(unit) && isTextLeaf(unit)) {
+      if (unit.tagName !== "INPUT") e.preventDefault();
+      e.stopPropagation();
+      selectEl(unit);
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
+    selectEl(el);
+  }
+  function selectParent() { const el = activeRef.current && activeRef.current.el; if (el && el.parentElement && containerRef.current.contains(el.parentElement) && el.parentElement !== containerRef.current) selectEl(el.parentElement); }
+  function uploadIntoSlot() {
+    const rec = activeRef.current; if (!rec) return;
+    // activeRef.el can be a stale node after a re-render — re-find the live node by its path
+    let el = rec.el;
+    if (!el || !el.isConnected) el = nodeAt(containerRef.current, rec.path);
+    if (!el) return;
+    const slot = el.classList.contains("cursor-pointer") ? el : el.closest(".cursor-pointer");
+    if (!slot) return;
+    // call the slot's React onClick (its pick/pickLogo) directly — reliable across browsers
+    const pk = Object.keys(slot).find(k => k.startsWith("__reactProps$"));
+    const onClick = pk && slot[pk] && slot[pk].onClick;
+    if (onClick) { onClick({ stopPropagation() {}, preventDefault() {} }); }
+    else { suppressRef.current = true; slot.click(); setTimeout(() => { suppressRef.current = false; }, 60); }
+  }
+  function deselect() { clearActive(); setInsp(null); }
+
+  // preview audio: muted autoplay by default; the sound toggle (a user gesture) unmutes + plays every video
+  useEffect(() => {
+    const root = containerRef.current; if (!root || !sel) return;
+    const sync = () => { root.querySelectorAll("video").forEach(v => { v.muted = !soundOn; if (soundOn) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } }); };
+    sync();
+    const mo = new MutationObserver(sync);
+    mo.observe(root, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [soundOn, sel]);
+
+  // after a demo opens and its template mounts, push the saved media/logos into the template via __slotAPI
+  useEffect(() => {
+    if (!sel) return;
+    const rec = window.__demoPending; if (!rec || rec.templateId !== sel) return;
+    window.__demoPending = null;
+    let tries = 0;
+    const inject = () => {
+      const api = window.__slotAPI;
+      if (!api || !api.setVids) { if (tries++ < 50) return setTimeout(inject, 100); return; }
+      const v = {}; for (const k in (rec.vids || {})) v[k] = { url: rec.vids[k].url, img: rec.vids[k].img };
+      api.setVids(v);
+      if (api.setLogos && rec.logos) {
+        const L = {}, Sc = {}, Bg = {};
+        for (const k in rec.logos) { L[k] = rec.logos[k].uri; Sc[k] = rec.logos[k].scale; Bg[k] = rec.logos[k].bg; }
+        api.setLogos(L); api.setLogoScales(Sc); api.setLogoBgs(Bg);
+      }
+      if (api.setBoxText && rec.boxText) api.setBoxText(rec.boxText);
+      if (api.setShowPlus && rec.showPlus != null) api.setShowPlus(rec.showPlus);
+      requestAnimationFrame(applyAll);
+    };
+    const tid = setTimeout(inject, 200);
+    return () => clearTimeout(tid);
+  }, [sel]);
+
+  async function saveDemo() {
+    const root = containerRef.current; const t = templates.find(x => x.id === sel); if (!root || !t) return;
+    const vids = {};
+    for (const el of root.querySelectorAll("[data-vslot] video, [data-vslot] img")) {
+      const slot = el.closest("[data-vslot]").getAttribute("data-vslot");
+      vids[slot] = { url: await srcToDataURL(el.currentSrc || el.src), img: el.tagName === "IMG" };
+    }
+    if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as a demo."); return; }
+    const logos = {};
+    for (const img of root.querySelectorAll("[data-lslot] img")) {
+      const tile = img.closest("[data-lslot]"); const slot = tile.getAttribute("data-lslot");
+      const sm = (img.style.transform || "").match(/scale\(([\d.]+)\)/);
+      logos[slot] = { uri: await srcToDataURL(img.getAttribute("src")), scale: sm ? +sm[1] : 1, bg: getComputedStyle(tile).backgroundColor };
+    }
+    const ov = JSON.parse(JSON.stringify(ovFor(sel)));
+    for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); ov[p] = { ...(ov[p] || {}), text: inp.value }; }
+    const boxText = {};
+    root.querySelectorAll("[data-boxtext]").forEach(inp => { if (inp.value) boxText[inp.getAttribute("data-boxtext")] = inp.value; });
+    const showPlus = !!root.querySelector("[data-plus]");
+    let thumb = null;
+    try {
+      const m = root.querySelector("[data-vslot] video, [data-vslot] img");
+      if (m) { const vw = m.videoWidth || m.naturalWidth || t.width, vh = m.videoHeight || m.naturalHeight || t.height;
+        const c = document.createElement("canvas"); c.width = 240; c.height = Math.round(240 * vh / vw);
+        c.getContext("2d").drawImage(m, 0, 0, c.width, c.height); thumb = c.toDataURL("image/jpeg", 0.7); }
+    } catch (e) {}
+    const id = "d" + (demos.length + 1) + "_" + t.id;
+    const rec = { id, name: t.name, templateId: t.id, vids, logos, boxText, showPlus, overrides: ov, thumb, createdAt: 0 };
+    await idbPut(rec);
+    const idx = [{ id, name: rec.name, templateId: t.id, thumb }, ...demos.filter(d => d.id !== id)];
+    localStorage.setItem("aoDemos", JSON.stringify(idx));
+    setDemos(idx);
+    setSaved(true); setTimeout(() => setSaved(false), 1800);
+  }
+  async function openDemo(id) {
+    const rec = await idbGet(id); if (!rec) return;
+    overrides.current[rec.templateId] = rec.overrides || {};
+    window.__demoPending = rec;
+    setSel(rec.templateId);
+  }
+  async function deleteDemo(id, e) {
+    if (e) e.stopPropagation();
+    await idbDel(id);
+    const idx = demos.filter(d => d.id !== id);
+    localStorage.setItem("aoDemos", JSON.stringify(idx));
+    setDemos(idx);
+  }
+
+  const EXPORT_BASE = (typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050";
+  const blobFrom = (u) => fetch(u).then(r => r.blob());
+  const blobToDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+  async function exportMp4() {
+    const root = containerRef.current; const t = templates.find(x => x.id === sel);
+    const slotMediaEls = [...root.querySelectorAll("[data-vslot] video, [data-vslot] img")];
+    const ambientEls = [...root.querySelectorAll("video, img")].filter(el => /blur-\[/.test(el.className || "") && !el.closest("[data-vslot]") && !el.closest("[data-lslot]"));
+    if (!slotMediaEls.length) { alert("Add a video or image to a slot first — click a slot to upload."); return; }
+    deselect();
+    setExporting(true);
+    try {
+      const uploadBlob = async (url) => {
+        const blob = await blobFrom(url);
+        const ext = ((blob.type.split("/")[1] || "mp4").split(";")[0]);
+        const up = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob });
+        if (!up.ok) throw new Error("upload failed");
+        return (await up.json()).id;
+      };
+      const idBySrc = {};
+      // read ambient footage meta while it's still in the DOM (computed styles need it attached)
+      let ambient = null, ambientSrc = null;
+      if (ambientEls.length) {
+        const av = ambientEls[0]; ambientSrc = av.currentSrc || av.src || av.getAttribute("src");
+        const cs = getComputedStyle(av);
+        const blur = parseFloat(((cs.filter || "").match(/blur\(([\d.]+)px\)/) || [])[1]) || 60;
+        ambient = { blur, opacity: parseFloat(cs.opacity) || 0.3 };
+      }
+      // slots hold a <video> or an <img>; upload whichever is present
+      const videoSlots = [];
+      for (const el of slotMediaEls) {
+        const slot = el.closest("[data-vslot]");
+        const src = el.currentSrc || el.src || el.getAttribute("src");
+        const id = idBySrc[src] || (idBySrc[src] = await uploadBlob(src));
+        videoSlots.push({ slot: slot.getAttribute("data-vslot"), videoId: id });
+      }
+      const logos = [];
+      for (const img of root.querySelectorAll("[data-lslot] img")) {
+        const orig = img.getAttribute("src");
+        const fit = (window.__FILL_LOGOS || []).indexOf(orig) >= 0 ? "cover" : "contain"; // app-icon logos fill, marks sit on white
+        let uri = orig;
+        if (uri && uri.startsWith("blob:")) uri = await blobToDataURL(await blobFrom(uri));
+        const tile = img.closest("[data-lslot]");
+        const cbg = getComputedStyle(tile).backgroundColor;
+        const bg = /rgba?\(0,\s*0,\s*0,\s*0\)|transparent/.test(cbg) ? null : cbg;
+        const sm = (img.style.transform || "").match(/scale\(([\d.]+)\)/);
+        const scale = sm ? +sm[1] : 1;
+        logos.push({ slot: tile.getAttribute("data-lslot"), uri, fit, bg, scale });
+      }
+      const merged = JSON.parse(JSON.stringify(ovFor(t.id)));
+      for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); merged[p] = { ...(merged[p] || {}), text: inp.value }; }
+      if (ambient && ambientSrc) ambient.videoId = idBySrc[ambientSrc] || (idBySrc[ambientSrc] = await uploadBlob(ambientSrc));
+      const showPlus = !!root.querySelector("[data-plus]");
+      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus };
+      const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+      if (!res.ok) throw new Error(await res.text());
+      const mp4 = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(mp4);
+      a.download = (t.name || "video").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4";
+      a.click();
+    } catch (e) {
+      alert("Export failed: " + (e.message || e) + "\n\nMake sure the export server is running:\n  node export-server.mjs");
+    }
+    setExporting(false);
+  }
+
+  /* ---------- editor ---------- */
+  if (sel) {
+    const t = templates.find(x => x.id === sel);
+    if (!t) { setSel(null); return null; }
+    const SB = 320;
+    const s = Math.min(1, (window.innerHeight - 88) / t.height, (window.innerWidth - SB - 96) / t.width);
+    return (
+      <div className="h-screen flex text-neutral-900 bg-[#f6f6f8]">
+        <aside style={{ width: SB }} className="shrink-0 h-screen bg-white border-r border-neutral-200 flex flex-col">
+          <div className="px-5 pt-5 pb-4">
+            <button onClick={() => { deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 transition">← All templates</button>
+            <div className="mt-3 text-[17px] font-semibold tracking-tight leading-tight">{t.name}</div>
+            <div className="text-neutral-400 text-xs mt-1">{t.width} × {t.height}</div>
+          </div>
+          <div className="h-px bg-neutral-100" />
+
+          <div className="px-5 py-5 flex-1 overflow-y-auto">
+            {!insp && (
+              <div className="text-center py-8">
+                <div className="w-11 h-11 mx-auto rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400 text-lg">✦</div>
+                <p className="text-neutral-500 text-sm leading-relaxed mt-3">Click any element — a heading, a label pill, a card, or the background — to restyle it.</p>
+              </div>
+            )}
+
+            {insp && insp.isLogo && <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</span>
+                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-lg text-neutral-500 bg-neutral-100 hover:bg-neutral-200 transition">✕</button>
+              </div>
+              <button onClick={() => insp.logoApi.replace()} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Replace logo…</button>
+              <section className="space-y-3">
+                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</div>
+                <div>
+                  <label className={LBL}>Logo size · {Math.round(insp.logoScale * 100)}%</label>
+                  <input type="range" min="20" max="200" value={Math.round(insp.logoScale * 100)}
+                    onChange={e => { const s = +e.target.value / 100; insp.logoApi.setScale(s); setInsp({ ...insp, logoScale: s }); }}
+                    className="w-full accent-[#6d5efc]" />
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Resizes the logo inside the tile — the tile itself stays the same size.</p>
+                </div>
+                <div>
+                  <label className={LBL}>Background</label>
+                  <div className="flex items-center gap-2">
+                    <label className="relative w-9 h-9 rounded-xl border border-neutral-200 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.logoBg }}>
+                      <input type="color" value={insp.logoBg} onChange={e => { insp.logoApi.setBg(e.target.value); setInsp({ ...insp, logoBg: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <span className="text-sm text-neutral-500 flex-1">{insp.logoBg}</span>
+                  </div>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Defaults to the logo's main color.</p>
+                </div>
+              </section>
+            </div>}
+
+            {insp && !insp.isLogo && <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{insp.isText ? "Text" : insp.isSlot ? "Media slot" : "Element"}</span>
+                <div className="flex gap-1.5">
+                  {insp.hasParent && <button onClick={selectParent} title="Select parent" className="px-2 py-1 text-xs rounded-lg text-neutral-600 bg-neutral-100 hover:bg-neutral-200 transition">↑ parent</button>}
+                  <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-lg text-neutral-500 bg-neutral-100 hover:bg-neutral-200 transition">✕</button>
+                </div>
+              </div>
+
+              {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Upload media into slot</button>}
+
+              <section className="space-y-3">
+                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Appearance</div>
+                <div>
+                  <label className={LBL}>Background</label>
+                  <div className="flex items-center gap-2">
+                    <label className="relative w-9 h-9 rounded-xl border border-neutral-200 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
+                      <input type="color" value={insp.bgHex} onChange={e => setStyle("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <span className="text-sm text-neutral-500 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
+                    <button onClick={() => setStyle("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-lg transition " + (insp.bgTransparent ? "bg-[#6d5efc] text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>Clear</button>
+                  </div>
+                </div>
+                <div>
+                  <label className={LBL}>Opacity · {insp.opacity}%</label>
+                  <input type="range" min="0" max="100" value={insp.opacity} onChange={e => setStyle("opacity", (+e.target.value / 100).toString(), { opacity: +e.target.value })} className="w-full accent-[#6d5efc]" />
+                </div>
+                <div>
+                  <label className={LBL}>Corner radius</label>
+                  <input type="number" min="0" value={insp.radius} onChange={e => setStyle("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
+                </div>
+              </section>
+
+              {insp.isText && <section className="space-y-3">
+                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Text</div>
+                <div>
+                  <label className={LBL}>Font</label>
+                  <select value={insp.font} onChange={e => setStyle("fontFamily", e.target.value + ",sans-serif", { font: e.target.value })} className={FIELD}>
+                    {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={LBL}>Weight</label>
+                    <select value={insp.weight} onChange={e => setStyle("fontWeight", e.target.value, { weight: +e.target.value })} className={FIELD}>
+                      {WEIGHTS.map(([n, w]) => <option key={w} value={w}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div className="w-[86px]">
+                    <label className={LBL}>Size</label>
+                    <input type="number" value={insp.size} onChange={e => setStyle("fontSize", e.target.value + "px", { size: +e.target.value })} className={FIELD} />
+                  </div>
+                </div>
+                <div>
+                  <label className={LBL}>Color</label>
+                  <div className="flex items-center gap-2">
+                    <label className="relative w-9 h-9 rounded-xl border border-neutral-200 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.color }}>
+                      <input type="color" value={insp.color} onChange={e => setStyle("color", e.target.value, { color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <span className="text-sm text-neutral-500">{insp.color}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className={LBL}>Alignment & style</label>
+                  <div className="flex gap-2">
+                    <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100">
+                      {["left", "center", "right"].map(a => <button key={a} onClick={() => setStyle("textAlign", a, { align: a })} className={insp.align === a ? SEG_ON : SEG}>{a[0].toUpperCase()}</button>)}
+                    </div>
+                    <button onClick={() => setStyle("fontStyle", insp.italic ? "normal" : "italic", { italic: !insp.italic })} className={"px-3 py-1.5 rounded-xl italic text-sm border border-neutral-200 " + (insp.italic ? "bg-[#6d5efc] text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>I</button>
+                    <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-xl underline text-sm border border-neutral-200 " + (insp.underline ? "bg-[#6d5efc] text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>U</button>
+                  </div>
+                </div>
+                <p className="text-xs text-neutral-400 leading-relaxed">Type on the highlighted text to change the words.</p>
+              </section>}
+            </div>}
+          </div>
+
+          <div className="px-5 py-4 border-t border-neutral-100 space-y-2">
+            <button onClick={saveDemo}
+              className="w-full text-sm px-3 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-medium transition">
+              {saved ? "Saved to Demos ✓" : "Save to Demos"}</button>
+            <button onClick={exportMp4} disabled={exporting}
+              className="w-full text-sm px-3 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition disabled:opacity-60 disabled:cursor-wait">
+              {exporting ? "Rendering MP4…" : "Export MP4"}</button>
+          </div>
+        </aside>
+
+        <main className="flex-1 h-screen flex items-center justify-center p-12 overflow-auto relative">
+          <div style={{ width: t.width * s, height: t.height * s }} className="overflow-hidden rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
+            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput}
+              style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
+              <t.Component />
+            </div>
+          </div>
+          <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
+            className={"absolute bottom-6 right-6 w-11 h-11 flex items-center justify-center rounded-full shadow-lg transition " + (soundOn ? "bg-[#6d5efc] text-white" : "bg-white text-neutral-700 hover:bg-neutral-100 ring-1 ring-neutral-200")}>
+            {soundOn
+              ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
+              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
+          </button>
+        </main>
+
+        {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
+      </div>
+    );
+  }
+
+  /* ---------- gallery / showcase (with icon nav) ---------- */
+  const navBtn = (id, label, icon) => (
+    <button onClick={() => setPage(id)} title={label} aria-label={label}
+      className={"inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium transition " + (page === id ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800")}>
+      {icon}<span>{label}</span>
+    </button>
+  );
+  const iconTemplates = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>;
+  const iconShowcase = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5"/><path d="M12 12v9"/><path d="M12 12L4 7.5"/></svg>;
+  const demosView = demos.length ? (
+    <div className="flex flex-wrap justify-center gap-6">
+      {demos.map(d => {
+        const t = templates.find(x => x.id === d.templateId);
+        if (!t) return null;
+        const rec = demoRecs[d.id];
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} onOpen={() => openDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
+      })}
+    </div>
+  ) : (
+    <div className="text-center py-28 text-neutral-400">
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-300">{iconShowcase}</div>
+      <div className="mt-4 text-lg font-medium text-neutral-600">No demos yet</div>
+      <p className="mt-1 text-sm">Open a template, add your videos, then hit <span className="font-medium text-neutral-600">Save to Demos</span>.</p>
+    </div>
+  );
+  // standalone, nav-less demos page at #/demos
+  if (page === "demos") {
+    return (
+      <div className="min-h-screen text-neutral-900">
+        <div className="max-w-6xl mx-auto px-8 py-10">{demosView}</div>
+        {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
+      </div>
+    );
+  }
+  return (
+    <div className="min-h-screen text-neutral-900">
+      <nav className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 h-14 bg-white/85 backdrop-blur border-b border-neutral-200">
+        {navBtn("templates", "Templates", iconTemplates)}
+        {navBtn("showcase", "Demos", iconShowcase)}
+      </nav>
+      <div className="max-w-6xl mx-auto px-8 py-10">
+        {page === "templates" ? (
+          <div className="flex flex-wrap justify-center gap-6">
+            {templates.map(t => {
+              const sc = 200 / t.width;
+              return (
+                <button key={t.id} onClick={() => setSel(t.id)} className="text-left group w-[200px]">
+                  <div className="rounded-2xl overflow-hidden bg-white ring-1 ring-neutral-200 group-hover:ring-neutral-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.07] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: 200, height: t.height * sc }}>
+                    <div className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${sc})`, transformOrigin: "top left" }}><t.Component /></div>
+                  </div>
+                  <div className="mt-2.5 text-sm font-medium truncate">{t.name}</div>
+                  <div className="text-xs text-neutral-400 mt-0.5">{t.width} × {t.height}</div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          demosView
+        )}
+      </div>
+      {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
+    </div>
+  );
+}
+
+function LogoPicker({ onPick, onClose }) {
+  const upload = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*,.svg"; i.onchange = e => { const f = e.target.files[0]; if (f) onPick(URL.createObjectURL(f)); }; i.click(); };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/30 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-6 w-[440px] max-w-[92vw] shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <div className="text-neutral-900 font-semibold text-lg">Choose a logo</div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 transition">✕</button>
+        </div>
+        <div className="grid grid-cols-4 gap-3">
+          {LOGO_LIBRARY.map(l => (
+            <button key={l.name} onClick={() => onPick(l.uri)} title={l.name} className="aspect-square rounded-2xl bg-neutral-50 ring-1 ring-neutral-200 hover:ring-[#6d5efc] hover:bg-white flex items-center justify-center p-3.5 transition">
+              <img src={l.uri} alt={l.name} className="w-full h-full object-contain" />
+            </button>
+          ))}
+        </div>
+        <button onClick={upload} className="mt-4 w-full py-3 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition">Upload your own image…</button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

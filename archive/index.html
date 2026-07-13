@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Figma Video Mockup</title>
+<style>
+  :root {
+    --bg: #0e0e11;
+    --panel: #17171c;
+    --panel-2: #1f1f27;
+    --border: #2a2a34;
+    --text: #e7e7ea;
+    --muted: #9a9aa6;
+    --accent: #7c6cff;
+    --accent-2: #00d0b0;
+    --danger: #ff5c7c;
+    font-synthesis: none;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    height: 100vh;
+  }
+  aside {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 20px;
+    overflow-y: auto;
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 20px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 5px; font-weight: 600; }
+  input[type=text], input[type=password] {
+    width: 100%; padding: 9px 11px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+    font-size: 13px; outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  button {
+    cursor: pointer; border: none; border-radius: 8px; font-weight: 600;
+    font-size: 13px; padding: 10px 14px; color: #fff; background: var(--accent);
+    transition: filter .15s, opacity .15s; width: 100%; margin-top: 12px;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: var(--panel-2); border: 1px solid var(--border); }
+  button.ghost:hover { background: #262631; }
+  .row { display: flex; gap: 8px; }
+  .row button { margin-top: 0; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .hint a { color: var(--accent-2); }
+  .status { margin-top: 14px; font-size: 12px; padding: 8px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border); min-height: 18px; }
+  .status.err { color: var(--danger); border-color: #4a2733; }
+  .status.ok { color: var(--accent-2); border-color: #1f4a44; }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .controls { display: none; }
+  .controls.show { display: block; }
+  .field-inline { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; }
+  .field-inline label { margin: 0; }
+  input[type=range] { width: 150px; accent-color: var(--accent); }
+  select { width: 100%; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+
+  main { position: relative; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 32px; }
+  #stage {
+    position: relative; max-width: 100%; max-height: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5); line-height: 0;
+    background: #000; user-select: none;
+  }
+  #frameImg { display: block; max-width: 100%; max-height: calc(100vh - 64px); }
+  #slot {
+    position: absolute; overflow: hidden; cursor: move;
+    outline: 2px dashed var(--accent); background: rgba(124,108,255,.08);
+  }
+  #slot.placed { outline: 2px solid var(--accent-2); background: transparent; }
+  #slot video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .handle {
+    position: absolute; width: 12px; height: 12px; background: var(--accent-2);
+    border: 2px solid #000; border-radius: 50%;
+  }
+  .handle.br { right: -6px; bottom: -6px; cursor: nwse-resize; }
+  .empty {
+    color: var(--muted); text-align: center; max-width: 360px;
+  }
+  .empty svg { opacity: .3; margin-bottom: 16px; }
+  .badge { display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; padding:2px 7px; border-radius:20px; background:var(--panel-2); border:1px solid var(--border); color:var(--muted); margin-left:6px; vertical-align:middle;}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Figma Video Mockup <span class="badge">prototype</span></h1>
+  <p class="sub">Paste a Figma frame → upload a video → see it inside the design.</p>
+
+  <label for="token">Figma personal access token</label>
+  <input id="token" type="password" placeholder="figd_..." autocomplete="off" />
+  <div class="hint">Figma → Settings → Security → <a href="https://www.figma.com/developers/api#access-tokens" target="_blank" rel="noopener">Personal access tokens</a>. Stored only in this browser.</div>
+
+  <label for="url">Figma frame URL</label>
+  <input id="url" type="text" placeholder="https://www.figma.com/design/..." />
+
+  <button id="loadBtn">Load design</button>
+  <div id="status" class="status">Enter your token and a frame URL.</div>
+
+  <div class="controls" id="controls">
+    <div class="divider"></div>
+    <label for="video">Upload video</label>
+    <input id="video" type="text" readonly value="" style="display:none" />
+    <button class="ghost" id="pickVideo">Choose video file…</button>
+    <input id="videoInput" type="file" accept="video/*" style="display:none" />
+
+    <div class="field-inline">
+      <label>Fit</label>
+      <select id="fit">
+        <option value="cover">Cover (fill slot)</option>
+        <option value="contain">Contain (letterbox)</option>
+        <option value="fill">Stretch</option>
+      </select>
+    </div>
+    <div class="field-inline">
+      <label for="rot">Rotation</label>
+      <input id="rot" type="range" min="-45" max="45" value="0" step="0.5" />
+    </div>
+    <div class="field-inline">
+      <label for="radius">Corner radius</label>
+      <input id="radius" type="range" min="0" max="80" value="0" step="1" />
+    </div>
+
+    <div class="divider"></div>
+    <div class="row">
+      <button class="ghost" id="autoSlot">Find "video-slot"</button>
+      <button class="ghost" id="resetSlot">Reset box</button>
+    </div>
+    <div class="hint">No <code>video-slot</code> layer? Just <b>drag the box</b> on the preview and pull the corner to resize.</div>
+
+    <button id="exportBtn" disabled>Export MP4 (coming soon)</button>
+    <div class="hint">Live preview works now. MP4 export needs the server-side FFmpeg step — next milestone.</div>
+  </div>
+</aside>
+
+<main>
+  <div id="stage" style="display:none">
+    <img id="frameImg" alt="Figma frame" />
+    <div id="slot">
+      <div class="handle br"></div>
+    </div>
+  </div>
+  <div class="empty" id="empty">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>
+    <div>Load a Figma frame to begin.</div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = { frame: null, slotPct: null, videoURL: null };
+
+// persist token + last url
+$('#token').value = localStorage.getItem('figToken') || '';
+$('#url').value = localStorage.getItem('figURL') || '';
+
+function setStatus(msg, kind='') {
+  const el = $('#status');
+  el.textContent = msg;
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+function parseFigmaUrl(url) {
+  // .../design/<key>/... or .../file/<key>/...  + node-id=3532-13332
+  const key = (url.match(/\/(?:design|file)\/([A-Za-z0-9]+)/) || [])[1];
+  let node = (url.match(/node-id=([0-9A-Za-z-]+)/) || [])[1];
+  if (node) node = decodeURIComponent(node).replace(/-/g, ':');
+  return { key, node };
+}
+
+async function figma(path, token) {
+  const res = await fetch('https://api.figma.com' + path, { headers: { 'X-Figma-Token': token } });
+  if (!res.ok) {
+    const body = await res.text().catch(()=> '');
+    throw new Error(`Figma API ${res.status}: ${body.slice(0,120) || res.statusText}`);
+  }
+  return res.json();
+}
+
+// depth-first search for a node whose name matches (case-insensitive)
+function findByName(node, name, out=[]) {
+  if (!node) return out;
+  if ((node.name || '').toLowerCase() === name) out.push(node);
+  (node.children || []).forEach(c => findByName(c, name, out));
+  return out;
+}
+
+function boxToPct(box, frameBox) {
+  return {
+    left: (box.x - frameBox.x) / frameBox.width * 100,
+    top:  (box.y - frameBox.y) / frameBox.height * 100,
+    w:    box.width / frameBox.width * 100,
+    h:    box.height / frameBox.height * 100,
+  };
+}
+
+function applySlot() {
+  if (!state.slotPct) return;
+  const s = $('#slot'), p = state.slotPct;
+  s.style.left = p.left + '%';
+  s.style.top = p.top + '%';
+  s.style.width = p.w + '%';
+  s.style.height = p.h + '%';
+  s.style.transform = `rotate(${$('#rot').value}deg)`;
+  s.style.borderRadius = $('#radius').value + 'px';
+  const v = s.querySelector('video');
+  if (v) v.style.objectFit = $('#fit').value;
+}
+
+$('#loadBtn').addEventListener('click', async () => {
+  const token = $('#token').value.trim();
+  const url = $('#url').value.trim();
+  if (!token) return setStatus('Paste your Figma token first.', 'err');
+  const { key, node } = parseFigmaUrl(url);
+  if (!key || !node) return setStatus('Could not read file key / node-id from that URL.', 'err');
+
+  localStorage.setItem('figToken', token);
+  localStorage.setItem('figURL', url);
+
+  try {
+    setStatus('Fetching frame geometry…');
+    const data = await figma(`/v1/files/${key}/nodes?ids=${encodeURIComponent(node)}&geometry=paths`, token);
+    const doc = data.nodes[node] && data.nodes[node].document;
+    if (!doc) throw new Error('Node not found in file. Check the node-id.');
+    const frameBox = doc.absoluteBoundingBox;
+    if (!frameBox) throw new Error('That node has no bounding box (pick a frame/component).');
+    state.frame = { key, node, box: frameBox, doc };
+
+    setStatus('Rendering frame image…');
+    const img = await figma(`/v1/images/${key}?ids=${encodeURIComponent(node)}&format=png&scale=2`, token);
+    const src = img.images[node];
+    if (!src) throw new Error('Figma returned no image for that node.');
+
+    $('#frameImg').src = src;
+    $('#frameImg').onload = () => {
+      $('#empty').style.display = 'none';
+      $('#stage').style.display = 'block';
+      $('#controls').classList.add('show');
+      // default slot = centered 60% box, or auto-detect
+      if (!tryAutoSlot()) {
+        state.slotPct = { left: 20, top: 25, w: 60, h: 50 };
+        applySlot();
+      }
+      setStatus('Loaded. Upload a video, then drag/resize the box.', 'ok');
+    };
+  } catch (e) {
+    console.error(e);
+    setStatus(e.message, 'err');
+  }
+});
+
+function tryAutoSlot() {
+  if (!state.frame) return false;
+  const hits = findByName(state.frame.doc, 'video-slot');
+  const withBox = hits.find(n => n.absoluteBoundingBox);
+  if (!withBox) return false;
+  state.slotPct = boxToPct(withBox.absoluteBoundingBox, state.frame.box);
+  applySlot();
+  $('#slot').classList.add('placed');
+  setStatus('Found a "video-slot" layer — video placed automatically.', 'ok');
+  return true;
+}
+$('#autoSlot').addEventListener('click', () => {
+  if (!tryAutoSlot()) setStatus('No layer named "video-slot" in this frame.', 'err');
+});
+$('#resetSlot').addEventListener('click', () => {
+  state.slotPct = { left: 20, top: 25, w: 60, h: 50 };
+  $('#slot').classList.remove('placed');
+  applySlot();
+});
+
+// video upload
+$('#pickVideo').addEventListener('click', () => $('#videoInput').click());
+$('#videoInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (state.videoURL) URL.revokeObjectURL(state.videoURL);
+  state.videoURL = URL.createObjectURL(file);
+  const slot = $('#slot');
+  slot.querySelectorAll('video').forEach(v => v.remove());
+  const v = document.createElement('video');
+  v.src = state.videoURL; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+  slot.insertBefore(v, slot.firstChild);
+  slot.classList.add('placed');
+  applySlot();
+  $('#pickVideo').textContent = file.name.slice(0, 28);
+});
+
+['#rot', '#radius', '#fit'].forEach(sel => $(sel).addEventListener('input', applySlot));
+
+// ---- drag + resize the slot (in % of the stage) ----
+const stage = $('#stage'), slot = $('#slot');
+let mode = null, start = null;
+
+function pct(e) {
+  const r = $('#frameImg').getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * 100, y: (e.clientY - r.top) / r.height * 100 };
+}
+slot.addEventListener('pointerdown', e => {
+  if (!state.slotPct) return;
+  mode = e.target.classList.contains('handle') ? 'resize' : 'move';
+  start = { ...pct(e), slot: { ...state.slotPct } };
+  slot.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+slot.addEventListener('pointermove', e => {
+  if (!mode) return;
+  const p = pct(e), dx = p.x - start.x, dy = p.y - start.y, s = start.slot;
+  if (mode === 'move') {
+    state.slotPct = { ...s, left: clamp(s.left + dx, 0, 100 - s.w), top: clamp(s.top + dy, 0, 100 - s.h) };
+  } else {
+    state.slotPct = { ...s, w: clamp(s.w + dx, 5, 100 - s.left), h: clamp(s.h + dy, 5, 100 - s.top) };
+  }
+  applySlot();
+});
+slot.addEventListener('pointerup', e => { mode = null; slot.releasePointerCapture(e.pointerId); });
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+</script>
+</body>
+</html>
