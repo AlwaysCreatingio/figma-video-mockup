@@ -85,7 +85,7 @@ function finalize(){
       const c=document.createElement("canvas"); c.width=w*S; c.height=h*S;
       const ctx=c.getContext("2d"); ctx.fillStyle="#000"; ctx.fillRect(0,0,c.width,c.height);
       ctx.fillStyle="#fff"; rr(ctx,0,0,c.width,c.height,radius*S); ctx.fill();
-      rects.push({ slot:s.slot, videoId:s.videoId, x:Math.round(r.left), y:Math.round(r.top), w, h, mask:c.toDataURL("image/png") });
+      rects.push({ slot:s.slot, videoId:s.videoId, x:Math.round(r.left), y:Math.round(r.top), w, h, bg:getComputedStyle(el).backgroundColor, mask:c.toDataURL("image/png") });
       // punch the hole
       el.innerHTML=''; el.style.background='transparent'; el.style.backgroundImage='none'; el.style.opacity='1';
     }
@@ -182,7 +182,12 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     const zs = t && t.s ? Math.max(1, t.s) : 1;                    // zoom (≥1 keeps the slot covered)
     const ox = t ? Math.round((t.x || 0) * S) : 0, oy = t ? Math.round((t.y || 0) * S) : 0;
     const zw = Math.round(w * zs / 2) * 2, zh = Math.round(h * zs / 2) * 2;
-    fc.push(`[${i}:v]scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
+    if (t && t.fit === "contain") {
+      // Fit: whole video visible, padded evenly with the slot's own background colour
+      fc.push(`[${i}:v]scale=${zw}:${zh}:force_original_aspect_ratio=decrease,pad=${w}:${h}:x='clip((ow-iw)/2+(${ox}),0,ow-iw)':y='clip((oh-ih)/2+(${oy}),0,oh-ih)':color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+    } else {
+      fc.push(`[${i}:v]scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
+    }
     fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
     fc.push(`[vc${i}][mk${i}]alphamerge[vr${i}]`);
     fc.push(`[${last}][vr${i}]overlay=${x}:${y}:eof_action=repeat[s${i}]`);

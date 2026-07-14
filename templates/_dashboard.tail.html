@@ -284,7 +284,7 @@ function App() {
     const xf = xfFor(id);
     for (const k in xf) {
       const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
-      if (m) { const t = xf[k]; m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`; m.style.transformOrigin = "center"; m.draggable = false; }
+      if (m) { const t = xf[k]; m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`; m.style.transformOrigin = "center"; m.style.objectFit = t.fit || "cover"; m.draggable = false; }
     }
   };
 
@@ -371,7 +371,7 @@ function App() {
         clearActive();
         const k = mslot.getAttribute("data-vslot");
         const t = xfFor(sel)[k] || {};
-        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1 });
+        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover" });
         return;
       }
       const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
@@ -441,10 +441,16 @@ function App() {
     applyXf(containerRef.current, sel);
     setInsp(i => ({ ...i, mediaScale: s }));
   }
+  function setMediaFit(k, fit) {
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.fit = fit;
+    applyXf(containerRef.current, sel);
+    setInsp(i => ({ ...i, mediaFit: fit }));
+  }
   function resetMediaXf(k) {
     xfFor(sel)[k] = { x: 0, y: 0, s: 1 };
     applyXf(containerRef.current, sel);
-    setInsp(i => ({ ...i, mediaScale: 1 }));
+    setInsp(i => ({ ...i, mediaScale: 1, mediaFit: "cover" }));
   }
   function replaceMedia(k) {
     const slot = containerRef.current.querySelector('[data-vslot="' + k + '"]');
@@ -645,6 +651,14 @@ function App() {
               <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Replace media…</button>
               <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Fit</div>
+                <div>
+                  <label className={LBL}>Fill mode</label>
+                  <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
+                    <button onClick={() => setMediaFit(insp.slot, "cover")} className={insp.mediaFit !== "contain" ? SEG_ON : SEG}>Fill</button>
+                    <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Fit</button>
+                  </div>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Fill crops to cover the frame; Fit shows the whole video with even padding.</p>
+                </div>
                 <div>
                   <label className={LBL}>Zoom · {Math.round(insp.mediaScale * 100)}%</label>
                   <input type="range" min="100" max="300" value={Math.round(insp.mediaScale * 100)}
