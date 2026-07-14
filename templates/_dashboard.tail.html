@@ -149,7 +149,7 @@ const demoStore = {
         if (up.error) console.warn("[supabase] upload:", up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, overrides: rec.overrides } });
+      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } });
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
       return;
     }
@@ -184,6 +184,10 @@ function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
         else if (o.html != null) el.innerHTML = o.html;
         else if (o.text != null) el.textContent = o.text;
         if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
+      }
+      for (const k in (rec.mediaXf || {})) {
+        const m = base.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
+        if (m) { const t = rec.mediaXf[k]; m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`; m.style.transformOrigin = "center"; }
       }
     };
     const ids = [80, 400, 900].map(ms => setTimeout(apply, ms)); // re-apply across the template's async settling
@@ -237,6 +241,9 @@ function App() {
   const [, force] = useState(0);
 
   const overrides = useRef({});
+  const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
+  const dragRef = useRef(null);
+  const editorScaleRef = useRef(1);
   const containerRef = useRef(null);
   const applyingRef = useRef(false);
   const activeRef = useRef(null);
@@ -272,6 +279,14 @@ function App() {
     if (location.hash !== want) location.hash = want;
   }, [sel, page]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
+  const xfFor = (id) => (mediaXf.current[id] = mediaXf.current[id] || {});
+  const applyXf = (root, id) => {
+    const xf = xfFor(id);
+    for (const k in xf) {
+      const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
+      if (m) { const t = xf[k]; m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`; m.style.transformOrigin = "center"; m.draggable = false; }
+    }
+  };
 
   function applyAll() {
     const root = containerRef.current; if (!root || !sel) return;
@@ -285,6 +300,7 @@ function App() {
       else if (o.text != null && el.tagName !== "INPUT" && el !== active) el.textContent = o.text;
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
     }
+    applyXf(root, sel);
     requestAnimationFrame(() => { applyingRef.current = false; });
   }
   useEffect(() => {
@@ -347,10 +363,17 @@ function App() {
     const el = e.target;
     // in-slot control buttons (video/text switch) handle their own clicks
     if (el.closest("[data-ctl]")) return;
-    // clicking a media slot opens its uploader directly (video/image file picker, or logo library)
+    // media slots: empty → open the uploader; filled → open the media inspector (pan/zoom/replace)
     const mslot = el.closest("[data-vslot], [data-lslot]");
     if (mslot && containerRef.current.contains(mslot)) {
       e.preventDefault(); e.stopPropagation();
+      if (mslot.hasAttribute("data-vslot") && mslot.querySelector("video, img")) {
+        clearActive();
+        const k = mslot.getAttribute("data-vslot");
+        const t = xfFor(sel)[k] || {};
+        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1 });
+        return;
+      }
       const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
       const onClick = pk && mslot[pk] && mslot[pk].onClick;
       if (onClick) onClick({ stopPropagation() {}, preventDefault() {} });
@@ -382,6 +405,54 @@ function App() {
     else { suppressRef.current = true; slot.click(); setTimeout(() => { suppressRef.current = false; }, 60); }
   }
   function deselect() { clearActive(); setInsp(null); }
+
+  // drag-to-pan media inside its slot (mousedown+move on a filled slot); a real drag suppresses the click
+  function onMediaDragStart(e) {
+    if (!editMode) return;
+    const slot = e.target.closest && e.target.closest("[data-vslot]");
+    if (!slot || !containerRef.current.contains(slot)) return;
+    const media = slot.querySelector("video, img");
+    if (!media) return;
+    e.preventDefault();
+    const k = slot.getAttribute("data-vslot");
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    const d = { k, media, startX: e.clientX, startY: e.clientY, baseX: t.x || 0, baseY: t.y || 0, moved: false };
+    dragRef.current = d;
+    const move = (ev) => {
+      const sc = editorScaleRef.current || 1;
+      const dx = (ev.clientX - d.startX) / sc, dy = (ev.clientY - d.startY) / sc;
+      if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+      t.x = d.baseX + dx; t.y = d.baseY + dy;
+      d.media.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.s || 1})`;
+      d.media.style.transformOrigin = "center";
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      dragRef.current = null;
+      if (d.moved) { suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150); }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  function setMediaScale(k, s) {
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.s = s;
+    applyXf(containerRef.current, sel);
+    setInsp(i => ({ ...i, mediaScale: s }));
+  }
+  function resetMediaXf(k) {
+    xfFor(sel)[k] = { x: 0, y: 0, s: 1 };
+    applyXf(containerRef.current, sel);
+    setInsp(i => ({ ...i, mediaScale: 1 }));
+  }
+  function replaceMedia(k) {
+    const slot = containerRef.current.querySelector('[data-vslot="' + k + '"]');
+    if (!slot) return;
+    const pk = Object.keys(slot).find(x => x.startsWith("__reactProps$"));
+    const onClick = pk && slot[pk] && slot[pk].onClick;
+    if (onClick) onClick({ stopPropagation() {}, preventDefault() {} });
+  }
 
   // preview audio: muted autoplay by default; the sound toggle (a user gesture) unmutes + plays every video
   useEffect(() => {
@@ -451,7 +522,7 @@ function App() {
     const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("d_" + Date.now());
     setSaved("saving");
     try {
-      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, showPlus, hiddenLogos, logosHidden, overrides: ov, thumb });
+      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
       await refreshDemos();
       setSaved(true); setTimeout(() => setSaved(false), 1800);
     } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
@@ -459,6 +530,7 @@ function App() {
   async function openDemo(id) {
     const rec = demoRecs[id]; if (!rec) return;
     overrides.current[rec.templateId] = rec.overrides || {};
+    mediaXf.current[rec.templateId] = JSON.parse(JSON.stringify(rec.mediaXf || {}));
     window.__demoPending = rec;
     setSel(rec.templateId);
   }
@@ -522,7 +594,7 @@ function App() {
       const showPlus = !!root.querySelector("[data-plus]");
       const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
       const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
-      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden };
+      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
       const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
       if (!res.ok) throw new Error(await res.text());
       const mp4 = await res.blob();
@@ -546,6 +618,7 @@ function App() {
     if (!t) { setSel(null); return null; }
     const SB = 320;
     const s = Math.min(1, (window.innerHeight - 88) / t.height, (window.innerWidth - SB - 96) / t.width);
+    editorScaleRef.current = s;
     return (
       <div className="h-screen flex text-neutral-900 bg-[#f6f6f8]">
         <aside style={{ width: SB }} className="shrink-0 h-screen bg-white border-r border-neutral-200 flex flex-col">
@@ -563,6 +636,26 @@ function App() {
                 <p className="text-neutral-500 text-sm leading-relaxed mt-3">Click any element — a heading, a label pill, a card, or the background — to restyle it.</p>
               </div>
             )}
+
+            {insp && insp.isMedia && <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Media</span>
+                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-lg text-neutral-500 bg-neutral-100 hover:bg-neutral-200 transition">✕</button>
+              </div>
+              <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Replace media…</button>
+              <section className="space-y-3">
+                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Fit</div>
+                <div>
+                  <label className={LBL}>Zoom · {Math.round(insp.mediaScale * 100)}%</label>
+                  <input type="range" min="100" max="300" value={Math.round(insp.mediaScale * 100)}
+                    onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
+                    className="w-full accent-[#6d5efc]" />
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Zoom in to crop out letterbox bars baked into the footage.</p>
+                </div>
+                <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position & zoom</button>
+                <p className="text-xs text-neutral-400 leading-relaxed">Drag the video on the canvas to reposition it inside its frame.</p>
+              </section>
+            </div>}
 
             {insp && insp.isLogo && <div className="space-y-5">
               <div className="flex items-center justify-between">
@@ -593,7 +686,7 @@ function App() {
               {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
             </div>}
 
-            {insp && !insp.isLogo && <div className="space-y-5">
+            {insp && !insp.isLogo && !insp.isMedia && <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{insp.isText ? "Text" : insp.isSlot ? "Media slot" : "Element"}</span>
                 <div className="flex gap-1.5">
@@ -682,7 +775,7 @@ function App() {
 
         <main className="flex-1 h-screen flex items-center justify-center p-12 overflow-auto relative">
           <div style={{ width: t.width * s, height: t.height * s }} className="overflow-hidden rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
-            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput}
+            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <t.Component />
             </div>

@@ -24,7 +24,7 @@
         <div className="absolute rounded-[20px]" style={{ left: 40, top: 321.53, width: 232.276, height: 412.94 }}>
           <Slot k="slot1" className="absolute inset-0 bg-[#7a7a7a] rounded-[20px]" />
           <div className="absolute flex items-center justify-center px-[11.845px] py-[7px] rounded-[9.476px]" style={{ left: 11.055, top: 11.055, ...pillBg }}>
-            <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap" style={{ fontFamily: 'Geist, sans-serif' }}>
+            <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
               raw footage
             </p>
           </div>

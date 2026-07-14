@@ -28,7 +28,7 @@
       <div className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
         {logo
           ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
-          : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap" style={{ fontFamily: "'Geist', sans-serif" }}>{text}</p>}
+          : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{text}</p>}
       </div>
     );
 

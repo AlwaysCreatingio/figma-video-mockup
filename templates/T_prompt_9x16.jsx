@@ -1,4 +1,4 @@
-/* Template prompt-16x9 — Prompt to Video 16:9 (text prompt left, Agent Opus video right) */
+/* Template prompt-9x16 — Prompt to 9:16 Video (text prompt left, vertical Agent Opus video right) */
 (function () {
   function Component(props) {
     const { useState } = React;
@@ -35,12 +35,12 @@
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex gap-[24px] items-center">
           {/* prompt card */}
-          <div className="relative w-[360px] h-[440px] rounded-[20px] bg-[#212124] border border-[#3a3a40] p-[26px] flex flex-col shrink-0">
+          <div className="relative w-[400px] h-[500px] rounded-[20px] bg-[#212124] border border-[#3a3a40] p-[26px] flex flex-col shrink-0">
             <div className="inline-flex items-center gap-[8px] self-start px-[12px] py-[9px] rounded-[8px]" style={pillBg}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff570a"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>
               <p className="font-medium leading-none text-[14px] text-white tracking-[0.42px] uppercase font-[Geist,sans-serif]">Prompt</p>
             </div>
-            <p className="mt-[22px] text-[#f0f0f2] text-[23px] leading-[1.4] font-medium tracking-[-0.1px] font-[Geist,sans-serif]">
+            <p className="mt-[22px] text-[#f0f0f2] text-[24px] leading-[1.4] font-medium tracking-[-0.1px] font-[Geist,sans-serif]">
               A cinematic product ad — slow-motion splash, studio lighting, ultra-detailed 4K.
             </p>
             <p className="mt-auto text-[13px] text-neutral-500 font-medium font-[Geist,sans-serif]">One prompt. One take.</p>
@@ -49,11 +49,11 @@
           {/* arrow — editable text, so its colour/size can be restyled via the inspector */}
           <p className="shrink-0 w-[44px] text-center text-neutral-400 text-[40px] leading-none font-light font-[Geist,sans-serif]">→</p>
 
-          {/* video card with Agent Opus label */}
-          <div className="relative w-[520px] h-[440px] shrink-0">
+          {/* vertical 9:16 video with Agent Opus label */}
+          <div className="relative w-[281px] h-[500px] shrink-0">
             <Slot k="slot1" className="absolute inset-0 rounded-[20px] bg-[#a7aaab]" />
-            <div className="absolute top-[14px] left-[14px] flex items-center justify-center p-[10px] rounded-[8px] pointer-events-none" style={pillBg}>
-              <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[24px] object-contain" />
+            <div className="absolute top-[12px] left-[12px] flex items-center justify-center p-[9px] rounded-[8px] pointer-events-none" style={pillBg}>
+              <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[20px] object-contain" />
             </div>
           </div>
         </div>
@@ -62,5 +62,5 @@
   }
 
   window.TEMPLATES = window.TEMPLATES || [];
-  window.TEMPLATES.push({ id: "prompt-16x9", name: "Prompt to Video 16:9", width: 1056, height: 594, slots: 1, desc: "16:9 layout with an editable text prompt card on the left and an Agent Opus-labeled video on the right", Component });
+  window.TEMPLATES.push({ id: "prompt-9x16", name: "Prompt to 9:16 Video", width: 1056, height: 594, slots: 1, desc: "16:9 layout with an editable prompt card on the left and a vertical 9:16 Agent Opus-labeled video on the right", Component });
 })();

@@ -50,7 +50,7 @@
         <div className="absolute top-[12.636px] left-[12.636px] flex items-center justify-center p-[10px] rounded-[7.624px]" style={badgeStyle}>
           {logo
             ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
-            : <p className="font-medium leading-none text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap" style={{ fontFamily: "'Geist', sans-serif" }}>
+            : <p className="font-medium leading-none text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
                 {label}
               </p>}
         </div>

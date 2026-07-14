@@ -57,7 +57,7 @@
           <Slot k="slot3" className="bg-neutral-800 shrink-0" style={{ width: 594, height: 334 }} />
 
           {/* caption */}
-          <p className="text-center font-medium text-[40px] leading-none tracking-[-0.2px]" style={{ fontFamily: "'Geist',sans-serif" }}>
+          <p className="text-center font-medium text-[40px] leading-none tracking-[-0.2px] font-[Geist,sans-serif]">
             <span className="text-white">Comment </span>
             <span className="text-[#ff570a]">"Agent Opus"</span>
           </p>

@@ -109,8 +109,7 @@
               style={badgeBg}
             >
               <p
-                className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap"
-                style={geist}
+                className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]"
               >
                 raw footage
               </p>

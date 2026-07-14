@@ -41,8 +41,7 @@
           style={{ top: 'calc(50% - 4.12px)', transform: 'translate(-50%, -50%)' }}
         >
           <p
-            className="font-medium text-black text-center w-full m-0"
-            style={{ fontFamily: 'Geist, sans-serif', letterSpacing: '-0.34px', lineHeight: 1 }}
+            className="font-medium text-black text-center w-full m-0 font-[Geist,sans-serif] tracking-[-0.34px] leading-none"
           >
             <span className="text-[66px]">Comment</span>
             <span className="text-[68px]">{` `}</span>

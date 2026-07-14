@@ -60,8 +60,7 @@
           style={{ left: '50%', top: 'calc(50% - 33px)' }}
         >
           <p
-            className="font-medium h-[50.488px] leading-none text-[44px] text-center text-white tracking-[-0.22px] w-full"
-            style={{ fontFamily: "'Geist', sans-serif" }}
+            className="font-medium h-[50.488px] leading-none text-[44px] text-center text-white tracking-[-0.22px] w-full font-[Geist,sans-serif]"
           >
             AI for Product ads
           </p>
@@ -88,8 +87,7 @@
                 style={chipStyle}
               >
                 <p
-                  className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap"
-                  style={{ fontFamily: "'Geist', sans-serif" }}
+                  className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]"
                 >
                   original
                 </p>

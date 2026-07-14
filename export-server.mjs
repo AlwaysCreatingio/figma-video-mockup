@@ -146,7 +146,7 @@ function cssToHex(c) {
   return "0x" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
 }
 
-async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg) {
+async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf) {
   // bound output to the shortest clip so the looped plate/color source can't run forever
   const durs = await Promise.all(videoFiles.map(probeDur));
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
@@ -175,10 +175,14 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     fc.push(`[base][amb]overlay=0:0:eof_action=repeat[bg0]`);
     last = "bg0";
   }
-  // each video: fill its slot, then round its corners with the slot mask, then overlay
+  // each video: fill its slot (honouring per-slot pan/zoom), round its corners with the slot mask, overlay
   rects.forEach((r, i) => {
     const x = r.x * S, y = r.y * S, w = r.w * S, h = r.h * S;
-    fc.push(`[${i}:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1,format=yuva420p[vc${i}]`);
+    const t = (mediaXf && mediaXf[r.slot]) || null;
+    const zs = t && t.s ? Math.max(1, t.s) : 1;                    // zoom (≥1 keeps the slot covered)
+    const ox = t ? Math.round((t.x || 0) * S) : 0, oy = t ? Math.round((t.y || 0) * S) : 0;
+    const zw = Math.round(w * zs / 2) * 2, zh = Math.round(h * zs / 2) * 2;
+    fc.push(`[${i}:v]scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
     fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
     fc.push(`[vc${i}][mk${i}]alphamerge[vr${i}]`);
     fc.push(`[${last}][vr${i}]overlay=${x}:${y}:eof_action=repeat[s${i}]`);
@@ -220,13 +224,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, mediaXf = {} } = spec;
       const plate = path.join(WORK, "plate_" + Date.now() + ".png");
       const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden }, W, H, plate);
       const videoFiles = rects.map(r => path.join(WORK, r.videoId));
       const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
       const out = path.join(WORK, "out_" + Date.now() + ".mp4");
-      await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg);
+      await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf);
       const data = fs.readFileSync(out);
       res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
       return res.end(data);

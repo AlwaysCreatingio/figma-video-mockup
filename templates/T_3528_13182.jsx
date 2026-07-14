@@ -41,17 +41,10 @@
           className="-translate-x-1/2 -translate-y-1/2 absolute flex flex-col gap-[40px] items-center left-1/2 w-[522.941px]"
           style={{ top: 'calc(50% - 4.12px)' }}
         >
-          <p
-            className="font-medium text-center text-white w-full"
-            style={{
-              fontFamily: "'Geist','Geist SemiBold',sans-serif",
-              letterSpacing: '-0.34px',
-              lineHeight: 1
-            }}
-          >
-            <span style={{ fontSize: '66px', lineHeight: 1 }}>Comment</span>
-            <span style={{ fontSize: '68px', lineHeight: 1 }}>{` `}</span>
-            <span style={{ fontSize: '75px', lineHeight: 1, color: '#ff570a' }}>“Agent Opus”</span>
+          <p className="font-medium text-center text-white w-full font-[Geist,sans-serif] tracking-[-0.34px] leading-none">
+            <span className="text-[66px] leading-none">Comment</span>
+            <span className="text-[68px] leading-none">{` `}</span>
+            <span className="text-[75px] leading-none text-[#ff570a]">“Agent Opus”</span>
           </p>
           <div className="flex flex-col items-center h-[620px] w-[348.75px]">
             <Slot

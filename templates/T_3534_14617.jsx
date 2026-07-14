@@ -43,7 +43,7 @@
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex gap-[24px] items-center left-1/2 top-1/2">
           <div className="flex flex-col gap-[14px] items-start relative shrink-0 w-[504px]">
             <div className="flex items-center justify-center p-[10px] relative rounded-[7.624px] shrink-0" style={{ backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" }}>
-              <p className="font-medium leading-none relative shrink-0 text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap" style={{ fontFamily: "'Geist', sans-serif" }}>
+              <p className="font-medium leading-none relative shrink-0 text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
                 raw footage
               </p>
             </div>
