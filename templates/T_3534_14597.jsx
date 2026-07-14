@@ -35,7 +35,7 @@
     const Card = ({ k, text, logo }) => (
       <div className="relative shrink-0 w-[504px] h-[283.5px]">
         <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)] rounded-[20px]" />
-        <Label text={text} logo={logo} />
+        {Label({ text, logo })}
       </div>
     );
 
@@ -63,9 +63,9 @@
         `}</style>
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[16px] items-center">
-          <Card k="slot1" text="RAW FOOTAGE" />
+          {Card({ k: "slot1", text: "RAW FOOTAGE" })}
           
-            <Card k="slot2" logo />
+            {Card({ k: "slot2", logo: true })}
           
         </div>
       </div>

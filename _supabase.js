@@ -1,7 +1,6 @@
-// Cloud demos config. Paste your Supabase project URL + anon (public) key here.
-// Leave blank to use local browser storage (IndexedDB) instead.
-// The anon key is designed to be public/client-side — access is controlled by row-level security.
+// Cloud demos config. The anon key is designed to be public/client-side — access is
+// controlled by row-level security policies in the Supabase project.
 window.__SUPABASE = {
-  url: "",       // e.g. https://abcdefgh.supabase.co   (Project Settings -> Data API -> Project URL)
-  anonKey: "",   // the "anon public" key            (Project Settings -> API Keys -> anon public)
+  url: "https://zljglbqzbrpohtnzwrwv.supabase.co",
+  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpsamdsYnF6YnJwb2h0bnp3cnd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5Nzc3MDgsImV4cCI6MjA5OTU1MzcwOH0.rigH9-dR0voCwN1n7Ozl-h-PxkNEK6reFBfsMLMB97k",
 };

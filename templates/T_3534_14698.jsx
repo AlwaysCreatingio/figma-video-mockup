@@ -61,9 +61,9 @@
       <div className="relative overflow-hidden bg-[#181818]" style={{ width: 1024, height: 576 }}>
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
         <div className="-translate-x-1/2 absolute flex gap-[40px] items-center left-1/2 top-[61px]">
-          <Card k="slot1" label="RAW FOOTAGE" />
+          {Card({ k: "slot1", label: "RAW FOOTAGE" })}
           
-            <Card k="slot2" logo />
+            {Card({ k: "slot2", logo: true })}
           
         </div>
       </div>

@@ -56,9 +56,9 @@
 
           <div className="flex flex-col gap-[20px] items-start w-full">
             
-              <Card k="slot1" label="agent opus" />
+              {Card({ k: "slot1", label: "agent opus" })}
             
-            <Card k="slot2" label="original" />
+            {Card({ k: "slot2", label: "original" })}
           </div>
         </div>
       </div>
