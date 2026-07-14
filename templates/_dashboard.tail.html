@@ -187,7 +187,15 @@ function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
       }
       for (const k in (rec.mediaXf || {})) {
         const m = base.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
-        if (m) { const t = rec.mediaXf[k]; m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`; m.style.transformOrigin = "center"; }
+        if (m) {
+          const t = rec.mediaXf[k];
+          const pad = t.fit === "contain" ? (t.pad != null ? t.pad : 14) : 0;
+          m.style.width = pad ? `calc(100% - ${pad * 2}px)` : "100%";
+          m.style.height = pad ? `calc(100% - ${pad * 2}px)` : "100%";
+          m.style.objectFit = "cover";
+          m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`;
+          m.style.transformOrigin = "center";
+        }
       }
     };
     const ids = [80, 400, 900].map(ms => setTimeout(apply, ms)); // re-apply across the template's async settling
@@ -284,7 +292,15 @@ function App() {
     const xf = xfFor(id);
     for (const k in xf) {
       const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
-      if (m) { const t = xf[k]; m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`; m.style.transformOrigin = "center"; m.style.objectFit = t.fit || "cover"; m.draggable = false; }
+      if (m) {
+        const t = xf[k];
+        const pad = t.fit === "contain" ? (t.pad != null ? t.pad : 14) : 0;   // "Fit" = even inset on all sides
+        m.style.width = pad ? `calc(100% - ${pad * 2}px)` : "100%";
+        m.style.height = pad ? `calc(100% - ${pad * 2}px)` : "100%";
+        m.style.objectFit = "cover";
+        m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`;
+        m.style.transformOrigin = "center"; m.draggable = false;
+      }
     }
   };
 
@@ -371,7 +387,7 @@ function App() {
         clearActive();
         const k = mslot.getAttribute("data-vslot");
         const t = xfFor(sel)[k] || {};
-        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover" });
+        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14 });
         return;
       }
       const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
@@ -444,13 +460,20 @@ function App() {
   function setMediaFit(k, fit) {
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     t.fit = fit;
+    if (fit === "contain" && t.pad == null) t.pad = 14;
     applyXf(containerRef.current, sel);
-    setInsp(i => ({ ...i, mediaFit: fit }));
+    setInsp(i => ({ ...i, mediaFit: fit, mediaPad: t.pad != null ? t.pad : 14 }));
+  }
+  function setMediaPad(k, pad) {
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.pad = pad;
+    applyXf(containerRef.current, sel);
+    setInsp(i => ({ ...i, mediaPad: pad }));
   }
   function resetMediaXf(k) {
     xfFor(sel)[k] = { x: 0, y: 0, s: 1 };
     applyXf(containerRef.current, sel);
-    setInsp(i => ({ ...i, mediaScale: 1, mediaFit: "cover" }));
+    setInsp(i => ({ ...i, mediaScale: 1, mediaFit: "cover", mediaPad: 14 }));
   }
   function replaceMedia(k) {
     const slot = containerRef.current.querySelector('[data-vslot="' + k + '"]');
@@ -655,10 +678,16 @@ function App() {
                   <label className={LBL}>Fill mode</label>
                   <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
                     <button onClick={() => setMediaFit(insp.slot, "cover")} className={insp.mediaFit !== "contain" ? SEG_ON : SEG}>Fill</button>
-                    <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Fit</button>
+                    <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Inset</button>
                   </div>
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Fill crops to cover the frame; Fit shows the whole video with even padding.</p>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Fill covers the frame edge-to-edge; Inset frames the video with even padding on all sides.</p>
                 </div>
+                {insp.mediaFit === "contain" && <div>
+                  <label className={LBL}>Padding · {insp.mediaPad}px</label>
+                  <input type="range" min="0" max="60" value={insp.mediaPad}
+                    onChange={e => setMediaPad(insp.slot, +e.target.value)}
+                    className="w-full accent-[#6d5efc]" />
+                </div>}
                 <div>
                   <label className={LBL}>Zoom · {Math.round(insp.mediaScale * 100)}%</label>
                   <input type="range" min="100" max="300" value={Math.round(insp.mediaScale * 100)}

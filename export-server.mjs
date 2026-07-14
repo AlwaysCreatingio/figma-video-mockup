@@ -183,8 +183,11 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     const ox = t ? Math.round((t.x || 0) * S) : 0, oy = t ? Math.round((t.y || 0) * S) : 0;
     const zw = Math.round(w * zs / 2) * 2, zh = Math.round(h * zs / 2) * 2;
     if (t && t.fit === "contain") {
-      // Fit: whole video visible, padded evenly with the slot's own background colour
-      fc.push(`[${i}:v]scale=${zw}:${zh}:force_original_aspect_ratio=decrease,pad=${w}:${h}:x='clip((ow-iw)/2+(${ox}),0,ow-iw)':y='clip((oh-ih)/2+(${oy}),0,oh-ih)':color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+      // Inset: uniform padding on all four sides; the video covers the inner rect (cropped minimally)
+      const pd = Math.round((t.pad != null ? t.pad : 14) * S);
+      const iw = Math.max(2, Math.round((w - 2 * pd) / 2) * 2), ih = Math.max(2, Math.round((h - 2 * pd) / 2) * 2);
+      const ziw = Math.round(iw * zs / 2) * 2, zih = Math.round(ih * zs / 2) * 2;
+      fc.push(`[${i}:v]scale=${ziw}:${zih}:force_original_aspect_ratio=increase,crop=${iw}:${ih}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',pad=${w}:${h}:${(w - iw) / 2}:${(h - ih) / 2}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else {
       fc.push(`[${i}:v]scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
     }
