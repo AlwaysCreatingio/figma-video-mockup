@@ -1,0 +1,9 @@
+# Render blueprint: deploys the MP4 export server as a Docker web service.
+# In Render: New + -> Blueprint -> pick this repo -> Apply.
+services:
+  - type: web
+    name: agentopus-export
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true

@@ -1,0 +1,8 @@
+node_modules
+public
+archive
+demos
+dashboard.html
+*.mp4
+.git
+.vercel

@@ -3,13 +3,23 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import { chromium } from "playwright";
 
-const PORT = 5050;
-const TDIR = "/Users/stevenvan/figma-video-mockup/templates";
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const PORT = +(process.env.PORT || 5050);
+const TDIR = path.join(ROOT, "templates");
 const WORK = path.join(os.tmpdir(), "figma-export");
 fs.mkdirSync(WORK, { recursive: true });
+
+// hosted instances run for weeks — sweep stale work files so the disk doesn't fill
+setInterval(() => {
+  const cutoff = Date.now() - 2 * 3600e3;
+  for (const f of fs.readdirSync(WORK)) {
+    try { const p = path.join(WORK, f); if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p); } catch {}
+  }
+}, 30 * 60e3).unref();
 
 const HEAD = `<!doctype html><html><head>
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -23,7 +33,7 @@ const HEAD = `<!doctype html><html><head>
 const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius"];
 
 let LOGOS_JS = "";
-try { LOGOS_JS = fs.readFileSync("/Users/stevenvan/figma-video-mockup/_logos.js", "utf8"); } catch {}
+try { LOGOS_JS = fs.readFileSync(path.join(ROOT, "_logos.js"), "utf8"); } catch {}
 
 function buildHtml(tplSrc, X) {
   return HEAD + `<script>${LOGOS_JS}</script>` +
@@ -243,6 +253,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
       return res.end(data);
     }
+    if (req.method === "GET" && (req.url === "/health" || req.url === "/")) { res.writeHead(200, { "Content-Type": "text/plain" }); return res.end("ok"); }
     res.writeHead(404); res.end("not found");
   } catch (e) {
     console.error(e);
