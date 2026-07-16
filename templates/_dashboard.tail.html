@@ -865,6 +865,24 @@ function App() {
     }
   };
 
+  function solidifyEmptySlots(root) {
+    root.querySelectorAll("[data-vslot]").forEach(el => {
+      if (el.querySelector("video, img")) { if (el.dataset.opq) { el.style.backgroundColor = ""; delete el.dataset.opq; } return; }
+      if (el.dataset.opq) return;
+      const m = (getComputedStyle(el).backgroundColor || "").match(/rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/);
+      if (!m || +m[4] >= 1) return;
+      let bg = [24, 24, 24], n = el.parentElement;
+      while (n && root.contains(n)) {
+        const c = (getComputedStyle(n).backgroundColor || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+        if (c && (c[4] == null || +c[4] >= 1)) { bg = [+c[1], +c[2], +c[3]]; break; }
+        n = n.parentElement;
+      }
+      const a = +m[4];
+      const mix = (f, b) => Math.round(a * f + (1 - a) * b);
+      el.style.backgroundColor = `rgb(${mix(+m[1], bg[0])}, ${mix(+m[2], bg[1])}, ${mix(+m[3], bg[2])})`;
+      el.dataset.opq = "1";
+    });
+  }
   function applyAll() {
     const root = containerRef.current; if (!root || !sel) return;
     applyingRef.current = true;
@@ -878,6 +896,7 @@ function App() {
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
     }
     applyXf(root, sel);
+    solidifyEmptySlots(root);
     requestAnimationFrame(() => { applyingRef.current = false; });
   }
   useEffect(() => {
@@ -1523,7 +1542,7 @@ function App() {
                 <div>
                   <label className={LBL}>Pattern</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
-                    {[["none", "None"], ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
+                    {[["none", "Color"], ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
                       <button key={k} onClick={() => setPattern(k)} className={(insp.pattern || "none") === k ? SEG_ON : SEG}>{label}</button>
                     ))}
                   </div>

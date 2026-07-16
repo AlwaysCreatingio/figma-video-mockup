@@ -48,9 +48,6 @@
             <input data-boxtext={k} value={boxText[k] || ""} onChange={e => setBoxText(b => ({ ...b, [k]: e.target.value }))}
               className="w-full bg-transparent text-center outline-none text-[30px] font-medium leading-tight text-neutral-900" />
           </div>
-          {/* hover-only placeholder — invisible by default so it never leaks into the export */}
-          {!vids[k] && !hasText &&
-            <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-2 text-neutral-400 opacity-0 group-hover:opacity-100 transition pointer-events-none"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M10 9l5 3-5 3z" /></svg><span className="text-sm font-medium">Add video / text</span></div>}
           {/* mode switch (hover) */}
           <div data-ctl className="absolute top-2 right-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition">
             <button onClick={() => upload(k)} title="Video" className="w-7 h-7 rounded-lg bg-black/55 text-white flex items-center justify-center backdrop-blur hover:bg-black/75"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
