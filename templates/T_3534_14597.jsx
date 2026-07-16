@@ -61,7 +61,7 @@
             z-index: 20;
           }
         `}</style>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
+        <div className="hidden" />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[36px] items-center">
           {/* editable title above the videos — click to edit; leave empty to omit */}
           <p className="w-[1024px] text-center text-white text-[38px] font-semibold leading-none tracking-[-0.4px] font-[Geist,sans-serif]">Same clip. Two results.</p>

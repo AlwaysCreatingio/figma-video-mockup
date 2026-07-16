@@ -21,7 +21,7 @@
     return (
       <div className="relative overflow-hidden bg-[#181818]" style={{ width: 594, height: 1056 }}>
         {/* ambient blurred backdrop keyed to first video */}
-        {(() => { const __a = (vids["slot1"] || vids["slot2"]); return __a ? (__a.img ? <img src={__a.url} className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" /> : <video src={__a.url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />) : <div className="hidden" />; })()}
+        {(() => { const __a = (vids["slot1"] || vids["slot2"]); return __a ? (__a.img ? <div className="hidden" /> : <div className="hidden" />) : <div className="hidden" />; })()}
 
         {/* Raw footage card (gray, behind) */}
         <div className="absolute rounded-[20px]" style={{ left: 40, top: 321.53, width: 232.276, height: 412.94 }}>

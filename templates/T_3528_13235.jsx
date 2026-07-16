@@ -46,7 +46,7 @@
     return (
       <div className="relative overflow-hidden bg-[#101010]" style={{ width: 594, height: 1056 }}>
         {/* Ambient blurred footage backdrop (behind content) */}
-        {(() => { const __a = (vids["slot1"] || vids["slot2"]); return __a ? (__a.img ? <img src={__a.url} className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" /> : <video src={__a.url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />) : <div className="hidden" />; })()}
+        {(() => { const __a = (vids["slot1"] || vids["slot2"]); return __a ? (__a.img ? <div className="hidden" /> : <div className="hidden" />) : <div className="hidden" />; })()}
 
         {/* Centered content */}
         <div className="z-10 -translate-x-1/2 -translate-y-1/2 absolute flex flex-col gap-[40px] items-start left-1/2 top-[calc(50%-33px)] w-[522.941px]">

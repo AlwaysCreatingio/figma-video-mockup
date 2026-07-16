@@ -41,8 +41,8 @@
       <div className="relative overflow-hidden bg-[#101010]" style={{ width: 576, height: 1024 }}>
         {/* Ambient blurred background mirroring the uploaded footage */}
         {(() => { const __a = vids["slot1"] || vids["slot2"]; return __a ? (__a.img
-          ? <img src={__a.url} className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />
-          : <video src={__a.url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />) : null; })()}
+          ? <div className="hidden" />
+          : <div className="hidden" />) : null; })()}
 
         {/* Centered content */}
         <div

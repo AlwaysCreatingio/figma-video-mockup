@@ -59,7 +59,7 @@
     return (
       <div className="relative bg-[#181818] overflow-hidden" style={{ width: 594, height: 1056 }}>
         <style>{`@property --ao-angle{syntax:"<angle>";initial-value:0deg;inherits:false}@keyframes ao-spin{to{--ao-angle:360deg}}.ao-glow::after{content:"";position:absolute;inset:-2px;border-radius:inherit;padding:2px;background:conic-gradient(from var(--ao-angle,0deg),transparent 0deg,rgba(255,255,255,.12) 70deg,#ffffff 140deg,rgba(255,255,255,.12) 210deg,transparent 300deg);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:ao-spin 3s linear infinite;filter:drop-shadow(0 0 6px rgba(255,255,255,.6));pointer-events:none;z-index:2}`}</style>
-        <div className="absolute inset-0 opacity-40" style={{ background: "radial-gradient(120% 80% at 50% -10%, rgba(255,87,10,.18), transparent 60%)" }} />
+        <div className="hidden" />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[42px] items-center w-[522.941px]">
           {logosHidden
             ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="absolute left-1/2 top-3 -translate-x-1/2 z-30 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)

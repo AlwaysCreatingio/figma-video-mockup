@@ -39,7 +39,7 @@
 
     return (
       <div className="relative overflow-hidden bg-[#181818]" style={{ width: 1056, height: 594 }}>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
+        <div className="hidden" />
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex gap-[24px] items-center left-1/2 top-1/2">
           <div className="flex flex-col gap-[14px] items-start relative shrink-0 w-[504px]">
             <div className="flex items-center justify-center p-[10px] relative rounded-[7.624px] shrink-0" style={{ backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" }}>

@@ -34,9 +34,9 @@
       <div className="relative overflow-hidden bg-[#101010]" style={{ width: 594, height: 1056 }} data-name="9:16-template">
         {/* ambient blurred backdrop keyed to the main media slot */}
         {vids.slot3 && !vids.slot3.img
-          ? <video src={vids.slot3.url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />
+          ? <div className="hidden" />
           : vids.slot3 && vids.slot3.img
-            ? <img src={vids.slot3.url} className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />
+            ? <div className="hidden" />
             : null}
 
         {/* centered column */}

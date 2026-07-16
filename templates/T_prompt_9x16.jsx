@@ -29,9 +29,9 @@
       <div className="relative overflow-hidden bg-[#181818]" style={{ width: 1056, height: 594 }}>
         {/* ambient blurred backdrop keyed to the video */}
         {(() => { const __a = vids["slot1"]; return __a ? (__a.img
-          ? <img src={__a.url} className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />
-          : <video src={__a.url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />) : <div className="hidden" />; })()}
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
+          ? <div className="hidden" />
+          : <div className="hidden" />) : <div className="hidden" />; })()}
+        <div className="hidden" />
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex gap-[24px] items-center">
           {/* prompt card */}

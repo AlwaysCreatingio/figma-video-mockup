@@ -46,7 +46,7 @@
             filter: drop-shadow(0 0 6px rgba(255,255,255,0.7));
           }
         `}</style>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
+        <div className="hidden" />
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex gap-[40px] items-center left-1/2 top-1/2 z-10">
           <div className="flex flex-col gap-[10px] items-start relative shrink-0 w-[266.011px]">
             <div className="flex items-center justify-center p-[11.979px] relative rounded-[9.583px] shrink-0 w-full" style={labelBg}>

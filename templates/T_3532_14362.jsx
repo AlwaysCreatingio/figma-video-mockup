@@ -32,7 +32,7 @@
 
     return (
       <div className="relative overflow-hidden bg-[#101010]" style={{ width: 594, height: 1056 }}>
-        {(() => { const __a = vids["slotMAIN"]; return __a ? (__a.img ? <img src={__a.url} className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" /> : <video src={__a.url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />) : <div className="hidden" />; })()}
+        {(() => { const __a = vids["slotMAIN"]; return __a ? (__a.img ? <div className="hidden" /> : <div className="hidden" />) : <div className="hidden" />; })()}
 
         {/* centered framed column */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col gap-[34px] items-center w-[522.941px]">
