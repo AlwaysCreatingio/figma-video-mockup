@@ -151,7 +151,8 @@ const demoStore = {
       const vids = {};
       for (const k in rec.vids) {
         const v = rec.vids[k], ext = ((v.type || "video/mp4").split("/")[1] || "bin").split(";")[0], p = rec.id + "/" + k + "." + ext;
-        const up = await SB.storage.from(SB_BUCKET).upload(p, v.blob, { upsert: true, contentType: v.type });
+        await SB.storage.from(SB_BUCKET).remove([p]);
+        const up = await SB.storage.from(SB_BUCKET).upload(p, v.blob, { contentType: v.type });
         if (up.error) throw new Error("upload failed for " + k + ": " + up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
@@ -206,7 +207,8 @@ const demoStore = {
   async attachMp4(id, blob) {
     if (SB) {
       const p = id + "/out.mp4";
-      const up = await SB.storage.from(SB_BUCKET).upload(p, blob, { upsert: true, contentType: "video/mp4" });
+      await SB.storage.from(SB_BUCKET).remove([p]);
+      const up = await SB.storage.from(SB_BUCKET).upload(p, blob, { contentType: "video/mp4" });
       if (up.error) { console.warn("[supabase] mp4 upload:", up.error.message); return; }
       return this.patch(id, { mp4: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl + "?v=" + Date.now() });
     }
@@ -1099,6 +1101,8 @@ function App() {
   const activeRef = useRef(null);
   const suppressRef = useRef(false);
   const templates = (window.TEMPLATES || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const selTplObj = sel ? templates.find(x => x.id === sel) : null;
+  const TplMemo = React.useMemo(() => (selTplObj ? React.memo(selTplObj.Component) : null), [selTplObj && selTplObj.id]);
   useEffect(() => { const f = () => force(x => x + 1); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
   useEffect(() => { window.__logoPicker = (cb) => setPicker({ cb }); return () => { delete window.__logoPicker; }; }, []);
   useEffect(() => { if (!sel) return; const t = setTimeout(() => force(x => x + 1), 450); return () => clearTimeout(t); }, [sel]);
@@ -2419,7 +2423,7 @@ function App() {
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
-              <t.Component />
+              <TplMemo />
             </div>
             {guides && <div className="absolute inset-0 pointer-events-none z-30">
               <div className="absolute top-0 bottom-0 w-px" style={{ left: guides.x * s, background: guides.cx ? "#f45f00" : "rgba(37,99,235,.8)" }} />
