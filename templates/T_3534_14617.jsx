@@ -42,18 +42,18 @@
         <div className="hidden" />
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex gap-[24px] items-center left-1/2 top-1/2">
           <div className="flex flex-col gap-[14px] items-start relative shrink-0 w-[504px]">
-            <div className="flex items-center justify-center p-[10px] relative rounded-[7.624px] shrink-0" style={{ backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" }}>
-              <p className="font-medium leading-none relative shrink-0 text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
-                raw footage
-              </p>
+            <div data-swap="label1" className="flex items-center justify-center p-[10px] relative rounded-[7.624px] shrink-0" style={{ backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" }}>
+              {labelText.label1 === "@logo"
+                ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
+                : <p className="font-medium leading-none relative shrink-0 text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label1 && labelText.label1 !== "@logo") ? labelText.label1 : "raw footage"}</p>}
             </div>
             <Slot k="slot1" className="bg-[rgba(255,255,255,0.6)] relative shrink-0 w-full" style={{ aspectRatio: "467.03857421875/262.7091979980469" }} />
           </div>
           <div className="flex flex-col gap-[14px] items-start relative shrink-0 w-[504px]">
             <div data-swap="label2" className={"flex items-center justify-center px-[10px] relative rounded-[7.624px] shrink-0 " + (labelText.label2 != null ? "py-[10px]" : "py-[5px]")} style={{ backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" }}>
-              {labelText.label2 == null
+              {(labelText.label2 === "@logo" || labelText.label2 == null)
                 ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
-                : <p className="font-medium leading-none relative shrink-0 text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2}</p>}
+                : <p className="font-medium leading-none relative shrink-0 text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2 || "AGENT OPUS"}</p>}
             </div>
             
               <Slot k="slot2" className="bg-[rgba(255,255,255,0.6)] relative shrink-0 w-full" style={{ aspectRatio: "467.03857421875/262.7091979980469" }} />

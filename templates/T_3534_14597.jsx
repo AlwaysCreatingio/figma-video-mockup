@@ -24,13 +24,17 @@
     );
 
     const pillStyle = { backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" };
-    const Label = ({ k, text, logo }) => (
-      <div data-pin data-swap={logo ? k : undefined} className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
-        {logo && labelText[k] == null
+    const Label = ({ k, text, logo }) => {
+      const v = labelText[k];
+      const showLogo = v === "@logo" || (v == null && logo);
+      return (
+      <div data-pin data-swap={k} className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
+        {showLogo
           ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
-          : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{logo ? labelText[k] : text}</p>}
+          : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(v && v !== "@logo") ? v : text}</p>}
       </div>
-    );
+      );
+    };
 
     const Card = ({ k, text, logo }) => (
       <div className="relative shrink-0 w-[504px] h-[283.5px]">

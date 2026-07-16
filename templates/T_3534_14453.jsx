@@ -8,6 +8,9 @@
     const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
     React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
     React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
+    const [arrowOn, setArrowOn] = useState(() => !!(props && props.preload && props.preload.arrowOn));
+    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setArrowOn = (v) => { window.__slotAPI.arrowOn = v; setArrowOn(v); }; window.__slotAPI.arrowOn = arrowOn; } }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.arrowOn = arrowOn; }, [arrowOn]);
     const pick = k => {
       const i = document.createElement('input');
       i.type = 'file';
@@ -64,25 +67,24 @@
                   className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
                   style={chipStyle}
                 >
-                  {labelText.label1 == null
+                  {(labelText.label1 === "@logo" || labelText.label1 == null)
                     ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
-                    : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label1}</p>}
+                    : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label1 || "AGENT OPUS"}</p>}
                 </div>
+                <p className={(arrowOn ? "" : "hidden ") + "absolute left-1/2 -translate-x-1/2 -bottom-[31px] z-20 text-neutral-300 text-[32px] leading-none font-light text-center font-[Geist,sans-serif]"}>↓</p>
               </div>
             
 
             {/* Card 2 */}
             <div className="relative h-[294.155px] w-full">
               <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
-              <div
-                className="absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px] pointer-events-none"
+              <div data-pin data-swap="label2"
+                className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
                 style={chipStyle}
               >
-                <p
-                  className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]"
-                >
-                  original
-                </p>
+                {labelText.label2 === "@logo"
+                  ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+                  : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label2 && labelText.label2 !== "@logo") ? labelText.label2 : "original"}</p>}
               </div>
             </div>
           </div>

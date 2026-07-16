@@ -47,7 +47,7 @@ function buildHtml(tplSrc, X) {
 <script type="text/babel">${tplSrc}</script>
 <script type="text/babel">
 const t = window.TEMPLATES[window.TEMPLATES.length-1];
-const __PRE = ${JSON.stringify({ labelText: X.labelText || {} })};
+const __PRE = ${JSON.stringify({ labelText: X.labelText || {}, arrowOn: !!X.arrowOn })};
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(t.Component, { preload: __PRE }));
 </script>
 <script>
@@ -227,6 +227,12 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
       const px = Math.min(Math.max(Math.round((w - sw) / 2 + ox), 0), w - sw);
       const py = Math.min(Math.max(Math.round((h - sh) / 2 + oy), 0), h - sh);
       fc.push(`[${i}:v]scale=${sw}:${sh}:force_original_aspect_ratio=increase,crop=${sw}:${sh},pad=${w}:${h}:${px}:${py}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+    } else if (t && t.fit === "fit") {
+      // whole video visible: scale down to fit, pan within the letterbox, pad with the slot bg
+      const sw = Math.round(w * zs / 2) * 2, sh = Math.round(h * zs / 2) * 2;
+      fc.push(`[${i}:v]scale=${sw}:${sh}:force_original_aspect_ratio=decrease,` +
+        `crop=w='min(iw,${w})':h='min(ih,${h})':x='clip((iw-out_w)/2-(${ox}),0,iw-out_w)':y='clip((ih-out_h)/2-(${oy}),0,ih-out_h)',` +
+        `pad=${w}:${h}:x='clip((out_w-in_w)/2+(${ox}),0,out_w-in_w)':y='clip((out_h-in_h)/2+(${oy}),0,out_h-in_h)':color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else if (t && t.fit === "contain") {
       // Inset: uniform padding on all four sides; the video covers the inner rect (cropped minimally)
       const pd = Math.round((t.pad != null ? t.pad : 14) * S);

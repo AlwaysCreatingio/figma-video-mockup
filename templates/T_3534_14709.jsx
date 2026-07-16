@@ -49,18 +49,18 @@
         <div className="hidden" />
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex gap-[40px] items-center left-1/2 top-1/2 z-10">
           <div className="flex flex-col gap-[10px] items-start relative shrink-0 w-[266.011px]">
-            <div className="flex items-center justify-center p-[11.979px] relative rounded-[9.583px] shrink-0 w-full" style={labelBg}>
-              <p className="font-medium leading-none relative shrink-0 text-[19.167px] text-center text-white tracking-[0.575px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
-                RAW FOOTAGE
-              </p>
+            <div data-swap="label1" className="flex items-center justify-center p-[11.979px] relative rounded-[9.583px] shrink-0 w-full" style={labelBg}>
+              {labelText.label1 === "@logo"
+                ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[24px] object-contain mx-auto" />
+                : <p className="font-medium leading-none relative shrink-0 text-[19.167px] text-center text-white tracking-[0.575px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label1 && labelText.label1 !== "@logo") ? labelText.label1 : "RAW FOOTAGE"}</p>}
             </div>
             <Slot k="slot1" className="aspect-[266.0107421875/472.9140625] bg-[#a7aaab] relative shrink-0 w-full" />
           </div>
           <div className="flex flex-col gap-[10px] items-start relative shrink-0 w-[266.011px]">
             <div data-swap="label2" className={"flex items-center justify-center px-[11.979px] relative rounded-[9.583px] shrink-0 w-full " + (labelText.label2 != null ? "py-[11.979px]" : "py-[9.579px]")} style={labelBg}>
-              {labelText.label2 == null
+              {(labelText.label2 === "@logo" || labelText.label2 == null)
                 ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[24px] object-contain mx-auto" />
-                : <p className="font-medium leading-none relative shrink-0 text-[19.167px] text-center text-white tracking-[0.575px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2}</p>}
+                : <p className="font-medium leading-none relative shrink-0 text-[19.167px] text-center text-white tracking-[0.575px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2 || "AGENT OPUS"}</p>}
             </div>
             
               <Slot k="slot2" className="aspect-[266.0107421875/472.9140625] bg-[#a7aaab] relative shrink-0 w-full" />

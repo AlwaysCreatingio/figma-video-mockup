@@ -26,10 +26,10 @@
         {/* Raw footage card (gray, behind) */}
         <div className="absolute rounded-[20px]" style={{ left: 40, top: 321.53, width: 232.276, height: 412.94 }}>
           <Slot k="slot1" className="absolute inset-0 bg-[#7a7a7a] " />
-          <div className="absolute flex items-center justify-center px-[11.845px] py-[7px] rounded-[9.476px]" style={{ left: 11.055, top: 11.055, ...pillBg }}>
-            <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
-              raw footage
-            </p>
+          <div data-pin data-swap="label1" className="absolute flex items-center justify-center px-[11.845px] py-[7px] rounded-[9.476px]" style={{ left: 11.055, top: 11.055, ...pillBg }}>
+            {labelText.label1 === "@logo"
+              ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+              : <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label1 && labelText.label1 !== "@logo") ? labelText.label1 : "raw footage"}</p>}
           </div>
         </div>
 
@@ -37,9 +37,9 @@
         <div className="absolute rounded-[20px]" style={{ left: 250, top: 266.53, width: 294.15, height: 522.94 }}>
           <Slot k="slot2" className="absolute inset-0 bg-white " />
           <div data-pin data-swap="label2" className="absolute flex items-center justify-center px-[15px] py-[9px] rounded-[12px]" style={{ left: 14, top: 14, ...pillBg }}>
-            {labelText.label2 == null
+            {(labelText.label2 === "@logo" || labelText.label2 == null)
               ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
-              : <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2}</p>}
+              : <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2 || "AGENT OPUS"}</p>}
           </div>
         </div>
       </div>

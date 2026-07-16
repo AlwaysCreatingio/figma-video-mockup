@@ -155,7 +155,7 @@ const demoStore = {
         if (up.error) console.warn("[supabase] upload:", up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
+      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, arrowOn: !!rec.arrowOn, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
       if (opts && opts.createdAt) row.created_at = opts.createdAt;
       const { error } = await SB.from("demos").insert(row);
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
@@ -262,6 +262,25 @@ function DemoPreview({ d, t, rec, pre, onClose, onOpen, onRender }) {
   );
 }
 
+function solidifySlotsIn(root) {
+  root.querySelectorAll("[data-vslot]").forEach(el => {
+    if (el.querySelector("video, img")) { if (el.dataset.opq) { el.style.backgroundColor = ""; delete el.dataset.opq; } return; }
+    if (el.dataset.opq) return;
+    const m = (getComputedStyle(el).backgroundColor || "").match(/rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)/);
+    if (!m || +m[4] >= 1) return;
+    let bg = [24, 24, 24], n = el.parentElement;
+    while (n && root.contains(n)) {
+      const c = (getComputedStyle(n).backgroundColor || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+      if (c && (c[4] == null || +c[4] >= 1)) { bg = [+c[1], +c[2], +c[3]]; break; }
+      n = n.parentElement;
+    }
+    const a = +m[4];
+    const mix = (f, b) => Math.round(a * f + (1 - a) * b);
+    el.style.backgroundColor = `rgb(${mix(+m[1], bg[0])}, ${mix(+m[2], bg[1])}, ${mix(+m[3], bg[2])})`;
+    el.dataset.opq = "1";
+  });
+}
+
 function TplPreview({ t, d }) {
   const ref = useRef(null);
   useDemoOverrides(ref, d ? { overrides: d.overrides, mediaXf: d.mediaXf } : null);
@@ -302,13 +321,14 @@ function useDemoOverrides(ref, rec) {
           const pad = t.fit === "contain" ? (t.pad != null ? t.pad : 14) : 0;
           m.style.width = pad ? `calc(100% - ${pad * 2}px)` : "100%";
           m.style.height = pad ? `calc(100% - ${pad * 2}px)` : "100%";
-          m.style.objectFit = "cover";
+          m.style.objectFit = t.fit === "fit" ? "contain" : "cover";
           m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`;
           m.style.transformOrigin = "center";
         }
       }
     };
-    const ids = [80, 400, 900].map(ms => setTimeout(apply, ms)); // re-apply across the template's async settling
+    const applyAndSolidify = () => { apply(); const base = ref.current; if (base) solidifySlotsIn(base); };
+    const ids = [80, 400, 900].map(ms => setTimeout(applyAndSolidify, ms)); // re-apply across the template's async settling
     return () => ids.forEach(clearTimeout);
   }, [rec]);
 }
@@ -1027,6 +1047,7 @@ function App() {
     vids: rec.vids || {},
     boxText: rec.boxText || {},
     labelText: rec.labelText || {},
+    arrowOn: !!rec.arrowOn,
     showPlus: rec.showPlus,
     hiddenLogos: rec.hiddenLogos || {},
     logosHidden: rec.logosHidden,
@@ -1156,11 +1177,11 @@ function App() {
     for (const k in xf) {
       const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
       if (m) {
-        const t = xf[k];
-        const pad = t.fit === "contain" ? (t.pad != null ? t.pad : 14) : 0;   // "Fit" = even inset on all sides
+          const t = xf[k];
+        const pad = t.fit === "contain" ? (t.pad != null ? t.pad : 14) : 0;   // Inset = even padding on all sides
         m.style.width = pad ? `calc(100% - ${pad * 2}px)` : "100%";
         m.style.height = pad ? `calc(100% - ${pad * 2}px)` : "100%";
-        m.style.objectFit = "cover";
+        m.style.objectFit = t.fit === "fit" ? "contain" : "cover";
         m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`;
         m.style.transformOrigin = "center"; m.draggable = false;
       }
@@ -1250,6 +1271,10 @@ function App() {
         else if (el.tagName !== "INPUT" && !el.hasAttribute("data-vslot")) el.style.cursor = "move";
         if (el.tagName === "IMG") el.draggable = false;
       }
+    }
+    if (a && a.el && a.el.isConnected && !a.el.style.outline) {
+      a.el.style.outline = "2px solid #2563eb";
+      a.el.style.outlineOffset = (a.path === "0" || a.path === "") ? "-2px" : "1px";
     }
     // keep the resize grips glued to the element's live rect (style edits reflow it)
     if (a && a.el && a.el.isConnected && mainRef.current) {
@@ -1390,7 +1415,7 @@ function App() {
     // [data-swap] pills can toggle between the AO logo and editable text
     const swapEl = el.closest("[data-swap]");
     const swapKey = swapEl && root.contains(swapEl) ? swapEl.getAttribute("data-swap") : null;
-    const swapOn = swapKey != null && window.__slotAPI && window.__slotAPI.labelText && window.__slotAPI.labelText[swapKey] != null;
+    const swapOn = swapKey != null && swapEl && !!swapEl.querySelector("p, input");
     // [data-pin] labels (or anything inside one) get a corner-pin control
     const pinEl = el.closest("[data-pin]");
     const pinPath = pinEl && root.contains(pinEl) ? pathOf(pinEl, root) : null;
@@ -1527,9 +1552,20 @@ function App() {
       if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot]") || el.hasAttribute("data-ambient")) return;
       items.push({ label: el.alt || "Image", kind: "image", el });
     });
-    return items;
+    items.forEach(it => { it.path = pathOf(it.el, root); });
+    const bg = items.filter(x => x.kind === "bg");
+    const rest = items.filter(x => x.kind !== "bg").sort((a, b) => {
+      const ra = a.el.getBoundingClientRect(), rb = b.el.getBoundingClientRect();
+      return (ra.top - rb.top) || (ra.left - rb.left);
+    });
+    return [...rest, ...bg];
   }
   function selectLayer(it) {
+    if (!it.el || !it.el.isConnected) {
+      const root = containerRef.current;
+      const live = it.path != null ? nodeAt(root, it.path) : null;
+      if (live) it.el = live; else return;
+    }
     if (it.kind === "video") { selectMediaSlot(it.el); return; }
     if (it.kind === "logo") {
       const pk = Object.keys(it.el).find(k => k.startsWith("__reactProps$"));
@@ -1785,6 +1821,7 @@ function App() {
       }
       if (api.setBoxText && rec.boxText) api.setBoxText(rec.boxText);
       if (api.setLabelText && rec.labelText) api.setLabelText(rec.labelText);
+      if (api.setArrowOn && rec.arrowOn != null) api.setArrowOn(!!rec.arrowOn);
       if (api.setShowPlus && rec.showPlus != null) api.setShowPlus(rec.showPlus);
       if (api.setHiddenLogos && rec.hiddenLogos) api.setHiddenLogos(rec.hiddenLogos);
       if (api.setLogosHidden && rec.logosHidden != null) api.setLogosHidden(rec.logosHidden);
@@ -1824,7 +1861,7 @@ function App() {
         const c = document.createElement("canvas"); c.width = 240; c.height = Math.round(240 * vh / vw);
         c.getContext("2d").drawImage(m, 0, 0, c.width, c.height); thumb = c.toDataURL("image/jpeg", 0.7); }
     } catch (e) {}
-    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
+    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
   }
   async function saveDemo() {
     const t = templates.find(x => x.id === sel); if (!containerRef.current || !t) return;
@@ -1858,7 +1895,7 @@ function App() {
     try {
       await demoStore.replace({
         id: "tpl:" + sel, name: "__template__", templateId: sel, vids: {}, logos: {}, boxText: {},
-        labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, campaign: null,
+        labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), campaign: null,
         showPlus: true, hiddenLogos: {}, logosHidden: false,
         mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: JSON.parse(JSON.stringify(ovFor(sel))), thumb: null,
       });
@@ -1899,7 +1936,7 @@ function App() {
       const logos = Object.entries(rec.logos || {}).map(([slot, v]) => ({ slot, uri: v.uri, fit: (window.__FILL_LOGOS || []).indexOf(v.uri) >= 0 ? "cover" : "contain", bg: v.bg, scale: v.scale }));
       const ambient = (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on && videoSlots.length)
         ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
-      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
+      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
       let pct = 45;
       setRenderProg({ pct, label: "Rendering video…" });
       creep = setInterval(() => { pct = Math.min(93, pct + 4); setRenderProg({ pct: Math.round(pct), label: "Rendering video…" }); }, 700);
@@ -2018,7 +2055,7 @@ function App() {
     const showPlus = !!root.querySelector("[data-plus]");
     const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
     const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
-    return { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+    return { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
   }
   async function exportMp4() {
     const t = templates.find(x => x.id === sel);
@@ -2108,13 +2145,13 @@ function App() {
       <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
         <aside style={{ width: SB }} className="shrink-0 h-screen bg-[#1f1f1f] border-r border-white/10 flex flex-col">
           <div className="h-14 shrink-0 flex items-center px-5 border-b border-white/10">
-            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as a demo yet.")) return; deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← All templates</button>
+            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as a demo yet.")) return; deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← Back</button>
           </div>
 
           <div className="px-5 py-5 flex-1 overflow-y-auto">
 
 
-            {!insp && <div className="space-y-0.5 mb-4">
+            <div className="space-y-0.5 mb-4">
               <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold py-1.5">Layers</div>
               {layerList().map((it, i) => (
                 <button key={i} onClick={() => selectLayer(it)}
@@ -2130,7 +2167,16 @@ function App() {
                   <span className="truncate">{it.label}</span>
                 </button>
               ))}
-            </div>}
+            </div>
+            {window.__slotAPI && window.__slotAPI.setArrowOn && <Sec open={openSec === "Arrow"} onToggle={toggleSec} title="Arrow">
+              <div>
+                <label className={LBL}>Arrow between videos</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => { window.__slotAPI.setArrowOn(true); force(x => x + 1); }} className={window.__slotAPI.arrowOn ? SEG_ON : SEG}>On</button>
+                  <button onClick={() => { window.__slotAPI.setArrowOn(false); force(x => x + 1); }} className={!window.__slotAPI.arrowOn ? SEG_ON : SEG}>Off</button>
+                </div>
+              </div>
+            </Sec>}
             {window.__slotAPI && window.__slotAPI.setLogoCount && <Sec open={openSec === "Logos"} onToggle={toggleSec} title="Logos">
               <div>
                 <label className={LBL}>Number of logos</label>
@@ -2150,17 +2196,38 @@ function App() {
               </div>}
             </Sec>}
 
+          </div>
+
+          {IS_LOCAL && <div className="px-5 py-4 border-t border-white/10 space-y-2.5">
+            <select value={saveCampaign} onChange={e => setSaveCampaign(e.target.value)} className={FIELD} style={SELECT_STYLE}>
+              <option value="">No campaign</option>
+              {CAMPAIGNS.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+            <button onClick={saveDemo}
+              className="w-full text-sm px-3 py-2.5 rounded-[30px] bg-white/10 hover:bg-white/15 text-zinc-100 font-medium transition">
+              {saved === "saving" ? "Saving…" : saved ? "Saved ✓" : (editingDemoRef.current && demoRecs[editingDemoRef.current] ? "Save changes" : "Save to Creatives")}</button>
+            {editingDemoRef.current && demoRecs[editingDemoRef.current] && <button onClick={() => { editingDemoRef.current = null; saveDemo(); }}
+              className="w-full text-xs px-3 py-2 rounded-[30px] text-zinc-400 hover:text-white hover:bg-white/10 transition">Save as new copy</button>}
+            <button onClick={saveTemplateDefaults}
+              className="w-full text-xs px-3 py-2 rounded-[30px] text-zinc-400 hover:text-white hover:bg-white/10 transition">Set as template default</button>
+          </div>}
+        </aside>
+
+        {/* settings popover for the current selection */}
+        {insp && <div className="fixed left-[336px] top-16 bottom-6 w-[300px] z-40 flex flex-col rounded-[22px] bg-[#1f1f1f]/95 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element"}</span>
+            <button onClick={deselect} title="Close" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
+          </div>
+          <div className="vscroll overflow-y-auto px-4 pb-4">
             {insp && insp.isMedia && <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Video</span>
-                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
-              </div>
               <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">{insp.hasMedia ? "Replace media…" : "Upload media…"}</button>
               <Sec open={openSec === "Fit"} onToggle={toggleSec} title="Fit">
                 {insp.hasMedia && <div>
                   <label className={LBL}>Fill mode</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
-                    <button onClick={() => setMediaFit(insp.slot, "cover")} className={insp.mediaFit !== "contain" ? SEG_ON : SEG}>Fill</button>
+                    <button onClick={() => setMediaFit(insp.slot, "cover")} className={(insp.mediaFit !== "contain" && insp.mediaFit !== "fit") ? SEG_ON : SEG}>Fill</button>
+                    <button onClick={() => setMediaFit(insp.slot, "fit")} className={insp.mediaFit === "fit" ? SEG_ON : SEG}>Fit</button>
                     <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Inset</button>
                   </div>
                 </div>}
@@ -2220,10 +2287,6 @@ function App() {
             </div>}
 
             {insp && insp.isLogo && <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</span>
-                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
-              </div>
               <button onClick={() => insp.logoApi.replace()} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Replace logo…</button>
               <Sec open={openSec === "Logo"} onToggle={toggleSec} title="Logo">
                 <div>
@@ -2250,8 +2313,8 @@ function App() {
 
               {insp.swapKey != null && <Sec open={openSec === "Label content"} onToggle={toggleSec} title="Label content">
                 <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
-                  <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: null }); deselect(); } }} className={!insp.swapOn ? SEG_ON : SEG}>Logo</button>
-                  <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { const cur = (api.labelText || {})[insp.swapKey]; api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: cur != null ? cur : "AGENT OPUS" }); deselect(); } }} className={insp.swapOn ? SEG_ON : SEG}>Text</button>
+                  <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: "@logo" }); setInsp({ ...insp, swapOn: false }); } }} className={!insp.swapOn ? SEG_ON : SEG}>Logo</button>
+                  <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { const cur = (api.labelText || {})[insp.swapKey]; api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: (cur && cur !== "@logo") ? cur : "" }); setInsp({ ...insp, swapOn: true }); } }} className={insp.swapOn ? SEG_ON : SEG}>Text</button>
                 </div>
               </Sec>}
 
@@ -2423,21 +2486,7 @@ function App() {
               </Sec>}
             </div>}
           </div>
-
-          {IS_LOCAL && <div className="px-5 py-4 border-t border-white/10 space-y-2.5">
-            <select value={saveCampaign} onChange={e => setSaveCampaign(e.target.value)} className={FIELD} style={SELECT_STYLE}>
-              <option value="">No campaign</option>
-              {CAMPAIGNS.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-            </select>
-            <button onClick={saveDemo}
-              className="w-full text-sm px-3 py-2.5 rounded-[30px] bg-white/10 hover:bg-white/15 text-zinc-100 font-medium transition">
-              {saved === "saving" ? "Saving…" : saved ? "Saved ✓" : (editingDemoRef.current && demoRecs[editingDemoRef.current] ? "Save changes" : "Save to Creatives")}</button>
-            {editingDemoRef.current && demoRecs[editingDemoRef.current] && <button onClick={() => { editingDemoRef.current = null; saveDemo(); }}
-              className="w-full text-xs px-3 py-2 rounded-[30px] text-zinc-400 hover:text-white hover:bg-white/10 transition">Save as new copy</button>}
-            <button onClick={saveTemplateDefaults}
-              className="w-full text-xs px-3 py-2 rounded-[30px] text-zinc-400 hover:text-white hover:bg-white/10 transition">Set as template default</button>
-          </div>}
-        </aside>
+        </div>}
 
         <div className="flex-1 h-screen flex flex-col">
         <header className="h-14 shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-b border-white/10 flex items-center justify-end gap-3 px-4">

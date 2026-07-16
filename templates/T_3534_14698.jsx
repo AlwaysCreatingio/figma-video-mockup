@@ -47,11 +47,11 @@
     const Card = ({ k, label, logo }) => (
       <div className="relative shrink-0 w-[452px] h-[472px]">
         <Slot k={k} className="absolute inset-0 bg-[#a7aaab]" />
-        <div data-pin data-swap={logo ? "label-" + k : undefined} className="absolute top-[12.636px] left-[12.636px] flex items-center justify-center p-[10px] rounded-[7.624px]" style={badgeStyle}>
-          {logo && labelText["label-" + k] == null
+        <div data-pin data-swap={"label-" + k} className="absolute top-[12.636px] left-[12.636px] flex items-center justify-center p-[10px] rounded-[7.624px]" style={badgeStyle}>
+          {(labelText["label-" + k] === "@logo" || (labelText["label-" + k] == null && logo))
             ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
             : <p className="font-medium leading-none text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
-                {logo ? labelText["label-" + k] : label}
+                {(labelText["label-" + k] && labelText["label-" + k] !== "@logo") ? labelText["label-" + k] : label}
               </p>}
         </div>
       </div>

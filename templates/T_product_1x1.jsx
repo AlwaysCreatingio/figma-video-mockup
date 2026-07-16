@@ -57,22 +57,22 @@
                 className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
                 style={chipStyle}
               >
-                {labelText.label1 == null
+                {labelText.label1 === "@logo"
                   ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
-                  : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label1}</p>}
+                  : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label1 && labelText.label1 !== "@logo") ? labelText.label1 : "BEFORE"}</p>}
               </div>
             </div>
 
             {/* Card 2 */}
             <div className="relative h-[472px] w-full">
               <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
-              <div
-                className="absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px] pointer-events-none"
+              <div data-pin data-swap="label2"
+                className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
                 style={chipStyle}
               >
-                <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
-                  AFTER
-                </p>
+                {labelText.label2 === "@logo"
+                  ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+                  : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label2 && labelText.label2 !== "@logo") ? labelText.label2 : "AFTER"}</p>}
               </div>
             </div>
           </div>
