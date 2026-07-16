@@ -1359,9 +1359,13 @@ function App() {
       if (started && !fromHandle) { suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150); }
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      window.removeEventListener("blur", up);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    window.addEventListener("blur", up);
   }
   function selectEl(el, forceText) {
     const root = containerRef.current; if (!el || !root.contains(el)) return;
@@ -1372,7 +1376,7 @@ function App() {
     if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = "true"; el.focus(); }
     el.style.outline = "2px solid #2563eb";
     el.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
-    if (el.tagName !== "INPUT") el.style.cursor = "move";
+    if (el.tagName !== "INPUT" && !el.hasAttribute("data-vslot") && !el.closest("[data-vslot]")) el.style.cursor = "move";
     if (el.tagName === "IMG") el.draggable = false;
     activeRef.current = { el, path, text };
     if (mainRef.current) {
@@ -1494,8 +1498,8 @@ function App() {
     if (!slot || !containerRef.current.contains(slot)) {
       // not on media: direct-drag the selected element from anywhere on it (text keeps the ✥ handle)
       const a = activeRef.current;
-      if (a && a.el && insp && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
-          (e.target === a.el || a.el.contains(e.target))) startMoveDrag(e, false);
+      if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isSlot && insp.path !== "" && insp.path !== "0" &&
+          !a.el.hasAttribute("data-vslot") && (e.target === a.el || a.el.contains(e.target))) startMoveDrag(e, false);
       return;
     }
     const media = slot.querySelector("video, img");
