@@ -402,7 +402,7 @@ const CAMPAIGNS = [
     ],
     grad: "radial-gradient(120% 130% at 80% 85%, rgba(255,211,77,.95) 0%, transparent 50%), linear-gradient(120deg, #FF3D00 0%, #FF7A00 55%, #FFB300 100%)",
     title: "Product Ads",
-    brief: "UGC-style product ads you actually run on Meta. Hooks, variations, and full creatives from a product link.",
+    brief: "Animated, viral UGC-style product ads for Meta. Not lifelike UGC, stylized animated creatives with hooks and variations generated from a product link.",
     target: "DTC founders, media buyers, and performance marketers burning budget on slow creative pipelines.",
     positioning: "One product link in, a week of ad creatives out.",
     examples: [
@@ -1325,7 +1325,8 @@ function App() {
         const k = mslot.getAttribute("data-vslot");
         const t = xfFor(sel)[k] || {};
         setOpenSec("Fit");
-        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0, mediaMute: !!t.mute, isVideo: !!mslot.querySelector("video") });
+        { const __mp = pathOf(mslot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(mslot).backgroundColor);
+      setInsp({ isMedia: true, path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0, mediaMute: !!t.mute, isVideo: !!mslot.querySelector("video") }); }
         return;
       }
       if (mslot.hasAttribute("data-vslot")) { selectEl(mslot); return; }   // empty video slot: select, upload from the sidebar
@@ -1382,7 +1383,8 @@ function App() {
       const kk = slot.getAttribute("data-vslot");
       const tt = xfFor(sel)[kk] || {};
       setOpenSec("Fit");
-      setInsp({ isMedia: true, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video") });
+      { const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
+      setInsp({ isMedia: true, path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video") }); }
     }
     const k = slot.getAttribute("data-vslot");
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
@@ -1455,7 +1457,10 @@ function App() {
     const ch = hx.map(v => parseInt(v, 16));
     const lum = 0.299 * ch[0] + 0.587 * ch[1] + 0.114 * ch[2];
     const alpha = (meta.alpha != null ? meta.alpha : 10) / 100;
-    const c = (insp && insp.bgTransparent) || lum < 140 ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
+    const autoC = (insp && insp.bgTransparent) || lum < 140 ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
+    const c = meta.color
+      ? `rgba(${(meta.color.match(/[0-9a-f]{2}/gi) || ["ff","ff","ff"]).map(x => parseInt(x, 16)).join(",")},${alpha})`
+      : autoC;
     const size = meta.size || 48;
     const mixc = (t, w) => "rgb(" + ch.map(v => Math.round(v * (1 - w) + t * w)).join(",") + ")";
     const str = meta.strength != null ? meta.strength : 25;
@@ -1892,6 +1897,32 @@ function App() {
                     onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
                     className="w-full accent-white" />
                 </div>
+                <div>
+                  <label className={LBL}>Background</label>
+                  <div className="flex items-center gap-2">
+                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
+                      <input type="color" value={insp.bgHex || "#ffffff"} onChange={e => setStyle("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className={LBL}>Style</label>
+                  <select value={insp.pattern || "none"} onChange={e => setPattern(e.target.value)} className={FIELD} style={SELECT_STYLE}>
+                    {[["none", "Color"], ["gradient", "Gradient"], ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
+                      <option key={k} value={k}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                {["grid", "dots", "lines"].includes(insp.pattern) && <div>
+                  <label className={LBL}>Line color</label>
+                  <div className="flex items-center gap-2">
+                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: (insp.styleMeta || {}).color || "#ffffff" }}>
+                      <input type="color" value={(insp.styleMeta || {}).color || "#ffffff"} onChange={e => updateStyleMeta({ color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <span className="text-sm text-zinc-400 flex-1">{(insp.styleMeta || {}).color || "Auto"}</span>
+                  </div>
+                </div>}
                 {insp.isVideo && <div>
                   <label className={LBL}>Audio in export & preview</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
@@ -2004,6 +2035,16 @@ function App() {
                   <div>
                     <label className={LBL}>Intensity · {(insp.styleMeta || {}).alpha || 10}%</label>
                     <input type="range" min="3" max="30" value={(insp.styleMeta || {}).alpha || 10} onChange={e => updateStyleMeta({ alpha: +e.target.value })} className="w-full accent-white" />
+                  </div>
+                  <div>
+                    <label className={LBL}>Line color</label>
+                    <div className="flex items-center gap-2">
+                      <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: (insp.styleMeta || {}).color || "#ffffff" }}>
+                        <input type="color" value={(insp.styleMeta || {}).color || "#ffffff"} onChange={e => updateStyleMeta({ color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
+                      </label>
+                      <span className="text-sm text-zinc-400 flex-1">{(insp.styleMeta || {}).color || "Auto"}</span>
+                      {(insp.styleMeta || {}).color && <button onClick={() => updateStyleMeta({ color: null })} className="px-2.5 py-1 text-xs rounded-[30px] bg-white/10 text-zinc-300 hover:bg-white/15 transition">Auto</button>}
+                    </div>
                   </div>
                 </React.Fragment>}
                 {insp.pattern === "blur" && <React.Fragment>
@@ -2253,7 +2294,10 @@ function App() {
                 <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px)", backgroundSize: "44px 44px" }} />
                 <div className="absolute inset-0 bg-zinc-950/45" />
                 <div className="relative px-8 md:px-12 max-w-2xl mx-auto text-center">
-                  <h1 className="text-[40px] md:text-[46px] font-medium tracking-tight text-white leading-none">Campaigns</h1>
+                  <h1 className="flex items-center justify-center gap-3 text-[40px] md:text-[46px] font-medium tracking-tight text-white leading-none">
+                    <svg aria-label="agent opus logo" fill="currentColor" viewBox="0 0 24 24" width="38" height="38"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
+                    Campaigns
+                  </h1>
                   <p className="mt-4 text-[16px] leading-relaxed text-zinc-200">Every active campaign with its brief, hooks, and ready-to-post creatives. Pick one, grab the assets, and start creating.</p>
                 </div>
               </div>
