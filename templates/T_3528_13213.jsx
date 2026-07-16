@@ -43,8 +43,8 @@
     React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.hiddenLogos = hidden; window.__slotAPI.logosHidden = logosHidden; } }, [hidden, logosHidden]);
     React.useEffect(() => {
       if (!window.__slotAPI) return;
-      window.__slotAPI.setLogoCount = (n) => { setHidden(n >= 3 ? {} : n === 2 ? { logo3: true } : { logo2: true, logo3: true }); setLogosHidden(false); };
-      window.__slotAPI.setPlusOn = setShowPlus;
+      window.__slotAPI.setLogoCount = (n) => { window.__slotAPI.logoCount = n; setHidden(n >= 3 ? {} : n === 2 ? { logo3: true } : { logo2: true, logo3: true }); setLogosHidden(false); };
+      window.__slotAPI.setPlusOn = (v) => { window.__slotAPI.plusOn = v; setShowPlus(v); };
     }, []);
     React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.logoCount = ["logo1", "logo2", "logo3"].filter(k => !hidden[k]).length; window.__slotAPI.plusOn = showPlus; } }, [hidden, showPlus]);
     React.useEffect(() => { let on = true; Object.keys(logos).forEach(k => { const u = logos[k]; if (u && window.__logoDominant) window.__logoDominant(u).then(c => { if (on && c) setLogoBgDefault(m => (m[k] === c ? m : { ...m, [k]: c })); }); }); return () => { on = false; }; }, [logos]);
