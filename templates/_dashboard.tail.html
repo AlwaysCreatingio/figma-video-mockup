@@ -109,6 +109,7 @@ const aspectOf = (t) => t.width === t.height ? "1:1" : t.width > t.height ? "16:
 /* light-theme class tokens */
 const ACCENT = "#18181b";
 const FIELD = "w-full bg-[#242424] border border-white/10 rounded-[30px] px-3 py-2 text-sm text-zinc-100 shadow-sm outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 transition";
+const SELECT_STYLE = { appearance: "none", WebkitAppearance: "none", backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", paddingRight: "36px" };
 const LBL = "block text-xs font-medium text-zinc-400 mb-1.5";
 const SEG = "px-2.5 py-1.5 text-sm text-zinc-400 hover:bg-white/10 transition";
 const SEG_ON = "px-2.5 py-1.5 text-sm font-medium text-zinc-900 bg-white";
@@ -201,8 +202,20 @@ const demoStore = {
 
 /* a demo gallery card: renders the real template with its saved media/logos, then applies the saved
    text/style overrides so the thumbnail matches exactly what was saved (not the template defaults). */
+function Sec({ title, open, onToggle, children }) {
+  return (
+    <section className="border-b border-white/5 pb-3 mb-1">
+      <button onClick={() => onToggle(title)} className="w-full flex items-center justify-between py-1.5 text-[11px] uppercase tracking-wider text-neutral-400 font-semibold hover:text-zinc-200 transition">
+        {title}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      {open && <div className="space-y-3 pt-1.5">{children}</div>}
+    </section>
+  );
+}
+
 /* fullscreen preview: plays the rendered MP4 (or shows the saved thumb) with a download action */
-function DemoPreview({ d, t, rec, pre, onClose, onOpen }) {
+function DemoPreview({ d, t, rec, pre, onClose, onOpen, onRender }) {
   const mp4 = rec && rec.mp4;
   const ref = useRef(null);
   useDemoOverrides(ref, mp4 ? null : rec);
@@ -224,6 +237,7 @@ function DemoPreview({ d, t, rec, pre, onClose, onOpen }) {
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-3.5">
           <button onClick={onOpen} className="px-3.5 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Open in editor</button>
+          {!mp4 && onRender && <button onClick={onRender} className="px-3.5 py-2 rounded-[30px] text-sm font-medium text-zinc-900 bg-white hover:bg-zinc-200 transition">Download</button>}
           {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"}
             className="px-3.5 py-2 rounded-[30px] text-sm font-medium text-zinc-900 bg-white hover:bg-zinc-200 transition">Download MP4</a>}
         </div>
@@ -304,16 +318,16 @@ function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onRender, onTag,
         </div>
       </button>
       {/* ⋯ actions menu (hover, over the preview) */}
-      <div className="absolute top-3 right-3 z-20">
+      <div className="absolute bottom-3 right-3 z-20">
         <button onClick={(e) => { e.stopPropagation(); setMenu(m => !m); }} title="Actions"
           className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover/card:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
-        {menu && <div className="absolute right-0 top-9 z-40 w-[224px] rounded-[16px] bg-[#2b2b2b]/85 backdrop-blur-2xl shadow-2xl border border-white/10 p-1.5" onClick={e => e.stopPropagation()}>
+        {menu && <div className="absolute right-0 bottom-10 z-40 w-[224px] rounded-[16px] bg-[#2b2b2b]/85 backdrop-blur-2xl shadow-2xl border border-white/10 p-1.5" onClick={e => e.stopPropagation()}>
           {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download</a>}
           {!mp4 && onRender && <button onClick={() => { setMenu(false); onRender(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Render MP4</button>}
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download</button>}
           <button onClick={() => { setMenu(false); onOpen(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Open in editor</button>
           <div className="border-t border-white/10 my-1" />
@@ -342,7 +356,7 @@ const routeFromHash = () => {
   if (parts[0] === "projects") return { sel: null, page: "showcase" };
   if (parts[0] === "hooks") return { sel: null, page: "hooks" };
   if (parts[0] === "brand") return { sel: null, page: "brand" };
-  if (parts[0] === "campaigns") return { sel: null, page: "campaigns" };
+  if (parts[0] === "campaigns") return { sel: null, page: "campaigns", campaign: parts[1] ? decodeURIComponent(parts[1]) : null };
   return { sel: null, page: "templates" };
 };
 
@@ -350,9 +364,12 @@ const routeFromHash = () => {
 const CAMPAIGNS = [
   {
     id: "song-to-video",
-    thumb: "/brand/gradient-1.png",
+    resources: [],
+    grad: "radial-gradient(120% 140% at 85% 10%, rgba(127,216,255,.9) 0%, transparent 45%), linear-gradient(120deg, #FFB800 0%, #FF6A00 55%, #C2330A 100%)",
     title: "Song-to-Video",
-    brief: "Turn tracks into finished music videos, visualizers, and canvas loops. Target: artists, producers, and labels who release music with static covers. Positioning: every song deserves a video — one prompt gets you there before the track ends.",
+    brief: "Turn tracks into finished music videos, visualizers, and canvas loops.",
+    target: "Artists, producers, and labels who release music with static covers.",
+    positioning: "Every song deserves a video. One prompt gets you there before the track ends.",
     examples: [
       "I turned a raw track into a finished music video before the song ended.",
       "Label-quality visualizers used to cost thousands. Now they cost a prompt.",
@@ -362,9 +379,12 @@ const CAMPAIGNS = [
   },
   {
     id: "mcp",
-    thumb: "/brand/gradient-2.png",
+    resources: [],
+    grad: "radial-gradient(130% 120% at 15% 90%, rgba(191,219,254,.85) 0%, transparent 50%), linear-gradient(120deg, #FF8A5C 0%, #E4572E 55%, #7C2D12 100%)",
     title: "Agent Opus MCP",
-    brief: "AI video creation inside Claude via MCP — bulk-create ads, build content calendars, and run viral accounts from a single chat. Target: AI builders, agent tinkerers, and operators automating content pipelines.",
+    brief: "AI video creation inside Claude via MCP. Bulk-create ads, build content calendars, and run viral accounts from a single chat.",
+    target: "AI builders, agent tinkerers, and operators automating content pipelines.",
+    positioning: "Your whole video workflow, inside one conversation.",
     examples: [
       "You can now make AI videos by just… asking Claude.",
       "I connected Claude to Agent Opus and it built my entire content calendar overnight.",
@@ -374,9 +394,12 @@ const CAMPAIGNS = [
   },
   {
     id: "product-ads",
-    thumb: "/brand/gradient-3.png",
+    resources: [],
+    grad: "radial-gradient(120% 130% at 80% 85%, rgba(255,211,77,.95) 0%, transparent 50%), linear-gradient(120deg, #FF3D00 0%, #FF7A00 55%, #FFB300 100%)",
     title: "Product Ads",
-    brief: "UGC-style product ads you actually run on Meta — hooks, variations, and full creatives from a product link. Target: DTC founders, media buyers, and performance marketers burning budget on slow creative pipelines.",
+    brief: "UGC-style product ads you actually run on Meta. Hooks, variations, and full creatives from a product link.",
+    target: "DTC founders, media buyers, and performance marketers burning budget on slow creative pipelines.",
+    positioning: "One product link in, a week of ad creatives out.",
     examples: [
       "10 ad tools became completely useless overnight. One AI agent replaced them all.",
       "Stop paying $500 per UGC ad. Your entire ad pipeline now runs on one prompt.",
@@ -386,9 +409,12 @@ const CAMPAIGNS = [
   },
   {
     id: "channels",
-    thumb: "/brand/gradient-4.png",
+    resources: [],
+    grad: "radial-gradient(140% 120% at 75% 15%, rgba(34,211,238,.8) 0%, transparent 55%), linear-gradient(120deg, #06B6D4 0%, #0E7490 55%, #164E63 100%)",
     title: "Monetizable Channels",
-    brief: "Faceless theme accounts that earn — long form and short form, generated on a schedule. Target: creators and side-hustlers building theme pages without an editing team.",
+    brief: "Faceless theme accounts that earn. Long form and short form, generated on a schedule.",
+    target: "Creators and side-hustlers building theme pages without an editing team.",
+    positioning: "A full studio's output from a single prompt.",
     examples: [
       "Building a theme account used to take a team. Now it takes a prompt.",
       "Stop spending weekends editing. A month of posts for your theme page can be generated in one sitting.",
@@ -398,9 +424,12 @@ const CAMPAIGNS = [
   },
   {
     id: "explainers",
-    thumb: "/brand/identity.png",
+    resources: [],
+    grad: "radial-gradient(130% 130% at 20% 20%, rgba(255,255,255,.7) 0%, transparent 50%), linear-gradient(120deg, #38BDF8 0%, #2D7FB8 55%, #F59E0B 130%)",
     title: "Explainers",
-    brief: "Prompt-to-explainer videos — turn any topic, doc, or idea into a clear, animated explainer. Target: educators, marketers, and founders who need concepts explained visually without a motion designer.",
+    brief: "Prompt-to-explainer videos. Turn any topic, doc, or idea into a clear, animated explainer.",
+    target: "Educators, marketers, and founders who need concepts explained visually without a motion designer.",
+    positioning: "If you can describe it, you can explain it on video.",
     examples: [
       "I typed one sentence and got a full explainer video back.",
       "Whiteboard explainers used to take an agency two weeks. This took one prompt.",
@@ -472,7 +501,12 @@ function HookRow({ sec }) {
   const copy = (text) => {
     navigator.clipboard.writeText(text).then(() => { setCopied(text); if (window.__toast) window.__toast("Copied to clipboard"); setTimeout(() => setCopied(c => c === text ? null : c), 1200); });
   };
-  const nudge = (dir) => { const el = rowRef.current; if (el) el.scrollBy({ left: dir * (el.clientWidth - 120), behavior: "smooth" }); };
+  const nudge = (dir) => {
+    const el = rowRef.current; if (!el) return;
+    const card = el.querySelector(".snap-start");
+    const step = card ? card.getBoundingClientRect().width + 16 : el.clientWidth - 120;
+    el.scrollBy({ left: dir * step, behavior: "smooth" });
+  };
   return (
     <section>
       <div className="flex items-end justify-between mb-4">
@@ -856,7 +890,7 @@ function BrandPage() {
         <div className="relative rounded-[30px] overflow-hidden shadow-2xl max-w-[92vw]" onClick={e => e.stopPropagation()}>
           <button onClick={() => setAssetPreview(null)} className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/40 text-zinc-200 hover:bg-black/60 transition">✕</button>
           <div className="flex items-center justify-center p-16" style={{ background: assetPreview.bg }}>
-            <img src={"/brand/" + assetPreview.file} alt={assetPreview.label} className="max-h-[60vh] max-w-[70vw] object-contain" />
+            <img src={"/brand/" + assetPreview.file} alt={assetPreview.label} className="h-[44vh] max-w-[76vw] object-contain" />
           </div>
         </div>
       </div>
@@ -878,6 +912,7 @@ function App() {
   const [demoRecs, setDemoRecs] = useState({});
   const [preview, setPreview] = useState(null);   // demo id shown in the preview modal
   const [toast, setToast] = useState(null);       // transient success toast
+  const [navCollapsed, setNavCollapsed] = useState(false); // icon-only sidebar
   useEffect(() => {
     window.__toast = (m) => { setToast(m); clearTimeout(window.__toastT); window.__toastT = setTimeout(() => setToast(null), 2200); };
     return () => { delete window.__toast; };
@@ -886,9 +921,12 @@ function App() {
   const [tplFilter, setTplFilter] = useState("all");  // template gallery aspect filter
   const [tplQuery, setTplQuery] = useState("");       // template gallery search
   const [demoFilter, setDemoFilter] = useState("all"); // demos aspect filter
-  const [openCampaign, setOpenCampaign] = useState(null); // campaign id expanded in the modal
+  const [openCampaign, setOpenCampaign] = useState(() => routeFromHash().campaign || null); // campaign id expanded in the modal
+  const [campTab, setCampTab] = useState("overview");
   const [saved, setSaved] = useState(false);
   const [saveCampaign, setSaveCampaign] = useState("");   // campaign tag applied on Save to Demos
+  const [openSec, setOpenSec] = useState("Appearance");   // one inspector section open at a time
+  const toggleSec = (t) => setOpenSec(cur => (cur === t ? null : t));
   const refreshDemos = async () => { const list = await demoStore.list(); setDemos(list); const m = {}; list.forEach(r => m[r.id] = r); setDemoRecs(m); };
   useEffect(() => { refreshDemos(); }, []);
   const demoPreload = (rec) => rec ? {
@@ -925,7 +963,7 @@ function App() {
   useEffect(() => { window.__logoPicker = (cb) => setPicker({ cb }); return () => { delete window.__logoPicker; }; }, []);
   // logo tiles register themselves here on click → show the Logo inspector (replace / size / background)
   useEffect(() => {
-    window.__selectLogo = (api) => { clearActive(); setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff" }); };
+    window.__selectLogo = (api) => { clearActive(); setOpenSec("Logo"); setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff" }); };
     return () => { delete window.__selectLogo; };
   }, []);
   // a slot can register text: __editText focuses its text layer and opens the text inspector (even when empty)
@@ -942,7 +980,7 @@ function App() {
       else if (parts[0] === "projects") { setSel(null); setPage("showcase"); }
       else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
       else if (parts[0] === "brand") { setSel(null); setPage("brand"); }
-      else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); }
+      else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); setOpenCampaign(parts[1] ? decodeURIComponent(parts[1]) : null); }
       else { setSel(null); setPage("templates"); }
     };
     apply();
@@ -950,9 +988,9 @@ function App() {
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   useEffect(() => {
-    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : page === "hooks" ? "#/hooks" : page === "brand" ? "#/brand" : page === "campaigns" ? "#/campaigns" : "#/templates");
+    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : page === "hooks" ? "#/hooks" : page === "brand" ? "#/brand" : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign : "#/campaigns") : "#/templates");
     if (location.hash !== want) location.hash = want;
-  }, [sel, page]);
+  }, [sel, page, openCampaign]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
   const histFor = (id) => (histRef.current[id] = histRef.current[id] || []);
   const redoFor = (id) => (redoRef.current[id] = redoRef.current[id] || []);
@@ -1054,6 +1092,9 @@ function App() {
       if (want === "VIDEO") { amb.muted = true; amb.loop = true; amb.autoplay = true; amb.playsInline = true; }
       frame.appendChild(amb);
     }
+    const meta = ovFor(sel).__bgBlur || {};
+    amb.style.filter = `blur(${meta.blur != null ? meta.blur : 60}px)`;
+    amb.style.opacity = String((meta.opacity != null ? meta.opacity : 30) / 100);
     const src = media.currentSrc || media.src || media.getAttribute("src");
     if (amb.getAttribute("src") !== src) { amb.setAttribute("src", src); if (amb.play) { const q = amb.play(); if (q && q.catch) q.catch(() => {}); } }
   }
@@ -1073,6 +1114,18 @@ function App() {
     applyXf(root, sel);
     solidifyEmptySlots(root);
     syncAmbient();
+    // templates remount their DOM on re-render (inline components) — re-bind the selection
+    const a = activeRef.current;
+    if (a && (!a.el || !a.el.isConnected)) {
+      const el = nodeAt(root, a.path);
+      if (el) {
+        a.el = el;
+        el.style.outline = "2px solid #2563eb";
+        el.style.outlineOffset = (a.path === "0" || a.path === "") ? "-2px" : "1px";
+        if (a.text) el.contentEditable = "true";
+        else if (el.tagName !== "INPUT" && !el.hasAttribute("data-vslot")) el.style.cursor = "move";
+      }
+    }
     requestAnimationFrame(() => { applyingRef.current = false; });
   }
   useEffect(() => {
@@ -1148,7 +1201,7 @@ function App() {
     el.style.outline = "2px solid #2563eb";
     el.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
     if (!text && el.tagName !== "INPUT") el.style.cursor = "move";
-    activeRef.current = { el, path };
+    activeRef.current = { el, path, text };
     if (mainRef.current) {
       const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
       setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop });
@@ -1168,13 +1221,15 @@ function App() {
       const ps = (ovFor(sel)[pinPath] || {}).style || {};
       pin = ((ps.bottom && ps.bottom !== "auto") ? "b" : "t") + ((ps.right && ps.right !== "auto") ? "r" : "l");
     }
+    setOpenSec(text ? "Text" : swapKey != null ? "Label content" : "Appearance");
     setInsp({
       path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
       pinPath, pin, swapKey, swapOn, moved: !!ovs.transform,
-      pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : undefined,
+      pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[path] || {}).styleMeta || {}).kind || ((cs.backgroundImage && cs.backgroundImage !== "none") ? "custom" : undefined)),
+      styleMeta: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? ovFor(sel).__bgBlur : (ovFor(sel)[path] || {}).styleMeta || null,
       imgH: el.tagName === "IMG" ? (parseInt(ovs.height) || Math.round(parseFloat(cs.height)) || 24) : null,
       bgHex: bg.hex, bgTransparent: bg.a === 0,
-      opacity: Math.round(parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity) * 100),
+      opacity: Math.round(((path === "0" || path === "") ? bg.a : parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity)) * 100),
       radius: parseInt(ovs.borderRadius != null ? ovs.borderRadius : cs.borderRadius) || 0,
       font: (ovs.fontFamily || cs.fontFamily || "Geist").replace(/["']/g, "").split(",")[0].trim(),
       weight: parseInt(ovs.fontWeight || cs.fontWeight) || 400,
@@ -1220,6 +1275,7 @@ function App() {
         activeRef.current = { el: mslot, path: pathOf(mslot, containerRef.current) };
         const k = mslot.getAttribute("data-vslot");
         const t = xfFor(sel)[k] || {};
+        setOpenSec("Fit");
         setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0, mediaMute: !!t.mute, isVideo: !!mslot.querySelector("video") });
         return;
       }
@@ -1270,15 +1326,23 @@ function App() {
     const media = slot.querySelector("video, img");
     if (!media) return;
     e.preventDefault();
+    if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot"))) {
+      clearActive();
+      slot.style.outline = "2px solid #2563eb"; slot.style.outlineOffset = "1px";
+      activeRef.current = { el: slot, path: pathOf(slot, containerRef.current) };
+      const kk = slot.getAttribute("data-vslot");
+      const tt = xfFor(sel)[kk] || {};
+      setOpenSec("Fit");
+      setInsp({ isMedia: true, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video") });
+    }
     const k = slot.getAttribute("data-vslot");
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     const d = { k, media, startX: e.clientX, startY: e.clientY, baseX: t.x || 0, baseY: t.y || 0, moved: false };
-    pushHistory(true);
     dragRef.current = d;
     const move = (ev) => {
       const sc = editorScaleRef.current || 1;
       const dx = (ev.clientX - d.startX) / sc, dy = (ev.clientY - d.startY) / sc;
-      if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+      if (!d.moved && Math.abs(dx) + Math.abs(dy) > 3) { d.moved = true; pushHistory(true); }
       t.x = d.baseX + dx; t.y = d.baseY + dy;
       if (!ev.altKey) { t.x = Math.round(t.x / GRID) * GRID; t.y = Math.round(t.y / GRID) * GRID; }
       d.media.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.s || 1})`;
@@ -1336,14 +1400,54 @@ function App() {
     setInsp(i => ({ ...i, mediaRadius: px }));
   }
   // subtle background patterns drawn with CSS gradients; line color adapts to the bg luminance
+  // CSS for a style kind + its settings, derived from the element's background color
+  function styleCss(meta) {
+    const hx = (insp && insp.bgHex || "#181818").match(/[0-9a-f]{2}/gi) || ["18", "18", "18"];
+    const ch = hx.map(v => parseInt(v, 16));
+    const lum = 0.299 * ch[0] + 0.587 * ch[1] + 0.114 * ch[2];
+    const alpha = (meta.alpha != null ? meta.alpha : 10) / 100;
+    const c = (insp && insp.bgTransparent) || lum < 140 ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
+    const size = meta.size || 48;
+    const mixc = (t, w) => "rgb(" + ch.map(v => Math.round(v * (1 - w) + t * w)).join(",") + ")";
+    const str = meta.strength != null ? meta.strength : 25;
+    const light = mixc(255, Math.min(0.6, str * 0.0056)), dark = mixc(0, Math.min(0.8, str * 0.014)), mid = `rgb(${ch.join(",")})`;
+    switch (meta.kind) {
+      case "gradient":
+        if (meta.dir === "radial") return { backgroundImage: `radial-gradient(120% 100% at 50% 0%, ${light} 0%, ${mid} 55%, ${dark} 100%)`, backgroundSize: "auto" };
+        return { backgroundImage: `linear-gradient(${meta.dir || "180deg"}, ${light} 0%, ${mid} 55%, ${dark} 100%)`, backgroundSize: "auto" };
+      case "grid": return { backgroundImage: `linear-gradient(${c} 1px, transparent 1px), linear-gradient(90deg, ${c} 1px, transparent 1px)`, backgroundSize: `${size}px ${size}px` };
+      case "dots": return { backgroundImage: `radial-gradient(${c} 1.5px, transparent 1.5px)`, backgroundSize: `${Math.round(size * 0.55)}px ${Math.round(size * 0.55)}px` };
+      case "lines": return { backgroundImage: `repeating-linear-gradient(45deg, ${c} 0 1px, transparent 1px ${Math.max(6, Math.round(size / 3))}px)`, backgroundSize: "auto" };
+      default: return { backgroundImage: "none", backgroundSize: "auto" };
+    }
+  }
+  function applyStyleMeta(meta) {
+    const rec = ovFor(sel)[insp.path] = ovFor(sel)[insp.path] || {};
+    rec.styleMeta = meta;
+    const css = styleCss(meta);
+    for (const k in css) setStyle(k, css[k]);
+    setInsp(i => ({ ...i, pattern: meta.kind, styleMeta: meta }));
+  }
+  function updateStyleMeta(patch) {
+    if (!insp) return;
+    if (insp.pattern === "blur") {
+      const cur = ovFor(sel).__bgBlur || { on: true };
+      ovFor(sel).__bgBlur = { ...cur, ...patch };
+      syncAmbient();
+      setInsp(i => ({ ...i, styleMeta: { ...(i.styleMeta || {}), ...patch } }));
+      return;
+    }
+    const rec = ovFor(sel)[insp.path] || {};
+    applyStyleMeta({ ...(rec.styleMeta || { kind: insp.pattern }), ...patch });
+  }
   function setPattern(kind) {
     if (!insp) return;
     pushHistory(true);
     { let el = activeRef.current && activeRef.current.el; if (el && !el.isConnected) el = nodeAt(containerRef.current, insp.path); ensureBase(insp.path, el, ["backgroundImage", "backgroundSize", "backgroundColor"]); }
     if (kind === "blur") {
-      ovFor(sel).__bgBlur = { on: true };
+      ovFor(sel).__bgBlur = { on: true, blur: 60, opacity: 30 };
       setStyle("backgroundImage", "none");
-      setStyle("backgroundColor", "transparent", { bgTransparent: true, pattern: "blur" });
+      setStyle("backgroundColor", "transparent", { bgTransparent: true, pattern: "blur", styleMeta: { kind: "blur", blur: 60, opacity: 30 } });
       syncAmbient();
       return;
     }
@@ -1352,20 +1456,12 @@ function App() {
       setStyle("backgroundColor", "", { bgTransparent: false });
       syncAmbient();
     }
+    if (kind !== "none") { applyStyleMeta({ kind, dir: "180deg", strength: 25, size: 48, alpha: 10 }); return; }
+    { const rec = ovFor(sel)[insp.path]; if (rec) delete rec.styleMeta; }
     const m = (insp.bgHex || "#ffffff").match(/[0-9a-f]{2}/gi) || ["ff", "ff", "ff"];
     const lum = 0.299 * parseInt(m[0], 16) + 0.587 * parseInt(m[1], 16) + 0.114 * parseInt(m[2], 16);
     const c = insp.bgTransparent || lum < 140 ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
-    const hx = (insp.bgHex || "#181818").match(/[0-9a-f]{2}/gi) || ["18", "18", "18"];
-    const ch = hx.map(v => parseInt(v, 16));
-    const mixc = (arr, t, w) => "rgb(" + arr.map(v => Math.round(v * (1 - w) + t * w)).join(",") + ")";
-    const P = {
-      none: { backgroundImage: "none", backgroundSize: "auto" },
-      gradient: { backgroundImage: `linear-gradient(180deg, ${mixc(ch, 255, 0.14)} 0%, rgb(${ch.join(",")}) 55%, ${mixc(ch, 0, 0.35)} 100%)`, backgroundSize: "auto" },
-      grid: { backgroundImage: `linear-gradient(${c} 1px, transparent 1px), linear-gradient(90deg, ${c} 1px, transparent 1px)`, backgroundSize: "48px 48px" },
-      dots: { backgroundImage: `radial-gradient(${c} 1.5px, transparent 1.5px)`, backgroundSize: "26px 26px" },
-      lines: { backgroundImage: `repeating-linear-gradient(45deg, ${c} 0 1px, transparent 1px 16px)`, backgroundSize: "auto" },
-    }[kind];
-    for (const k in P) setStyle(k, P[k]);
+    { const css = styleCss({ kind }); for (const k in css) setStyle(k, css[k]); }
     setInsp(i => ({ ...i, pattern: kind }));
   }
   // pin a [data-pin] label pill to a corner of its card (stored as style overrides → demos + exports)
@@ -1502,7 +1598,7 @@ function App() {
   }
   // build the export spec straight from a saved record — lets old demos (saved before
   // background rendering) get their hosted MP4 without opening the editor
-  async function renderDemoMp4(id) {
+  async function renderDemoMp4(id, dl) {
     const rec = demoRecs[id]; const t = rec && templates.find(x => x.id === rec.templateId);
     if (!rec || !t) return;
     if (window.__toast) window.__toast("Rendering video…");
@@ -1525,9 +1621,16 @@ function App() {
       const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
       const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
       if (!res.ok) throw new Error(await res.text());
-      await demoStore.attachMp4(id, await res.blob());
+      const blob = await res.blob();
+      await demoStore.attachMp4(id, blob);
       await refreshDemos();
-      if (window.__toast) window.__toast("Demo video rendered");
+      if (dl) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = (rec.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4";
+        a.click();
+      }
+      if (window.__toast) window.__toast(dl ? "Downloading MP4" : "Demo video rendered");
     } catch (e) { alert("Render failed: " + (e.message || e)); }
   }
   async function tagDemo(id, campaign) {
@@ -1678,14 +1781,32 @@ function App() {
           <div className="px-5 py-5 flex-1 overflow-y-auto">
 
 
+            {window.__slotAPI && window.__slotAPI.setLogoCount && <Sec open={openSec === "Logos"} onToggle={toggleSec} title="Logos">
+              <div>
+                <label className={LBL}>Number of logos</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  {[1, 2, 3].map(n => (
+                    <button key={n} onClick={() => { window.__slotAPI.setLogoCount(n); force(x => x + 1); }}
+                      className={(window.__slotAPI.logoCount || 3) === n ? SEG_ON : SEG}>{n}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className={LBL}>Plus sign between logos</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => { window.__slotAPI.setPlusOn(true); force(x => x + 1); }} className={window.__slotAPI.plusOn !== false ? SEG_ON : SEG}>On</button>
+                  <button onClick={() => { window.__slotAPI.setPlusOn(false); force(x => x + 1); }} className={window.__slotAPI.plusOn === false ? SEG_ON : SEG}>Off</button>
+                </div>
+              </div>
+            </Sec>}
+
             {insp && insp.isMedia && <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Media</span>
                 <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
               </div>
               <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Replace media…</button>
-              <section className="space-y-3">
-                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Fit</div>
+              <Sec open={openSec === "Fit"} onToggle={toggleSec} title="Fit">
                 <div>
                   <label className={LBL}>Fill mode</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
@@ -1719,7 +1840,7 @@ function App() {
                   </div>
                 </div>}
                 <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position & zoom</button>
-              </section>
+              </Sec>
             </div>}
 
             {insp && insp.isLogo && <div className="space-y-5">
@@ -1728,8 +1849,7 @@ function App() {
                 <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
               </div>
               <button onClick={() => insp.logoApi.replace()} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Replace logo…</button>
-              <section className="space-y-3">
-                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</div>
+              <Sec open={openSec === "Logo"} onToggle={toggleSec} title="Logo">
                 <div>
                   <label className={LBL}>Logo size · {Math.round(insp.logoScale * 100)}%</label>
                   <input type="range" min="20" max="200" value={Math.round(insp.logoScale * 100)}
@@ -1745,23 +1865,21 @@ function App() {
                     <span className="text-sm text-zinc-400 flex-1">{insp.logoBg}</span>
                   </div>
                 </div>
-              </section>
+              </Sec>
               {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
             </div>}
 
             {insp && !insp.isLogo && !insp.isMedia && <div className="space-y-5">
               {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Upload media into slot</button>}
 
-              {insp.swapKey != null && <section className="space-y-3">
-                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Label content</div>
+              {insp.swapKey != null && <Sec open={openSec === "Label content"} onToggle={toggleSec} title="Label content">
                 <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: null }); deselect(); } }} className={!insp.swapOn ? SEG_ON : SEG}>Logo</button>
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { const cur = (api.labelText || {})[insp.swapKey]; api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: cur != null ? cur : "AGENT OPUS" }); deselect(); } }} className={insp.swapOn ? SEG_ON : SEG}>Text</button>
                 </div>
-              </section>}
+              </Sec>}
 
-              {insp.pinPath != null && <section className="space-y-3">
-                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Label position</div>
+              {insp.pinPath != null && <Sec open={openSec === "Label position"} onToggle={toggleSec} title="Label position">
                 <div className="grid grid-cols-2 gap-2">
                   {[["tl", "↖ Top left"], ["tr", "↗ Top right"], ["bl", "↙ Bottom left"], ["br", "↘ Bottom right"]].map(([c, label]) => (
                     <button key={c} onClick={() => setPin(c)}
@@ -1770,10 +1888,9 @@ function App() {
                     </button>
                   ))}
                 </div>
-              </section>}
+              </Sec>}
 
-              <section className="space-y-3">
-                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Appearance</div>
+              <Sec open={openSec === "Appearance"} onToggle={toggleSec} title="Appearance">
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
@@ -1786,7 +1903,14 @@ function App() {
                 </div>
                 <div>
                   <label className={LBL}>Opacity · {insp.opacity}%</label>
-                  <input type="range" min="0" max="100" value={insp.opacity} onChange={e => setStyle("opacity", (+e.target.value / 100).toString(), { opacity: +e.target.value })} className="w-full accent-white" />
+                  <input type="range" min="0" max="100" value={insp.opacity} onChange={e => {
+                    const v = +e.target.value;
+                    if (insp.path === "0" || insp.path === "") {
+                      // background: fade the color itself, not the whole canvas
+                      const m = (insp.bgHex || "#181818").match(/[0-9a-f]{2}/gi) || ["18", "18", "18"];
+                      setStyle("backgroundColor", `rgba(${m.map(x => parseInt(x, 16)).join(", ")}, ${v / 100})`, { opacity: v });
+                    } else setStyle("opacity", (v / 100).toString(), { opacity: v });
+                  }} className="w-full accent-white" />
                 </div>
                 <div>
                   <label className={LBL}>Corner radius</label>
@@ -1794,12 +1918,44 @@ function App() {
                 </div>
                 <div>
                   <label className={LBL}>Style</label>
-                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
-                    {[["none", "Color"], ["gradient", "Gradient"], ...(insp.path === "0" ? [["blur", "Blur"]] : []), ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
-                      <button key={k} onClick={() => setPattern(k)} className={(insp.pattern || "none") === k ? SEG_ON : SEG}>{label}</button>
+                  <select value={insp.pattern || "none"} onChange={e => setPattern(e.target.value)} className={FIELD} style={SELECT_STYLE}>
+                    {[...(insp.pattern === "custom" ? [["custom", "Custom"]] : []), ["none", "Color"], ["gradient", "Gradient"], ...(insp.path === "0" ? [["blur", "Blur"]] : []), ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
+                      <option key={k} value={k}>{label}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
+                {insp.pattern === "gradient" && <React.Fragment>
+                  <div>
+                    <label className={LBL}>Direction</label>
+                    <select value={(insp.styleMeta || {}).dir || "180deg"} onChange={e => updateStyleMeta({ dir: e.target.value })} className={FIELD} style={SELECT_STYLE}>
+                      {[["180deg", "Down"], ["0deg", "Up"], ["90deg", "Right"], ["270deg", "Left"], ["135deg", "Diagonal"], ["radial", "Radial"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={LBL}>Strength · {(insp.styleMeta || {}).strength != null ? insp.styleMeta.strength : 25}</label>
+                    <input type="range" min="5" max="60" value={(insp.styleMeta || {}).strength != null ? insp.styleMeta.strength : 25} onChange={e => updateStyleMeta({ strength: +e.target.value })} className="w-full accent-white" />
+                  </div>
+                </React.Fragment>}
+                {["grid", "dots", "lines"].includes(insp.pattern) && <React.Fragment>
+                  <div>
+                    <label className={LBL}>Size · {(insp.styleMeta || {}).size || 48}px</label>
+                    <input type="range" min="16" max="96" value={(insp.styleMeta || {}).size || 48} onChange={e => updateStyleMeta({ size: +e.target.value })} className="w-full accent-white" />
+                  </div>
+                  <div>
+                    <label className={LBL}>Intensity · {(insp.styleMeta || {}).alpha || 10}%</label>
+                    <input type="range" min="3" max="30" value={(insp.styleMeta || {}).alpha || 10} onChange={e => updateStyleMeta({ alpha: +e.target.value })} className="w-full accent-white" />
+                  </div>
+                </React.Fragment>}
+                {insp.pattern === "blur" && <React.Fragment>
+                  <div>
+                    <label className={LBL}>Blur · {(insp.styleMeta || {}).blur != null ? insp.styleMeta.blur : 60}px</label>
+                    <input type="range" min="10" max="120" value={(insp.styleMeta || {}).blur != null ? insp.styleMeta.blur : 60} onChange={e => updateStyleMeta({ blur: +e.target.value })} className="w-full accent-white" />
+                  </div>
+                  <div>
+                    <label className={LBL}>Opacity · {(insp.styleMeta || {}).opacity != null ? insp.styleMeta.opacity : 30}%</label>
+                    <input type="range" min="5" max="80" value={(insp.styleMeta || {}).opacity != null ? insp.styleMeta.opacity : 30} onChange={e => updateStyleMeta({ opacity: +e.target.value })} className="w-full accent-white" />
+                  </div>
+                </React.Fragment>}
                 {insp.tag === "img" && insp.imgH != null && <div>
                   <label className={LBL}>Size · {insp.imgH}px</label>
                   <input type="range" min="12" max="240" value={insp.imgH}
@@ -1807,20 +1963,19 @@ function App() {
                     className="w-full accent-white" />
                 </div>}
                 {insp.moved && <button onClick={() => setStyle("transform", "", { moved: false })} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position</button>}
-              </section>
+              </Sec>
 
-              {insp.isText && <section className="space-y-3">
-                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Text</div>
+              {insp.isText && <Sec open={openSec === "Text"} onToggle={toggleSec} title="Text">
                 <div>
                   <label className={LBL}>Font</label>
-                  <select value={insp.font} onChange={e => setStyle("fontFamily", e.target.value + ",sans-serif", { font: e.target.value })} className={FIELD}>
+                  <select value={insp.font} onChange={e => setStyle("fontFamily", e.target.value + ",sans-serif", { font: e.target.value })} className={FIELD} style={SELECT_STYLE}>
                     {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
                   </select>
                 </div>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className={LBL}>Weight</label>
-                    <select value={insp.weight} onChange={e => setStyle("fontWeight", e.target.value, { weight: +e.target.value })} className={FIELD}>
+                    <select value={insp.weight} onChange={e => setStyle("fontWeight", e.target.value, { weight: +e.target.value })} className={FIELD} style={SELECT_STYLE}>
                       {WEIGHTS.map(([n, w]) => <option key={w} value={w}>{n}</option>)}
                     </select>
                   </div>
@@ -1848,12 +2003,12 @@ function App() {
                     <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-[30px] underline text-sm border border-white/10 " + (insp.underline ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>U</button>
                   </div>
                 </div>
-              </section>}
+              </Sec>}
             </div>}
           </div>
 
           {IS_LOCAL && <div className="px-5 py-4 border-t border-white/10 space-y-2.5">
-            <select value={saveCampaign} onChange={e => setSaveCampaign(e.target.value)} className={FIELD}>
+            <select value={saveCampaign} onChange={e => setSaveCampaign(e.target.value)} className={FIELD} style={SELECT_STYLE}>
               <option value="">No campaign</option>
               {CAMPAIGNS.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
@@ -1924,8 +2079,8 @@ function App() {
   const iconBrand = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>;
   const sideBtn = (id, label, icon) => (
     <button onClick={() => setPage(id)} title={label} aria-label={label}
-      className={"w-full flex items-center gap-3 px-4 py-2.5 rounded-[30px] text-[15px] font-medium transition " + (page === id ? "bg-[#2F2F2F] text-white" : "text-zinc-400 hover:bg-white/10 hover:text-white")}>
-      {icon}{label}
+      className={"w-full whitespace-nowrap flex items-center gap-3 py-2.5 rounded-[30px] text-[15px] font-medium transition " + (icon && navCollapsed ? "justify-center px-0 " : "px-4 ") + (page === id ? "bg-[#2F2F2F] text-white" : "text-zinc-400 hover:bg-white/10 hover:text-white")}>
+      {icon}{(!icon || !navCollapsed) && label}
     </button>
   );
   const shownTemplates = templates.filter(t =>
@@ -1945,13 +2100,13 @@ function App() {
   const demosView = demos.length ? (
     <div>
       <div className="flex items-center justify-end gap-2 mb-8">
-        {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "16:9", demoFilter, setDemoFilter)}{chipBtn("9:16", "9:16", demoFilter, setDemoFilter)}{chipBtn("1:1", "1:1", demoFilter, setDemoFilter)}
+        {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "Horizontal", demoFilter, setDemoFilter)}{chipBtn("9:16", "Vertical", demoFilter, setDemoFilter)}{chipBtn("1:1", "Square", demoFilter, setDemoFilter)}
       </div>
       <div className="flex flex-wrap gap-6">
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
       })}
       </div>
     </div>
@@ -1965,7 +2120,7 @@ function App() {
   // standalone, nav-less demos page at #/demos
   const previewDemo = preview && demos.find(x => x.id === preview);
   const previewModal = previewDemo
-    ? <DemoPreview d={previewDemo} t={templates.find(x => x.id === previewDemo.templateId)} rec={demoRecs[preview]} pre={demoPreload(demoRecs[preview])} onClose={() => setPreview(null)} onOpen={() => { setPreview(null); openDemo(preview); }} />
+    ? <DemoPreview d={previewDemo} t={templates.find(x => x.id === previewDemo.templateId)} rec={demoRecs[preview]} pre={demoPreload(demoRecs[preview])} onClose={() => setPreview(null)} onOpen={() => { setPreview(null); openDemo(preview); }} onRender={() => renderDemoMp4(preview, true)} />
     : null;
   if (page === "demos") {
     return (
@@ -1980,10 +2135,12 @@ function App() {
   return (
     <div className="min-h-screen flex text-zinc-100">
       {/* side nav */}
-      <aside className="w-[224px] shrink-0 sticky top-0 h-screen bg-[#1A1A1A] border-r border-white/10 flex flex-col z-30">
-        <div className="px-5 pt-5 pb-4 flex flex-row items-center gap-2 text-[20px] font-bold text-white">
+      <aside className={"hidden md:flex shrink-0 sticky top-0 h-screen bg-[#1A1A1A] border-r border-white/10 flex-col z-30 transition-all duration-200 " + (navCollapsed ? "w-[68px]" : "w-[224px]")}>
+        <div className={"pt-5 pb-4 flex flex-row items-center gap-2 text-[20px] font-bold text-white " + (navCollapsed ? "justify-center px-0" : "justify-between px-5")}>
+        <button onClick={() => setPage("campaigns")} className="flex flex-row items-center gap-2 hover:opacity-80 transition">
           <svg aria-label="opus agent logo" fill="currentColor" viewBox="0 0 24 24" width="28" height="28"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
-          <span className="whitespace-nowrap">Agent Opus</span>
+          {!navCollapsed && <span className="whitespace-nowrap">Agent Opus</span>}
+        </button>
         </div>
         <nav className="p-3 pt-1 flex flex-col gap-1">
           {sideBtn("campaigns", "Campaigns", iconCampaigns)}
@@ -1992,20 +2149,43 @@ function App() {
           {sideBtn("hooks", "Hooks", iconHooks)}
           {sideBtn("brand", "Brand Guidelines", iconBrand)}
         </nav>
+        <div className="mt-auto p-3">
+          <button onClick={() => setNavCollapsed(c => !c)} title={navCollapsed ? "Expand" : "Collapse"}
+            className={"w-full flex items-center py-2.5 rounded-[30px] text-zinc-500 hover:text-white hover:bg-white/10 transition " + (navCollapsed ? "justify-center px-0" : "px-4")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: navCollapsed ? "rotate(180deg)" : "none", transition: "transform .2s" }}><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+        </div>
       </aside>
 
       {/* content */}
       <main className="flex-1 min-w-0">
-        <div className="max-w-6xl mx-auto px-8 py-10">
+        <nav className="md:hidden hscroll sticky top-0 z-30 flex gap-1.5 items-center overflow-x-auto px-4 py-3 bg-[#1A1A1A]/90 backdrop-blur border-b border-white/10">
+          {sideBtn("campaigns", "Campaigns", null)}
+          {sideBtn("templates", "Templates", null)}
+          {sideBtn("showcase", "Demos", null)}
+          {sideBtn("hooks", "Hooks", null)}
+          {sideBtn("brand", "Brand", null)}
+        </nav>
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
           {page === "campaigns" ? (
             <div>
+              {/* hero */}
+              <div className="relative mb-10 h-[240px] rounded-[30px] overflow-hidden border border-white/10 flex flex-col justify-center">
+                <div className="absolute inset-0" style={{ background: "radial-gradient(120% 160% at 85% 0%, rgba(198,235,247,.55) 0%, transparent 45%), linear-gradient(115deg, #FF7A00 0%, #E4572E 45%, #1A1A1A 92%)" }} />
+                <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px)", backgroundSize: "44px 44px" }} />
+                <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/70 via-zinc-950/30 to-transparent" />
+                <div className="relative px-8 md:px-12 max-w-2xl">
+                  <h1 className="text-[40px] md:text-[46px] font-semibold tracking-tight text-white leading-none">Campaigns</h1>
+                  <p className="mt-4 text-[16px] leading-relaxed text-zinc-200">Every active campaign with its brief, hooks, and ready-to-post demo videos. Pick one, grab the assets, and start creating.</p>
+                </div>
+              </div>
               <div className="flex flex-wrap gap-6">
                 {CAMPAIGNS.map(c => {
                   const count = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId)).length;
                   return (
                     <button key={c.id} onClick={() => setOpenCampaign(c.id)} className="text-left group/card w-[340px]">
                       <div className="relative h-[190px] rounded-[30px] overflow-hidden border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:-translate-y-0.5 transition-all duration-200">
-                        <img src={c.thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0" style={{ background: c.grad }} />
                         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/20 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-5">
                           <div className="text-[19px] font-semibold tracking-tight text-white">{c.title}</div>
@@ -2022,22 +2202,67 @@ function App() {
                 const tagged = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId));
                 return (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={() => setOpenCampaign(null)}>
-                    <div className="relative w-[min(980px,94vw)] max-h-[86vh] overflow-y-auto rounded-[30px] bg-[#1f1f1f] border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="relative w-[min(980px,94vw)] max-h-[86vh] rounded-[30px] overflow-hidden bg-[#1f1f1f] border border-white/10 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+                    <div className="vscroll overflow-y-auto">
                       <div className="relative h-[180px]">
-                        <img src={c.thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0" style={{ background: c.grad }} />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#1f1f1f] via-zinc-950/30 to-transparent" />
                         <button onClick={() => setOpenCampaign(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-zinc-200 hover:bg-black/70 transition">✕</button>
                         <div className="absolute bottom-4 left-7 text-[26px] font-semibold tracking-tight text-white">{c.title}</div>
                       </div>
                       <div className="px-7 pb-8">
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-4 mb-2">Brief</div>
+                        <div className="flex gap-1.5 mt-4 mb-5">
+                          {[["overview", "Overview"], ["resources", "Resources"]].map(([k, l]) => (
+                            <button key={k} onClick={() => setCampTab(k)}
+                              className={"px-3.5 py-1.5 rounded-[30px] text-sm font-medium transition " + (campTab === k ? "bg-[#2F2F2F] text-white ring-1 ring-white/10" : "text-zinc-400 ring-1 ring-white/15 hover:ring-white/30")}>{l}</button>
+                          ))}
+                        </div>
+                        {campTab === "resources" ? (
+                          <div className="pb-2">
+                            {(c.resources && c.resources.length)
+                              ? <div className="flex flex-wrap gap-3">
+                                  {c.resources.map(r => (
+                                    <a key={r.title} href={r.url} target={r.external ? "_blank" : undefined} rel={r.external ? "noreferrer" : undefined}
+                                      className="w-[280px] p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col gap-1.5">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm font-semibold text-white">{r.title}</span>
+                                        <span className="text-zinc-500 group-hover:text-zinc-200 transition">
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
+                                        </span>
+                                      </div>
+                                      <p className="text-[13px] leading-relaxed text-zinc-400">{r.desc}</p>
+                                    </a>
+                                  ))}
+                                </div>
+                              : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No resources for this campaign yet.</div>}
+                          </div>
+                        ) : (
+                        <React.Fragment>
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Brief</div>
                         <p className="max-w-3xl text-sm leading-relaxed text-zinc-300">{c.brief}</p>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-2">Example hooks</div>
+                        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Target</div>
+                            <p className="text-sm leading-relaxed text-zinc-300">{c.target}</p>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Positioning</div>
+                            <p className="text-sm leading-relaxed text-zinc-300">{c.positioning}</p>
+                          </div>
+                        </div>
+                        <div className="mt-7 mb-2 flex items-center justify-between">
+                          <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Example hooks</div>
+                          <div className="flex gap-1.5">
+                            <button onClick={(e) => { const r = e.currentTarget.closest("div").parentElement.nextElementSibling; const c = r.querySelector(".snap-start"); r.scrollBy({ left: -((c ? c.getBoundingClientRect().width : 300) + 16), behavior: "smooth" }); }} aria-label="Scroll left" className="w-7 h-7 flex items-center justify-center rounded-full bg-white/[0.05] border border-white/10 text-zinc-400 hover:text-white transition">←</button>
+                            <button onClick={(e) => { const r = e.currentTarget.closest("div").parentElement.nextElementSibling; const c = r.querySelector(".snap-start"); r.scrollBy({ left: (c ? c.getBoundingClientRect().width : 300) + 16, behavior: "smooth" }); }} aria-label="Scroll right" className="w-7 h-7 flex items-center justify-center rounded-full bg-white/[0.05] border border-white/10 text-zinc-400 hover:text-white transition">→</button>
+                          </div>
+                        </div>
                         <div className="hscroll flex gap-4 overflow-x-auto snap-x pb-4 pt-1 -mx-2 px-2">
                           {c.examples.map(h => (
                             <button key={h} onClick={() => navigator.clipboard.writeText(h).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
-                              className="snap-start shrink-0 w-[300px] text-left p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition">
-                              <span className="text-[14px] text-zinc-300 leading-relaxed">{h}</span>
+                              className="snap-start shrink-0 w-[300px] text-left p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col gap-3">
+                              <span className="flex-1 text-[14px] text-zinc-300 leading-relaxed">{h}</span>
+                              <span className="text-zinc-500 group-hover:text-zinc-300 transition"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>
                             </button>
                           ))}
                         </div>
@@ -2047,11 +2272,14 @@ function App() {
                               {tagged.map(d => {
                                 const t = templates.find(x => x.id === d.templateId);
                                 const rec = demoRecs[d.id];
-                                return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
+                                return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
                               })}
                             </div>
-                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No demos tagged yet — tag one from the Demos page ⋯ menu.</div>}
+                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No demos tagged yet. Tag one from the Demos page ⋯ menu.</div>}
+                        </React.Fragment>
+                        )}
                       </div>
+                    </div>
                     </div>
                   </div>
                 );
@@ -2065,7 +2293,7 @@ function App() {
             <div>
               <header className="flex flex-wrap items-center justify-end gap-4 mb-8">
                 <div className="flex items-center gap-2">
-                  {chip("all", "All")}{chip("16:9", "16:9")}{chip("9:16", "9:16")}{chip("1:1", "1:1")}
+                  {chip("all", "All")}{chip("16:9", "Horizontal")}{chip("9:16", "Vertical")}{chip("1:1", "Square")}
                 </div>
               </header>
               <div className="flex flex-wrap gap-6">

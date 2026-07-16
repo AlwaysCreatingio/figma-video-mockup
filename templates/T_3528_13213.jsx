@@ -41,6 +41,12 @@
     const [logosHidden, setLogosHidden] = useState(() => (props && props.preload && props.preload.logosHidden) || false);
     React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setLogos = setLogos; window.__slotAPI.setLogoScales = setLogoScales; window.__slotAPI.setLogoBgs = setLogoBgs; window.__slotAPI.setShowPlus = setShowPlus; window.__slotAPI.setHiddenLogos = setHidden; window.__slotAPI.setLogosHidden = setLogosHidden; } }, []);
     React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.hiddenLogos = hidden; window.__slotAPI.logosHidden = logosHidden; } }, [hidden, logosHidden]);
+    React.useEffect(() => {
+      if (!window.__slotAPI) return;
+      window.__slotAPI.setLogoCount = (n) => { setHidden(n >= 3 ? {} : n === 2 ? { logo3: true } : { logo2: true, logo3: true }); setLogosHidden(false); };
+      window.__slotAPI.setPlusOn = setShowPlus;
+    }, []);
+    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.logoCount = ["logo1", "logo2", "logo3"].filter(k => !hidden[k]).length; window.__slotAPI.plusOn = showPlus; } }, [hidden, showPlus]);
     React.useEffect(() => { let on = true; Object.keys(logos).forEach(k => { const u = logos[k]; if (u && window.__logoDominant) window.__logoDominant(u).then(c => { if (on && c) setLogoBgDefault(m => (m[k] === c ? m : { ...m, [k]: c })); }); }); return () => { on = false; }; }, [logos]);
     const __logoBg = (k) => (logoBgs[k] != null ? logoBgs[k] : (logoBgDefault[k] != null ? logoBgDefault[k] : (window.__LOGO_BG || {})[logos[k]]));
     const __logoScale = (k) => (logoScales[k] != null ? logoScales[k] : ((window.__LOGO_SCALE_DEFAULTS || {})[logos[k]] || 1));
@@ -59,7 +65,7 @@
         <div className="-translate-x-1/2 -translate-y-1/2 absolute flex flex-col gap-[42px] items-center left-1/2 top-1/2 w-[522.941px]">
           {/* Top avatar squares — visible tiles only, with "+" between when enabled */}
           {logosHidden
-            ? (window.__EDITOR ? <button data-ctl onClick={() => setLogosHidden(false)} className="absolute left-1/2 top-3 -translate-x-1/2 z-30 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Show logos</button> : null)
+            ? null
             : (() => {
               const vis = ["logo1", "logo2", "logo3"].filter(k => !hidden[k]);
               return (
@@ -72,11 +78,7 @@
                       </React.Fragment>
                     ))}
                   </div>
-                  <div data-ctl className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition flex gap-1">
-                    <button onClick={() => setShowPlus(v => !v)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">{showPlus ? "Remove +" : "Add +"}</button>
-                    {Object.keys(hidden).some(k => hidden[k]) && <button onClick={() => setHidden({})} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Reset logos</button>}
-                    <button title="Remove logos" onClick={() => setLogosHidden(true)} className="w-6 h-6 flex items-center justify-center rounded-full bg-neutral-900 text-white text-[11px] leading-none shadow hover:bg-neutral-700 transition">✕</button>
-                  </div>
+
                 </div>
               );
             })()}

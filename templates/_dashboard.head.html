@@ -18,12 +18,13 @@
   ::-webkit-scrollbar-thumb{background:#3f3f3f;border-radius:8px;border:2px solid #1A1A1A}
   ::-webkit-scrollbar-thumb:hover{background:#525252}
   @property --sbc { syntax: '<color>'; initial-value: transparent; inherits: true; }
-  .hscroll{--sbc:transparent;transition:--sbc .35s ease;scrollbar-width:thin;scrollbar-color:var(--sbc) transparent}
-  .hscroll:hover{--sbc:rgba(255,255,255,.28)}
-  .hscroll::-webkit-scrollbar{height:6px}
-  .hscroll::-webkit-scrollbar-thumb{background:var(--sbc);border:none;border-radius:6px}
-  .hscroll:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
-  .hscroll::-webkit-scrollbar-track{background:transparent}
+  .hscroll,.vscroll{--sbc:transparent;transition:--sbc .35s ease;scrollbar-width:thin;scrollbar-color:var(--sbc) transparent}
+  .hscroll:hover,.vscroll:hover{--sbc:rgba(255,255,255,.28)}
+  .hscroll::-webkit-scrollbar{height:4px}
+  .vscroll::-webkit-scrollbar{width:5px;height:5px}
+  .hscroll::-webkit-scrollbar-thumb,.vscroll::-webkit-scrollbar-thumb{background:var(--sbc);border:none;border-radius:6px}
+  .hscroll:hover::-webkit-scrollbar-thumb:hover,.vscroll:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
+  .hscroll::-webkit-scrollbar-track,.vscroll::-webkit-scrollbar-track,.hscroll::-webkit-scrollbar-corner,.vscroll::-webkit-scrollbar-corner{background:transparent;border:none}
   @property --ao-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
   @keyframes ao-rot { to { --ao-a: 360deg; } }
   .ao-glow::after{
