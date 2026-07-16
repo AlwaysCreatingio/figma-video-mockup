@@ -505,6 +505,26 @@ const HOOKS = [
   },
 ];
 
+function FilterFab({ options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const cur = options.find(o => o[0] === value);
+  return (
+    <div className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2">
+      {open && <div className="flex flex-col gap-1 p-1.5 rounded-[22px] bg-[#2b2b2b]/90 backdrop-blur-xl border border-white/10 shadow-2xl min-w-[180px]">
+        {options.map(([v, l]) => (
+          <button key={v} onClick={() => { onChange(v); setOpen(false); }}
+            className={"px-4 py-2.5 rounded-[16px] text-sm font-medium text-center transition " + (value === v ? "bg-white text-zinc-900" : "text-zinc-200 hover:bg-white/10")}>{l}</button>
+        ))}
+      </div>}
+      <button onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-5 py-3 rounded-[30px] bg-white text-zinc-900 text-sm font-semibold shadow-2xl shadow-black/40">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        {cur ? cur[1] : "All"}
+      </button>
+    </div>
+  );
+}
+
 function HookRow({ sec }) {
   const rowRef = useRef(null);
   const [copied, setCopied] = useState(null);
@@ -2140,7 +2160,8 @@ function App() {
   });
   const demosView = demos.length ? (
     <div>
-      <div className="flex items-center justify-end gap-2 mb-8">
+      <FilterFab options={[["all", "All"], ["16:9", "Horizontal"], ["9:16", "Vertical"], ["1:1", "Square"]]} value={demoFilter} onChange={setDemoFilter} />
+      <div className="hidden md:flex items-center justify-end gap-2 mb-8">
         {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "Horizontal", demoFilter, setDemoFilter)}{chipBtn("9:16", "Vertical", demoFilter, setDemoFilter)}{chipBtn("1:1", "Square", demoFilter, setDemoFilter)}
       </div>
       <div className="flex flex-wrap gap-6 justify-center md:justify-start">
@@ -2352,7 +2373,8 @@ function App() {
               const shown = vids.filter(v => tutFilter === "all" || v.campaign.id === tutFilter);
               return (
                 <div>
-                  <div className="flex items-center justify-end gap-2 mb-8 flex-wrap">
+                  <FilterFab options={[["all", "All"], ...withVids.map(c => [c.id, c.title])]} value={tutFilter} onChange={setTutFilter} />
+                  <div className="hidden md:flex items-center justify-end gap-2 mb-8 flex-wrap">
                     {chipBtn("all", "All", tutFilter, setTutFilter)}
                     {withVids.map(c => chipBtn(c.id, c.title, tutFilter, setTutFilter))}
                   </div>
@@ -2379,7 +2401,8 @@ function App() {
             <BrandPage />
           ) : page === "templates" ? (
             <div>
-              <header className="flex flex-wrap items-center justify-end gap-4 mb-8">
+              <FilterFab options={[["all", "All"], ["16:9", "Horizontal"], ["9:16", "Vertical"], ["1:1", "Square"]]} value={tplFilter} onChange={setTplFilter} />
+              <header className="hidden md:flex flex-wrap items-center justify-end gap-4 mb-8">
                 <div className="flex items-center gap-2">
                   {chip("all", "All")}{chip("16:9", "Horizontal")}{chip("9:16", "Vertical")}{chip("1:1", "Square")}
                 </div>
