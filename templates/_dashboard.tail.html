@@ -1055,6 +1055,7 @@ function App() {
   const templates = (window.TEMPLATES || []).slice().sort((a, b) => a.name.localeCompare(b.name));
   useEffect(() => { const f = () => force(x => x + 1); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
   useEffect(() => { window.__logoPicker = (cb) => setPicker({ cb }); return () => { delete window.__logoPicker; }; }, []);
+  useEffect(() => { if (!sel) return; const t = setTimeout(() => force(x => x + 1), 450); return () => clearTimeout(t); }, [sel]);
   // logo tiles register themselves here on click → show the Logo inspector (replace / size / background)
   useEffect(() => {
     window.__selectLogo = (api) => { clearActive(); setOpenSec("Logo"); setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff" }); };
@@ -1458,7 +1459,7 @@ function App() {
       setInsp({ isMedia: true, path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0, mediaMute: !!t.mute, isVideo: !!mslot.querySelector("video") }); }
         return;
       }
-      if (mslot.hasAttribute("data-vslot")) { selectEl(mslot); return; }   // empty video slot: select, upload from the sidebar
+      if (mslot.hasAttribute("data-vslot")) { selectMediaSlot(mslot); return; }   // empty video slot: same video panel, upload from the sidebar
       const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
       const onClick = pk && mslot[pk] && mslot[pk].onClick;
       if (onClick) onClick({ stopPropagation() {}, preventDefault() {} });
@@ -1491,6 +1492,52 @@ function App() {
   }
   function deselect() { clearActive(); setInsp(null); }
 
+  function selectMediaSlot(slot) {
+    clearActive();
+    slot.style.outline = "2px solid #2563eb"; slot.style.outlineOffset = "1px";
+    activeRef.current = { el: slot, path: pathOf(slot, containerRef.current) };
+    const kk = slot.getAttribute("data-vslot");
+    const tt = xfFor(sel)[kk] || {};
+    setOpenSec("Fit");
+    const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video") });
+  }
+  // layers panel: what's on the canvas, selectable from the sidebar
+  function layerList() {
+    const root = containerRef.current; if (!root) return [];
+    const frame = root.firstElementChild; if (!frame) return [];
+    const items = [{ label: "Background", kind: "bg", el: frame }];
+    root.querySelectorAll("[data-vslot]").forEach((el, i) => items.push({ label: "Video " + (i + 1), kind: "video", el }));
+    root.querySelectorAll("[data-lslot]").forEach((el, i) => items.push({ label: "Logo " + (i + 1), kind: "logo", el }));
+    root.querySelectorAll("[data-pin], [data-swap]").forEach(el => {
+      if (items.some(x => x.el === el)) return;
+      const t = (el.textContent || "").trim();
+      items.push({ label: t ? "Label · " + t.slice(0, 14) : "Label", kind: "label", el });
+    });
+    root.querySelectorAll("p, h1, h2, h3, input").forEach(el => {
+      if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot]")) return;
+      if (items.some(x => x.el === el)) return;
+      if (el.parentElement && ["P", "H1", "H2", "H3"].includes(el.parentElement.tagName)) return;
+      const t = el.tagName === "INPUT" ? el.value : (el.textContent || "").trim();
+      if (!t && el.tagName !== "INPUT") return;
+      items.push({ label: (t || "Text").slice(0, 24), kind: "text", el });
+    });
+    root.querySelectorAll("img").forEach(el => {
+      if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot]") || el.hasAttribute("data-ambient")) return;
+      items.push({ label: el.alt || "Image", kind: "image", el });
+    });
+    return items;
+  }
+  function selectLayer(it) {
+    if (it.kind === "video") { selectMediaSlot(it.el); return; }
+    if (it.kind === "logo") {
+      const pk = Object.keys(it.el).find(k => k.startsWith("__reactProps$"));
+      const oc = pk && it.el[pk] && it.el[pk].onClick;
+      if (oc) oc({ stopPropagation() {}, preventDefault() {} });
+      return;
+    }
+    selectEl(it.el, it.kind === "text" && it.el.tagName !== "INPUT" ? true : undefined);
+  }
   // drag-to-pan media inside its slot (mousedown+move on a filled slot); a real drag suppresses the click
   function onMediaDragStart(e) {
     if (!editMode) return;
@@ -1505,16 +1552,7 @@ function App() {
     const media = slot.querySelector("video, img");
     if (!media) return;
     e.preventDefault();
-    if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot"))) {
-      clearActive();
-      slot.style.outline = "2px solid #2563eb"; slot.style.outlineOffset = "1px";
-      activeRef.current = { el: slot, path: pathOf(slot, containerRef.current) };
-      const kk = slot.getAttribute("data-vslot");
-      const tt = xfFor(sel)[kk] || {};
-      setOpenSec("Fit");
-      { const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
-      setInsp({ isMedia: true, path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video") }); }
-    }
+    if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot"))) selectMediaSlot(slot);
     const k = slot.getAttribute("data-vslot");
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     const d = { k, media, startX: e.clientX, startY: e.clientY, baseX: t.x || 0, baseY: t.y || 0, moved: false };
@@ -2065,6 +2103,23 @@ function App() {
           <div className="px-5 py-5 flex-1 overflow-y-auto">
 
 
+            {!insp && <div className="space-y-0.5 mb-4">
+              <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold py-1.5">Layers</div>
+              {layerList().map((it, i) => (
+                <button key={i} onClick={() => selectLayer(it)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[14px] text-sm text-zinc-300 hover:bg-white/10 hover:text-white transition text-left">
+                  <span className="shrink-0 text-zinc-500">
+                    {it.kind === "bg" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>}
+                    {it.kind === "video" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>}
+                    {it.kind === "logo" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>}
+                    {it.kind === "label" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12l-8 8-9-9V4h7l10 8z"/></svg>}
+                    {it.kind === "text" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>}
+                    {it.kind === "image" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
+                  </span>
+                  <span className="truncate">{it.label}</span>
+                </button>
+              ))}
+            </div>}
             {window.__slotAPI && window.__slotAPI.setLogoCount && <Sec open={openSec === "Logos"} onToggle={toggleSec} title="Logos">
               <div>
                 <label className={LBL}>Number of logos</label>
@@ -2086,18 +2141,18 @@ function App() {
 
             {insp && insp.isMedia && <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Media</span>
+                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Video</span>
                 <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
               </div>
-              <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Replace media…</button>
+              <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">{insp.hasMedia ? "Replace media…" : "Upload media…"}</button>
               <Sec open={openSec === "Fit"} onToggle={toggleSec} title="Fit">
-                <div>
+                {insp.hasMedia && <div>
                   <label className={LBL}>Fill mode</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                     <button onClick={() => setMediaFit(insp.slot, "cover")} className={insp.mediaFit !== "contain" ? SEG_ON : SEG}>Fill</button>
                     <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Inset</button>
                   </div>
-                </div>
+                </div>}
                 <div>
                   <label className={LBL}>Corner radius · {insp.mediaRadius}px</label>
                   <input type="range" min="0" max="60" value={insp.mediaRadius}
@@ -2110,12 +2165,12 @@ function App() {
                     onChange={e => setMediaPad(insp.slot, +e.target.value)}
                     className="w-full accent-white" />
                 </div>}
-                <div>
+                {insp.hasMedia && <div>
                   <label className={LBL}>Zoom · {Math.round(insp.mediaScale * 100)}%</label>
                   <input type="range" min="50" max="300" value={Math.round(insp.mediaScale * 100)}
                     onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
                     className="w-full accent-white" />
-                </div>
+                </div>}
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
@@ -2149,7 +2204,7 @@ function App() {
                     <button onClick={() => setMediaMute(insp.slot, true)} className={insp.mediaMute ? SEG_ON : SEG}>Muted</button>
                   </div>
                 </div>}
-                <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position & zoom</button>
+                {insp.hasMedia && <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position & zoom</button>}
               </Sec>
             </div>}
 
