@@ -2010,8 +2010,9 @@ function App() {
     const vids = {};
     for (const el of root.querySelectorAll("[data-vslot] video, [data-vslot] img")) {
       const slot = el.closest("[data-vslot]").getAttribute("data-vslot");
-      const blob = await blobFrom(el.currentSrc || el.src);
+      let blob = await blobFrom(el.currentSrc || el.src);
       if (!/^(video|image)\//.test(blob.type || "") || blob.size < 1000) throw new Error("The media in " + slot + " is unreadable (its file may be missing). Re-add it, then save again.");
+      blob = await maybeCompress(blob, slot);
       vids[slot] = { blob, img: el.tagName === "IMG", type: blob.type };
     }
     if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as a demo."); return null; }
@@ -2165,7 +2166,7 @@ function App() {
       const nid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("d_" + Date.now());
       const vids = {};
       for (const k in (rec.vids || {})) {
-        const blob = await blobFrom(rec.vids[k].url);
+        const blob = await maybeCompress(await blobFrom(rec.vids[k].url), k);
         vids[k] = { blob, img: rec.vids[k].img, type: blob.type };
       }
       await demoStore.save({ ...rec, id: nid, vids });
@@ -2186,6 +2187,16 @@ function App() {
   // local dev talks to the local export server; the deployed site uses the hosted one (window.__EXPORT_BASE)
   const EXPORT_BASE = IS_LOCAL ? "http://localhost:5050" : ((typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050");
   const blobFrom = (u) => fetch(u).then(r => { if (!r.ok) throw new Error("media fetch failed (" + r.status + ")"); return r.blob(); });
+  const MAX_UPLOAD = 45 * 1024 * 1024;   // Supabase per-object cap is 50 MB — compress anything near it
+  async function maybeCompress(blob, label) {
+    if (!(blob.type || "").startsWith("video/") || blob.size <= MAX_UPLOAD) return blob;
+    if (window.__toast) window.__toast("Compressing " + label + " (" + Math.round(blob.size / 1048576) + " MB)…", { sticky: true });
+    const r = await fetch(EXPORT_BASE + "/compress", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ((blob.type || "video/mp4").split("/")[1] || "mp4").split(";")[0] }, body: blob }).catch(() => null);
+    if (!r || !r.ok) throw new Error("The video in " + label + " is " + Math.round(blob.size / 1048576) + " MB (over the 50 MB storage limit) and compressing it failed — is the export server running?");
+    const out = await r.blob();
+    if (out.size > 50 * 1024 * 1024) throw new Error("The video in " + label + " is still over the 50 MB storage limit after compression. Trim it shorter and try again.");
+    return out;
+  }
   const blobToDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
   // reads the live editor DOM, uploads all media to the export server, and returns the export
   // spec — shared by the Export button and the demo-save background render

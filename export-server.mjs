@@ -318,6 +318,22 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ id: path.basename(f) }));
     }
+    if (req.method === "POST" && req.url === "/compress") {
+      const buf = await readBody(req);
+      const ext = (req.headers["x-ext"] || "mp4").replace(/[^a-z0-9]/gi, "");
+      const inF = path.join(WORK, "c_in_" + Date.now() + "." + ext);
+      const outF = path.join(WORK, "c_out_" + Date.now() + ".mp4");
+      fs.writeFileSync(inF, buf);
+      await run("ffmpeg", ["-y", "-i", inF, "-vf", "scale='min(1920,iw)':-2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "25", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outF]);
+      let data = fs.readFileSync(outF);
+      if (data.length > 45 * 1024 * 1024) {
+        const outF2 = outF.replace(".mp4", "_2.mp4");
+        await run("ffmpeg", ["-y", "-i", outF, "-vf", "scale='min(1280,iw)':-2", "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", outF2]);
+        data = fs.readFileSync(outF2);
+      }
+      res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
+      return res.end(data);
+    }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
       const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, mediaXf = {} } = spec;
