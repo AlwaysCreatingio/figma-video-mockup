@@ -50,7 +50,7 @@
                   <span className="text-white text-[30px] leading-none font-light">+</span>
                 </div>
                 <LogoSlot k="logo2" className="bg-white rounded-[15.75px] shrink-0 size-[90px]" />
-                <button data-ctl onClick={() => setLogosHidden(true)} className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Hide logos</button>
+                <button data-ctl title="Remove logos" onClick={() => setLogosHidden(true)} className="absolute -top-3 -right-3 z-30 w-6 h-6 flex items-center justify-center rounded-full bg-neutral-900 text-white text-[11px] leading-none opacity-0 group-hover:opacity-100 shadow hover:bg-neutral-700 transition">✕</button>
               </div>}
 
           {/* centered framed media */}

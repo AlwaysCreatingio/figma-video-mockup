@@ -12,11 +12,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Oswald:wght@300;400;500;600;700&family=Rethink+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;background:#fafafa;}
+  html,body{margin:0;background:#1A1A1A;}
   *{font-family:'Geist',-apple-system,BlinkMacSystemFont,sans-serif;}
   ::-webkit-scrollbar{width:10px;height:10px}
-  ::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:8px;border:2px solid #fafafa}
-  ::-webkit-scrollbar-thumb:hover{background:#b8b8bf}
+  ::-webkit-scrollbar-thumb{background:#3f3f3f;border-radius:8px;border:2px solid #1A1A1A}
+  ::-webkit-scrollbar-thumb:hover{background:#525252}
+  .hscroll{scrollbar-width:thin;scrollbar-color:transparent transparent}
+  .hscroll:hover{scrollbar-color:rgba(255,255,255,.28) transparent}
+  .hscroll::-webkit-scrollbar{height:6px}
+  .hscroll::-webkit-scrollbar-thumb{background:transparent;border:none;border-radius:6px}
+  .hscroll:hover::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28)}
+  .hscroll:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
+  .hscroll::-webkit-scrollbar-track{background:transparent}
   @property --ao-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
   @keyframes ao-rot { to { --ao-a: 360deg; } }
   .ao-glow::after{

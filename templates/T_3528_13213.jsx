@@ -81,7 +81,7 @@
                   <div data-ctl className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition flex gap-1">
                     <button onClick={() => setShowPlus(v => !v)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">{showPlus ? "Remove +" : "Add +"}</button>
                     {Object.keys(hidden).some(k => hidden[k]) && <button onClick={() => setHidden({})} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Reset logos</button>}
-                    <button onClick={() => setLogosHidden(true)} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Hide logos</button>
+                    <button title="Remove logos" onClick={() => setLogosHidden(true)} className="w-6 h-6 flex items-center justify-center rounded-full bg-neutral-900 text-white text-[11px] leading-none shadow hover:bg-neutral-700 transition">✕</button>
                   </div>
                 </div>
               );

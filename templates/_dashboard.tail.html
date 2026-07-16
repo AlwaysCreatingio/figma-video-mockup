@@ -104,12 +104,14 @@ function textUnit(el) {
 // owner mode: demo management (save/delete) is only exposed when running locally
 const IS_LOCAL = typeof location !== "undefined" && (location.hostname === "localhost" || location.hostname === "127.0.0.1");
 
+const aspectOf = (t) => t.width === t.height ? "1:1" : t.width > t.height ? "16:9" : "9:16";
+
 /* light-theme class tokens */
 const ACCENT = "#18181b";
-const FIELD = "w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10 transition";
-const LBL = "block text-xs font-medium text-neutral-500 mb-1.5";
-const SEG = "px-2.5 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 transition";
-const SEG_ON = "px-2.5 py-1.5 text-sm text-white bg-zinc-900";
+const FIELD = "w-full bg-[#242424] border border-white/10 rounded-[30px] px-3 py-2 text-sm text-zinc-100 shadow-sm outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 transition";
+const LBL = "block text-xs font-medium text-zinc-400 mb-1.5";
+const SEG = "px-2.5 py-1.5 text-sm text-zinc-400 hover:bg-white/10 transition";
+const SEG_ON = "px-2.5 py-1.5 text-sm text-white bg-[#2F2F2F]";
 
 /* ---------- demos persistence (IndexedDB holds the media-heavy records; localStorage holds a light index) ---------- */
 function idbOpen() {
@@ -193,43 +195,40 @@ const demoStore = {
 /* a demo gallery card: renders the real template with its saved media/logos, then applies the saved
    text/style overrides so the thumbnail matches exactly what was saved (not the template defaults). */
 /* fullscreen preview: plays the rendered MP4 (or shows the saved thumb) with a download action */
-function DemoPreview({ d, rec, onClose, onOpen }) {
+function DemoPreview({ d, t, rec, pre, onClose, onOpen }) {
   const mp4 = rec && rec.mp4;
+  const ref = useRef(null);
+  useDemoOverrides(ref, mp4 ? null : rec);
+  const ps = t ? Math.min(860 / t.width, 560 / t.height) : 1;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={onClose}>
-      <div className="bg-white shadow-2xl max-w-[min(920px,94vw)] w-full overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100">
+      <div className="bg-[#212121] shadow-2xl max-w-[min(920px,94vw)] w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
           <div className="text-sm font-semibold truncate pr-4">{d.name}</div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 transition">✕</button>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-[30px] text-zinc-400 hover:bg-white/10 transition">✕</button>
         </div>
         <div className="bg-zinc-950 flex items-center justify-center">
           {mp4
-            ? <video src={mp4} controls autoPlay loop playsInline className="max-h-[70vh] w-auto max-w-full" />
-            : (d.thumb
-              ? <img src={d.thumb} className="max-h-[70vh] w-auto max-w-full" />
-              : <div className="py-24 text-sm text-zinc-500">No rendered video yet — open it in the editor to export one.</div>)}
+            ? <video src={mp4} controls autoPlay loop muted playsInline className="max-h-[70vh] w-auto max-w-full" />
+            : pre && t
+              ? <div className="overflow-hidden" style={{ width: t.width * ps, height: t.height * ps }}>
+                  <div ref={ref} className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${ps})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
+                </div>
+              : (d.thumb
+                ? <img src={d.thumb} className="max-h-[70vh] w-auto max-w-full" />
+                : <div className="py-24 text-sm text-zinc-500">No rendered video yet — open it in the editor to export one.</div>)}
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-3.5">
-          <button onClick={onOpen} className="px-3.5 py-2 rounded-lg text-sm font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition">Open in editor</button>
+          <button onClick={onOpen} className="px-3.5 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Open in editor</button>
           {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"}
-            className="px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 transition">Download MP4</a>}
+            className="px-3.5 py-2 rounded-[30px] text-sm font-medium text-zinc-900 bg-white hover:bg-zinc-200 transition">Download MP4</a>}
         </div>
       </div>
     </div>
   );
 }
 
-function DemoCard({ t, d, rec, pre, onOpen, onPreview, onDelete }) {
-  const ref = useRef(null);
-  const [menu, setMenu] = useState(false);
-  const sc = 200 / t.width;
-  const mp4 = rec && rec.mp4;
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(false);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, [menu]);
+function useDemoOverrides(ref, rec) {
   useEffect(() => {
     if (!rec || !rec.overrides) return;
     const apply = () => {
@@ -258,27 +257,44 @@ function DemoCard({ t, d, rec, pre, onOpen, onPreview, onDelete }) {
     const ids = [80, 400, 900].map(ms => setTimeout(apply, ms)); // re-apply across the template's async settling
     return () => ids.forEach(clearTimeout);
   }, [rec]);
+}
+
+function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onDelete }) {
+  const ref = useRef(null);
+  const [menu, setMenu] = useState(false);
+  const CW = 248;
+  const CH = uniform !== false ? Math.round(CW * 16 / 9) : Math.round(t.height * (CW / t.width));
+  const sc = uniform !== false ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
+  const ox = (CW - t.width * sc) / 2, oy = (CH - t.height * sc) / 2;
+  const mp4 = rec && rec.mp4;
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menu]);
+  useDemoOverrides(ref, rec);
   return (
-    <div className="text-left group w-[200px] relative">
+    <div className="text-left group w-[248px] relative">
       <button onClick={onPreview} className="block w-full text-left">
-        <div className="overflow-hidden bg-neutral-900 ring-1 ring-neutral-200 group-hover:ring-neutral-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.07] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: 200, height: t.height * sc }}>
+        <div className="rounded-[30px] overflow-hidden bg-white/[0.03] border border-white/10 group-hover:border-white/25 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.08] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: CW, height: CH }}>
           {mp4
-            ? <video src={mp4} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+            ? <video src={mp4} autoPlay loop muted playsInline className="w-full h-full object-contain" />
             : pre
-              ? <div ref={ref} className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${sc})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
+              ? <div ref={ref} className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
               : (d.thumb ? <img src={d.thumb} className="w-full h-full object-cover" /> : null)}
         </div>
       </button>
       {/* ⋯ actions menu (hover, over the preview) */}
-      <div className="absolute top-2 right-2 z-20">
+      <div className="absolute top-3 right-3 z-20">
         <button onClick={(e) => { e.stopPropagation(); setMenu(m => !m); }} title="Actions"
-          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/90 text-neutral-600 hover:text-neutral-900 shadow ring-1 ring-black/5 opacity-0 group-hover:opacity-100 transition">
+          className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-300 hover:text-zinc-900 shadow ring-1 ring-black/5 opacity-0 group-hover:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
-        {menu && <div className="absolute right-0 top-9 z-40 w-44 rounded-xl bg-white shadow-xl ring-1 ring-neutral-200 py-1.5" onClick={e => e.stopPropagation()}>
-          {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="block w-full text-left px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition">Download MP4</a>}
-          <button onClick={() => { setMenu(false); onOpen(); }} className="w-full text-left px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition">Open in editor</button>
-          {IS_LOCAL && onDelete && <button onClick={(e) => { setMenu(false); onDelete(e); }} className="w-full text-left px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition">Delete</button>}
+        {menu && <div className="absolute right-0 top-9 z-40 w-44 rounded-[30px] bg-[#242424] shadow-xl border border-white/10 py-1.5" onClick={e => e.stopPropagation()}>
+          {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="block w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Download MP4</a>}
+          <button onClick={() => { setMenu(false); onOpen(); }} className="w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Open in editor</button>
+          {IS_LOCAL && onDelete && <button onClick={(e) => { setMenu(false); onDelete(e); }} className="w-full text-left px-3.5 py-2 text-sm text-red-400 hover:bg-red-500/10 transition">Delete</button>}
         </div>}
       </div>
     </div>
@@ -298,8 +314,7 @@ const routeFromHash = () => {
 /* ---------- hook copy library (positioning lines per use case) ---------- */
 const HOOKS = [
   {
-    title: "Product ads with AI",
-    sub: "Ads you actually run on Meta — UGC-style, variations at scale.",
+    title: "Create ads of your products with AI",
     hooks: [
       "I tested every AI ad tool on the market and only one made it into my daily workflow.",
       "10 ad tools became completely useless overnight. One AI agent replaced them all.",
@@ -312,8 +327,7 @@ const HOOKS = [
     ],
   },
   {
-    title: "MCP — AI video inside Claude",
-    sub: "Create AI videos with Claude, bulk-create ads, build viral accounts on autopilot.",
+    title: "Make AI videos by just asking Claude",
     hooks: [
       "You can now make AI videos by just… asking Claude.",
       "I connected Claude to Agent Opus and it built my entire content calendar overnight.",
@@ -326,8 +340,7 @@ const HOOKS = [
     ],
   },
   {
-    title: "Monetizable theme accounts",
-    sub: "Faceless pages that earn — long form and short form.",
+    title: "Build monetizable theme accounts with AI",
     hooks: [
       "I tested every faceless-channel workflow and only one survived a month.",
       "Building a theme account used to take a team. Now it takes a prompt.",
@@ -340,8 +353,7 @@ const HOOKS = [
     ],
   },
   {
-    title: "Music videos & visualizers",
-    sub: "Turn tracks into videos, visualizers, and canvas loops.",
+    title: "Turn your music into videos & visualizers",
     hooks: [
       "I turned a raw track into a finished music video before the song ended.",
       "Label-quality visualizers used to cost thousands. Now they cost a prompt.",
@@ -359,27 +371,28 @@ function HookRow({ sec }) {
   const rowRef = useRef(null);
   const [copied, setCopied] = useState(null);
   const copy = (text) => {
-    navigator.clipboard.writeText(text).then(() => { setCopied(text); setTimeout(() => setCopied(c => c === text ? null : c), 1200); });
+    navigator.clipboard.writeText(text).then(() => { setCopied(text); if (window.__toast) window.__toast("Copied to clipboard"); setTimeout(() => setCopied(c => c === text ? null : c), 1200); });
   };
   const nudge = (dir) => { const el = rowRef.current; if (el) el.scrollBy({ left: dir * (el.clientWidth - 120), behavior: "smooth" }); };
   return (
     <section>
-      <div className="flex items-end justify-between mb-3">
-        <div>
-          <h2 className="text-[15px] font-semibold">{sec.title}</h2>
-          <p className="text-xs text-neutral-400 mt-0.5">{sec.sub}</p>
-        </div>
+      <div className="flex items-end justify-between mb-4">
+        <h2 className="text-[22px] font-semibold tracking-tight text-white">{sec.title}</h2>
         <div className="flex gap-1.5">
-          <button onClick={() => nudge(-1)} aria-label="Scroll left" className="w-8 h-8 flex items-center justify-center rounded-lg bg-white ring-1 ring-zinc-200 text-zinc-500 hover:text-zinc-900 hover:ring-zinc-400 transition">←</button>
-          <button onClick={() => nudge(1)} aria-label="Scroll right" className="w-8 h-8 flex items-center justify-center rounded-lg bg-white ring-1 ring-zinc-200 text-zinc-500 hover:text-zinc-900 hover:ring-zinc-400 transition">→</button>
+          <button onClick={() => nudge(-1)} aria-label="Scroll left" className="w-8 h-8 flex items-center justify-center rounded-[30px] bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">←</button>
+          <button onClick={() => nudge(1)} aria-label="Scroll right" className="w-8 h-8 flex items-center justify-center rounded-[30px] bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">→</button>
         </div>
       </div>
-      <div ref={rowRef} className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1" style={{ scrollbarWidth: "thin" }}>
+      <div ref={rowRef} className="hscroll flex gap-4 overflow-x-auto snap-x snap-mandatory pb-6 pt-1 -mx-2 px-2">
         {sec.hooks.map(h => (
           <button key={h} onClick={() => copy(h)}
-            className="snap-start shrink-0 w-[300px] text-left p-4 rounded-xl bg-white ring-1 ring-zinc-200 hover:ring-zinc-400 hover:shadow-sm transition flex flex-col gap-3 group">
-            <span className="flex-1 text-sm text-zinc-800 leading-relaxed">{h}</span>
-            <span className={"text-xs transition " + (copied === h ? "text-zinc-900 font-medium" : "text-zinc-300 group-hover:text-zinc-400")}>{copied === h ? "Copied ✓" : "Click to copy"}</span>
+            className="snap-start shrink-0 w-[340px] text-left p-5 rounded-[30px] bg-white/[0.03] border border-white/10 hover:border-white/30 hover:shadow-sm transition flex flex-col gap-4 group">
+            <span className="flex-1 text-[16px] text-zinc-200 leading-relaxed">{h}</span>
+            <span className={"inline-flex items-center gap-1.5 text-sm transition " + (copied === h ? "text-white font-medium" : "text-zinc-500 group-hover:text-zinc-300")}>
+              {copied === h
+                ? <React.Fragment><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Copied</React.Fragment>
+                : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>}
+            </span>
           </button>
         ))}
       </div>
@@ -389,10 +402,6 @@ function HookRow({ sec }) {
 function HooksPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-10">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">Hooks</h1>
-        <p className="mt-1 text-sm text-neutral-500">Positioning lines per use case — click any hook to copy it.</p>
-      </div>
       {HOOKS.map(sec => <HookRow key={sec.title} sec={sec} />)}
     </div>
   );
@@ -416,8 +425,37 @@ function BrandPage() {
     ["wrong-4", "Do not outline the logo"], ["wrong-5", "Do not reverse the lockup"], ["wrong-6", "Do not add gradients to the logo"],
   ];
   const swatches = [["Orange", "#FA9819", "#fa9819", false], ["Blue Tint", "#B6C9CF", "#b6c9cf", false], ["White", "#FFFFFF", "#ffffff", true], ["Baby Blue", "#C6EBF7", "#c6ebf7", false]];
+  const ASSETS = [
+    ["ao-black.svg", "AO Lockup · Black", "#f9f5f2"], ["ao-white.svg", "AO Lockup · White", "#211e1d"],
+    ["mark-b.svg", "Mark · Black", "#f9f5f2"], ["mark-w.svg", "Mark · White", "#1b1b1b"],
+    ["favicon.svg", "Favicon", "#f9f5f2"], ["oc-black-vertical.svg", "OpusClip · Black", "#f9f5f2"],
+    ["oc-white-vertical.svg", "OpusClip · White", "#000000"],
+    ["gradient-1.png", "Gradient 1", "#111"], ["gradient-2.png", "Gradient 2", "#111"],
+    ["gradient-3.png", "Gradient 3", "#111"], ["gradient-4.png", "Gradient 4", "#111"],
+  ];
   return (
-    <div className="max-w-6xl mx-auto flex items-start gap-0 bg-white ring-1 ring-zinc-200 rounded-xl overflow-hidden" style={RS}>
+    <div className="max-w-6xl mx-auto space-y-8">
+    {/* downloadable brand files */}
+    <section>
+      <h2 className="text-lg font-semibold text-white mb-4">Media Assets</h2>
+      <div className="hscroll flex gap-4 overflow-x-auto snap-x pb-6 pt-1 -mx-2 px-2">
+        {ASSETS.map(([file, label, bg]) => (
+          <div key={file} className="snap-start shrink-0 w-[200px] rounded-[30px] bg-white/[0.03] border border-white/10 overflow-hidden">
+            <div className="h-[120px] flex items-center justify-center p-5" style={{ background: bg }}>
+              <img src={"/brand/" + file} alt={label} className="max-h-full max-w-full object-contain" />
+            </div>
+            <div className="p-3.5 flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-zinc-300 truncate">{label}</span>
+              <a href={"/brand/" + file} download title="Download"
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 text-zinc-300 hover:bg-white/20 hover:text-white transition">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+    <div className="flex items-start gap-0 bg-white text-zinc-900 ring-1 ring-white/10 rounded-[30px] overflow-hidden" style={RS}>
       {/* sidebar */}
       <nav className="hidden md:flex w-[220px] shrink-0 sticky top-20 flex-col gap-6 py-8">
         <div className="px-7 pb-6 border-b border-black/10">
@@ -653,6 +691,7 @@ function BrandPage() {
         </footer>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -668,8 +707,15 @@ function App() {
   const [demos, setDemos] = useState([]);
   const [demoRecs, setDemoRecs] = useState({});
   const [preview, setPreview] = useState(null);   // demo id shown in the preview modal
+  const [toast, setToast] = useState(null);       // transient success toast
+  useEffect(() => {
+    window.__toast = (m) => { setToast(m); clearTimeout(window.__toastT); window.__toastT = setTimeout(() => setToast(null), 2200); };
+    return () => { delete window.__toast; };
+  }, []);
+  const toastEl = toast ? <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-white text-zinc-900 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div> : null;
   const [tplFilter, setTplFilter] = useState("all");  // template gallery aspect filter
   const [tplQuery, setTplQuery] = useState("");       // template gallery search
+  const [demoFilter, setDemoFilter] = useState("all"); // demos aspect filter
   const [saved, setSaved] = useState(false);
   const refreshDemos = async () => { const list = await demoStore.list(); setDemos(list); const m = {}; list.forEach(r => m[r.id] = r); setDemoRecs(m); };
   useEffect(() => { refreshDemos(); }, []);
@@ -889,6 +935,7 @@ function App() {
         setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0, mediaMute: !!t.mute, isVideo: !!mslot.querySelector("video") });
         return;
       }
+      if (mslot.hasAttribute("data-vslot")) { selectEl(mslot); return; }   // empty video slot: select, upload from the sidebar
       const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
       const onClick = pk && mslot[pk] && mslot[pk].onClick;
       if (onClick) onClick({ stopPropagation() {}, preventDefault() {} });
@@ -1108,7 +1155,7 @@ function App() {
     try {
       await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
       await refreshDemos();
-      setSaved(true); setTimeout(() => setSaved(false), 1800);
+      setSaved(true); if (window.__toast) window.__toast("Saved to Demos"); setTimeout(() => setSaved(false), 1800);
       // render the real output in the background so the demo card can play the final MP4;
       // silently skipped if the export server isn't reachable (card falls back to a live preview)
       (async () => {
@@ -1119,6 +1166,7 @@ function App() {
           if (!res.ok) throw new Error(await res.text());
           await demoStore.attachMp4(id, await res.blob());
           await refreshDemos();
+          if (window.__toast) window.__toast("Demo video rendered");
         } catch (e) { console.warn("demo mp4 render skipped:", e.message || e); }
       })();
     } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
@@ -1218,6 +1266,7 @@ function App() {
       a.download = (t.name || "video").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4";
       a.click();
       setExportProg({ pct: 100, label: "Done ✓" });
+      if (window.__toast) window.__toast("MP4 exported");
       setTimeout(() => setExportProg(null), 1600);
     } catch (e) {
       if (creep) clearInterval(creep);
@@ -1239,32 +1288,26 @@ function App() {
     const s = Math.min(1, (window.innerHeight - 152) / t.height, (window.innerWidth - SB - 96) / t.width);
     editorScaleRef.current = s;
     return (
-      <div className="h-screen flex text-neutral-900 bg-zinc-50">
-        <aside style={{ width: SB }} className="shrink-0 h-screen bg-white border-r border-neutral-200 flex flex-col">
-          <div className="px-5 pt-5 pb-4">
-            <button onClick={() => { deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 transition">← All templates</button>
+      <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
+        <aside style={{ width: SB }} className="shrink-0 h-screen bg-[#1f1f1f] border-r border-white/10 flex flex-col">
+          <div className="h-14 shrink-0 flex items-center px-5 border-b border-white/10">
+            <button onClick={() => { deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← All templates</button>
           </div>
-          <div className="h-px bg-neutral-100" />
 
           <div className="px-5 py-5 flex-1 overflow-y-auto">
-            {!insp && (
-              <div className="text-center py-8">
-                <div className="w-11 h-11 mx-auto rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400 text-lg">✦</div>
-                <p className="text-neutral-500 text-sm leading-relaxed mt-3">Click any element — a heading, a label pill, a card, or the background — to restyle it.</p>
-              </div>
-            )}
+
 
             {insp && insp.isMedia && <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Media</span>
-                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-lg text-neutral-500 bg-neutral-100 hover:bg-neutral-200 transition">✕</button>
+                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
               </div>
-              <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium shadow-sm transition">Replace media…</button>
+              <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Replace media…</button>
               <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Fit</div>
                 <div>
                   <label className={LBL}>Fill mode</label>
-                  <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                     <button onClick={() => setMediaFit(insp.slot, "cover")} className={insp.mediaFit !== "contain" ? SEG_ON : SEG}>Fill</button>
                     <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Inset</button>
                   </div>
@@ -1274,30 +1317,30 @@ function App() {
                   <label className={LBL}>Corner radius · {insp.mediaRadius}px</label>
                   <input type="range" min="0" max="60" value={insp.mediaRadius}
                     onChange={e => setMediaRadius(insp.slot, +e.target.value)}
-                    className="w-full accent-zinc-900" />
+                    className="w-full accent-white" />
                 </div>
                 {insp.mediaFit === "contain" && <div>
                   <label className={LBL}>Padding · {insp.mediaPad}px</label>
                   <input type="range" min="0" max="60" value={insp.mediaPad}
                     onChange={e => setMediaPad(insp.slot, +e.target.value)}
-                    className="w-full accent-zinc-900" />
+                    className="w-full accent-white" />
                 </div>}
                 <div>
                   <label className={LBL}>Zoom · {Math.round(insp.mediaScale * 100)}%</label>
                   <input type="range" min="50" max="300" value={Math.round(insp.mediaScale * 100)}
                     onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
-                    className="w-full accent-zinc-900" />
+                    className="w-full accent-white" />
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Zoom in to crop out letterbox bars — or below 100% to shrink the video inside its frame.</p>
                 </div>
                 {insp.isVideo && <div>
                   <label className={LBL}>Audio in export & preview</label>
-                  <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                     <button onClick={() => setMediaMute(insp.slot, false)} className={!insp.mediaMute ? SEG_ON : SEG}>On</button>
                     <button onClick={() => setMediaMute(insp.slot, true)} className={insp.mediaMute ? SEG_ON : SEG}>Muted</button>
                   </div>
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Each video can be muted individually — keep both, one, or neither audio track in the final MP4.</p>
                 </div>}
-                <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position & zoom</button>
+                <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position & zoom</button>
                 <p className="text-xs text-neutral-400 leading-relaxed">Drag the video on the canvas to reposition it inside its frame — snaps to an 8px grid (hold Alt for free movement).</p>
               </section>
             </div>}
@@ -1305,30 +1348,30 @@ function App() {
             {insp && insp.isLogo && <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</span>
-                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-lg text-neutral-500 bg-neutral-100 hover:bg-neutral-200 transition">✕</button>
+                <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
               </div>
-              <button onClick={() => insp.logoApi.replace()} className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium shadow-sm transition">Replace logo…</button>
+              <button onClick={() => insp.logoApi.replace()} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Replace logo…</button>
               <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</div>
                 <div>
                   <label className={LBL}>Logo size · {Math.round(insp.logoScale * 100)}%</label>
                   <input type="range" min="20" max="200" value={Math.round(insp.logoScale * 100)}
                     onChange={e => { const s = +e.target.value / 100; insp.logoApi.setScale(s); setInsp({ ...insp, logoScale: s }); }}
-                    className="w-full accent-zinc-900" />
+                    className="w-full accent-white" />
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Resizes the logo inside the tile — the tile itself stays the same size.</p>
                 </div>
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-xl border border-neutral-200 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.logoBg }}>
+                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.logoBg }}>
                       <input type="color" value={insp.logoBg} onChange={e => { insp.logoApi.setBg(e.target.value); setInsp({ ...insp, logoBg: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
                     </label>
-                    <span className="text-sm text-neutral-500 flex-1">{insp.logoBg}</span>
+                    <span className="text-sm text-zinc-400 flex-1">{insp.logoBg}</span>
                   </div>
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Defaults to the logo's main color.</p>
                 </div>
               </section>
-              {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
+              {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
             </div>}
 
             {insp && !insp.isLogo && !insp.isMedia && <div className="space-y-5">
@@ -1336,11 +1379,11 @@ function App() {
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{insp.isText ? "Text" : insp.isSlot ? "Media slot" : "Element"}</span>
               </div>
 
-              {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium shadow-sm transition">Upload media into slot</button>}
+              {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Upload media into slot</button>}
 
               {insp.swapKey != null && <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Label content</div>
-                <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: null }); deselect(); } }} className={!insp.swapOn ? SEG_ON : SEG}>Logo</button>
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { const cur = (api.labelText || {})[insp.swapKey]; api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: cur != null ? cur : "AGENT OPUS" }); deselect(); } }} className={insp.swapOn ? SEG_ON : SEG}>Text</button>
                 </div>
@@ -1352,7 +1395,7 @@ function App() {
                 <div className="grid grid-cols-2 gap-2">
                   {[["tl", "↖ Top left"], ["tr", "↗ Top right"], ["bl", "↙ Bottom left"], ["br", "↘ Bottom right"]].map(([c, label]) => (
                     <button key={c} onClick={() => setPin(c)}
-                      className={"px-2.5 py-2 rounded-xl text-sm font-medium transition " + (insp.pin === c ? "bg-zinc-900 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>
+                      className={"px-2.5 py-2 rounded-[30px] text-sm font-medium transition " + (insp.pin === c ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>
                       {label}
                     </button>
                   ))}
@@ -1365,16 +1408,16 @@ function App() {
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-xl border border-neutral-200 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
+                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
                       <input type="color" value={insp.bgHex} onChange={e => setStyle("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
                     </label>
-                    <span className="text-sm text-neutral-500 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
-                    <button onClick={() => setStyle("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-lg transition " + (insp.bgTransparent ? "bg-zinc-900 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>Clear</button>
+                    <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
+                    <button onClick={() => setStyle("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (insp.bgTransparent ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>Clear</button>
                   </div>
                 </div>
                 <div>
                   <label className={LBL}>Opacity · {insp.opacity}%</label>
-                  <input type="range" min="0" max="100" value={insp.opacity} onChange={e => setStyle("opacity", (+e.target.value / 100).toString(), { opacity: +e.target.value })} className="w-full accent-zinc-900" />
+                  <input type="range" min="0" max="100" value={insp.opacity} onChange={e => setStyle("opacity", (+e.target.value / 100).toString(), { opacity: +e.target.value })} className="w-full accent-white" />
                 </div>
                 <div>
                   <label className={LBL}>Corner radius</label>
@@ -1382,7 +1425,7 @@ function App() {
                 </div>
                 <div>
                   <label className={LBL}>Pattern</label>
-                  <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                     {[["none", "None"], ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
                       <button key={k} onClick={() => setPattern(k)} className={(insp.pattern || "none") === k ? SEG_ON : SEG}>{label}</button>
                     ))}
@@ -1393,9 +1436,9 @@ function App() {
                   <label className={LBL}>Size · {insp.imgH}px</label>
                   <input type="range" min="12" max="240" value={insp.imgH}
                     onChange={e => setStyle("height", e.target.value + "px", { imgH: +e.target.value })}
-                    className="w-full accent-zinc-900" />
+                    className="w-full accent-white" />
                 </div>}
-                {insp.moved && <button onClick={() => setStyle("transform", "", { moved: false })} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position</button>}
+                {insp.moved && <button onClick={() => setStyle("transform", "", { moved: false })} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position</button>}
                 <p className="text-xs text-neutral-400 leading-relaxed">Drag the ✥ handle on the canvas to move this element — it snaps to an 8px grid (hold Alt for free movement).</p>
               </section>
 
@@ -1422,20 +1465,20 @@ function App() {
                 <div>
                   <label className={LBL}>Color</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-xl border border-neutral-200 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.color }}>
+                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.color }}>
                       <input type="color" value={insp.color} onChange={e => setStyle("color", e.target.value, { color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
                     </label>
-                    <span className="text-sm text-neutral-500">{insp.color}</span>
+                    <span className="text-sm text-zinc-400">{insp.color}</span>
                   </div>
                 </div>
                 <div>
                   <label className={LBL}>Alignment & style</label>
                   <div className="flex gap-2">
-                    <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100">
+                    <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5">
                       {["left", "center", "right"].map(a => <button key={a} onClick={() => setStyle("textAlign", a, { align: a })} className={insp.align === a ? SEG_ON : SEG}>{a[0].toUpperCase()}</button>)}
                     </div>
-                    <button onClick={() => setStyle("fontStyle", insp.italic ? "normal" : "italic", { italic: !insp.italic })} className={"px-3 py-1.5 rounded-xl italic text-sm border border-neutral-200 " + (insp.italic ? "bg-zinc-900 text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>I</button>
-                    <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-xl underline text-sm border border-neutral-200 " + (insp.underline ? "bg-zinc-900 text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>U</button>
+                    <button onClick={() => setStyle("fontStyle", insp.italic ? "normal" : "italic", { italic: !insp.italic })} className={"px-3 py-1.5 rounded-[30px] italic text-sm border border-white/10 " + (insp.italic ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>I</button>
+                    <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-[30px] underline text-sm border border-white/10 " + (insp.underline ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>U</button>
                   </div>
                 </div>
                 <p className="text-xs text-neutral-400 leading-relaxed">Type on the highlighted text to change the words.</p>
@@ -1443,24 +1486,24 @@ function App() {
             </div>}
           </div>
 
-          {IS_LOCAL && <div className="px-5 py-4 border-t border-neutral-100">
+          {IS_LOCAL && <div className="px-5 py-4 border-t border-white/10">
             <button onClick={saveDemo}
-              className="w-full text-sm px-3 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-medium transition">
+              className="w-full text-sm px-3 py-2.5 rounded-[30px] bg-white/10 hover:bg-white/15 text-zinc-100 font-medium transition">
               {saved === "saving" ? "Saving…" : saved ? "Saved to Demos ✓" : "Save to Demos"}</button>
           </div>}
         </aside>
 
         <div className="flex-1 h-screen flex flex-col">
-        <header className="h-14 shrink-0 bg-white/85 backdrop-blur border-b border-neutral-200 flex items-center justify-end gap-3 px-4">
+        <header className="h-14 shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-b border-white/10 flex items-center justify-end gap-3 px-4">
           {exportProg && <div className="flex items-center gap-2 w-72">
-            <div className="flex-1 h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-              <div className="h-full bg-zinc-900 transition-all duration-300" style={{ width: exportProg.pct + "%" }} />
+            <div className="flex-1 h-1.5 rounded-full bg-white/15 overflow-hidden">
+              <div className="h-full bg-white transition-all duration-300" style={{ width: exportProg.pct + "%" }} />
             </div>
-            <span className="text-xs text-neutral-500 whitespace-nowrap">{exportProg.label}</span>
+            <span className="text-xs text-zinc-400 whitespace-nowrap">{exportProg.label}</span>
           </div>}
           <button onClick={exportMp4} disabled={exporting}
-            className="text-sm px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition disabled:opacity-60 disabled:cursor-wait">
-            {exporting ? "Exporting…" : "Export MP4"}</button>
+            className="text-sm px-4 py-2 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
+            {exporting ? "Exporting…" : "Export"}</button>
         </header>
         <main ref={mainRef} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
@@ -1473,15 +1516,15 @@ function App() {
               <div className="absolute left-0 right-0 h-px bg-[#2563eb]/80" style={{ top: guides.y * s }} />
             </div>}
           </div>
-          {handle && insp && !insp.isMedia && !insp.isLogo && (
+          {handle && insp && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" && (
             <button onPointerDown={startMoveDrag} title="Drag to move"
               style={{ left: handle.x - 2, top: handle.y - 34 }}
-              className="absolute z-40 w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-900 text-white shadow-lg cursor-move select-none">
+              className="absolute z-40 w-7 h-7 flex items-center justify-center rounded-[30px] bg-white text-zinc-900 shadow-lg cursor-move select-none">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/><path d="M9 5l3-3 3 3"/><path d="M9 19l3 3 3-3"/><path d="M5 9l-3 3 3 3"/><path d="M19 9l3 3-3 3"/></svg>
             </button>
           )}
           <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
-            className={"absolute bottom-6 right-6 w-11 h-11 flex items-center justify-center rounded-full shadow-lg transition " + (soundOn ? "bg-zinc-900 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100 ring-1 ring-neutral-200")}>
+            className={"absolute bottom-6 right-6 w-11 h-11 flex items-center justify-center rounded-full shadow-lg transition " + (soundOn ? "bg-white text-zinc-900" : "bg-[#242424] text-zinc-300 hover:bg-white/10 ring-1 ring-white/10")}>
             {soundOn
               ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
               : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
@@ -1489,6 +1532,7 @@ function App() {
         </main>
         </div>
 
+        {toastEl}
         {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
       </div>
     );
@@ -1501,55 +1545,68 @@ function App() {
   const iconBrand = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>;
   const sideBtn = (id, label, icon) => (
     <button onClick={() => setPage(id)} title={label} aria-label={label}
-      className={"w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition " + (page === id ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900")}>
+      className={"w-full flex items-center gap-2.5 px-3 py-2 rounded-[30px] text-sm font-medium transition " + (page === id ? "bg-[#2F2F2F] text-white" : "text-zinc-400 hover:bg-white/10 hover:text-white")}>
       {icon}{label}
     </button>
   );
-  const aspectOf = (t) => t.width === t.height ? "1:1" : t.width > t.height ? "16:9" : "9:16";
   const shownTemplates = templates.filter(t =>
     (tplFilter === "all" || aspectOf(t) === tplFilter) &&
     (!tplQuery || (t.name + " " + (t.desc || "")).toLowerCase().includes(tplQuery.toLowerCase())));
-  const chip = (id, label) => (
-    <button key={id} onClick={() => setTplFilter(id)}
-      className={"px-3 py-1.5 rounded-lg text-sm font-medium transition " + (tplFilter === id ? "bg-zinc-900 text-white" : "bg-white text-zinc-600 ring-1 ring-zinc-200 hover:ring-zinc-300")}>
+  const chipBtn = (id, label, cur, set) => (
+    <button key={id} onClick={() => set(id)}
+      className={"px-3 py-1.5 rounded-[30px] text-sm font-medium transition " + (cur === id ? "bg-[#2F2F2F] text-white ring-1 ring-white/10" : "bg-transparent text-zinc-400 ring-1 ring-white/15 hover:ring-white/30")}>
       {label}
     </button>
   );
+  const chip = (id, label) => chipBtn(id, label, tplFilter, setTplFilter);
+  const shownDemos = demos.filter(d => {
+    const t = templates.find(x => x.id === d.templateId);
+    return t && (demoFilter === "all" || aspectOf(t) === demoFilter);
+  });
   const demosView = demos.length ? (
-    <div className="flex flex-wrap justify-center gap-6">
-      {demos.map(d => {
+    <div>
+      <div className="flex items-center justify-end gap-2 mb-8">
+        {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "16:9", demoFilter, setDemoFilter)}{chipBtn("9:16", "9:16", demoFilter, setDemoFilter)}{chipBtn("1:1", "1:1", demoFilter, setDemoFilter)}
+      </div>
+      <div className="flex flex-wrap gap-6">
+      {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
-        if (!t) return null;
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
       })}
+      </div>
     </div>
   ) : (
     <div className="text-center py-28 text-neutral-400">
-      <div className="w-14 h-14 mx-auto rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-300">{iconShowcase}</div>
-      <div className="mt-4 text-lg font-medium text-neutral-600">No demos yet</div>
-      <p className="mt-1 text-sm">Open a template, add your videos, then hit <span className="font-medium text-neutral-600">Save to Demos</span>.</p>
+      <div className="w-14 h-14 mx-auto rounded-[30px] bg-white/10 flex items-center justify-center text-neutral-300">{iconShowcase}</div>
+      <div className="mt-4 text-lg font-medium text-zinc-300">No demos yet</div>
+      <p className="mt-1 text-sm">Open a template, add your videos, then hit <span className="font-medium text-zinc-300">Save to Demos</span>.</p>
     </div>
   );
   // standalone, nav-less demos page at #/demos
   const previewDemo = preview && demos.find(x => x.id === preview);
   const previewModal = previewDemo
-    ? <DemoPreview d={previewDemo} rec={demoRecs[preview]} onClose={() => setPreview(null)} onOpen={() => { setPreview(null); openDemo(preview); }} />
+    ? <DemoPreview d={previewDemo} t={templates.find(x => x.id === previewDemo.templateId)} rec={demoRecs[preview]} pre={demoPreload(demoRecs[preview])} onClose={() => setPreview(null)} onOpen={() => { setPreview(null); openDemo(preview); }} />
     : null;
   if (page === "demos") {
     return (
-      <div className="min-h-screen text-neutral-900">
+      <div className="min-h-screen text-zinc-100">
         <div className="max-w-6xl mx-auto px-8 py-10">{demosView}</div>
         {previewModal}
+        {toastEl}
         {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
       </div>
     );
   }
   return (
-    <div className="min-h-screen flex text-neutral-900">
+    <div className="min-h-screen flex text-zinc-100">
       {/* side nav */}
-      <aside className="w-[224px] shrink-0 sticky top-0 h-screen bg-white border-r border-zinc-200 flex flex-col z-30">
-        <nav className="p-3 pt-5 flex flex-col gap-1">
+      <aside className="w-[224px] shrink-0 sticky top-0 h-screen bg-[#1A1A1A] border-r border-white/10 flex flex-col z-30">
+        <div className="px-5 pt-5 pb-4 flex flex-row items-center gap-2 text-[18px] font-bold text-white">
+          <svg aria-label="opus agent logo" fill="currentColor" viewBox="0 0 24 24" width="28" height="28"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
+          <span className="whitespace-nowrap">Agent Opus</span>
+        </div>
+        <nav className="p-3 pt-1 flex flex-col gap-1">
           {sideBtn("templates", "Templates", iconTemplates)}
           {sideBtn("showcase", "Demos", iconShowcase)}
           {sideBtn("hooks", "Hooks", iconHooks)}
@@ -1568,27 +1625,24 @@ function App() {
             <div>
               <header className="flex flex-wrap items-center justify-end gap-4 mb-8">
                 <div className="flex items-center gap-2">
-                  <input value={tplQuery} onChange={e => setTplQuery(e.target.value)} placeholder="Search templates…"
-                    className="w-[200px] bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-sm shadow-sm outline-none focus:border-zinc-400 transition" />
                   {chip("all", "All")}{chip("16:9", "16:9")}{chip("9:16", "9:16")}{chip("1:1", "1:1")}
                 </div>
               </header>
               <div className="flex flex-wrap gap-6">
                 {shownTemplates.map(t => {
-                  const CW = 248, sc = CW / t.width;
+                  const CW = 248;
+                  const uniform = tplFilter === "all";
+                  const CH = uniform ? Math.round(CW * 16 / 9) : Math.round(t.height * (CW / t.width));
+                  const sc = uniform ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
+                  const ox = (CW - t.width * sc) / 2, oy = (CH - t.height * sc) / 2;
                   return (
                     <button key={t.id} onClick={() => setSel(t.id)} className="text-left group w-[248px]">
-                      <div className="relative overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200 group-hover:ring-zinc-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.08] group-hover:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: t.height * sc }}>
-                        <div className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${sc})`, transformOrigin: "top left" }}><t.Component /></div>
+                      <div className="relative overflow-hidden rounded-[30px] bg-white/[0.03] border border-white/10 group-hover:border-white/25 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.08] group-hover:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: CH }}>
+                        <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><t.Component /></div>
                         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 group-hover:bg-zinc-950/30 opacity-0 group-hover:opacity-100 transition duration-200">
-                          <span className="px-3.5 py-1.5 rounded-lg bg-white text-zinc-900 text-sm font-medium shadow-lg">Use template</span>
+                          <span className="px-3.5 py-1.5 rounded-[30px] bg-white text-zinc-900 text-sm font-medium shadow-lg">Use template</span>
                         </div>
                       </div>
-                      <div className="mt-2.5 flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium truncate">{t.name}</div>
-                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">{aspectOf(t)}</span>
-                      </div>
-                      <div className="text-xs text-zinc-400 mt-0.5">{t.width} × {t.height} · {t.slots || 1} video slot{(t.slots || 1) > 1 ? "s" : ""}</div>
                     </button>
                   );
                 })}
@@ -1596,17 +1650,12 @@ function App() {
               {!shownTemplates.length && <div className="text-center py-24 text-sm text-zinc-400">No templates match — clear the search or filter.</div>}
             </div>
           ) : (
-            <div>
-              <header className="mb-8">
-                <h1 className="text-2xl font-semibold tracking-tight">Demos</h1>
-                <p className="mt-1 text-sm text-zinc-500">Finished renders — click a card to preview and download.</p>
-              </header>
-              {demosView}
-            </div>
+            <div>{demosView}</div>
           )}
         </div>
       </main>
       {previewModal}
+      {toastEl}
       {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
     </div>
   );
@@ -1616,19 +1665,19 @@ function LogoPicker({ onPick, onClose }) {
   const upload = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*,.svg"; i.onchange = e => { const f = e.target.files[0]; if (f) onPick(URL.createObjectURL(f)); }; i.click(); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/30 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-3xl p-6 w-[440px] max-w-[92vw] shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="bg-[#212121] rounded-[30px] p-6 w-[440px] max-w-[92vw] shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
-          <div className="text-neutral-900 font-semibold text-lg">Choose a logo</div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 transition">✕</button>
+          <div className="text-zinc-100 font-semibold text-lg">Choose a logo</div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-[30px] text-zinc-400 hover:bg-white/10 transition">✕</button>
         </div>
         <div className="grid grid-cols-4 gap-3">
           {LOGO_LIBRARY.map(l => (
-            <button key={l.name} onClick={() => onPick(l.uri)} title={l.name} className="aspect-square rounded-2xl bg-neutral-50 ring-1 ring-neutral-200 hover:ring-zinc-900 hover:bg-white flex items-center justify-center p-3.5 transition">
+            <button key={l.name} onClick={() => onPick(l.uri)} title={l.name} className="aspect-square rounded-[30px] bg-white ring-1 ring-white/10 hover:ring-white flex items-center justify-center p-3.5 transition">
               <img src={l.uri} alt={l.name} className="w-full h-full object-contain" />
             </button>
           ))}
         </div>
-        <button onClick={upload} className="mt-4 w-full py-3 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition">Upload your own image…</button>
+        <button onClick={upload} className="mt-4 w-full py-3 rounded-[30px] bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition">Upload your own image…</button>
       </div>
     </div>
   );
