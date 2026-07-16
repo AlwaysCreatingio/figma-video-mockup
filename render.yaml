@@ -8,7 +8,9 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      # 2x supersample (crisp text). If exports start 502ing on the free 512 MB instance,
-      # drop this to "1" — Chromium at 2x is what gets OOM-killed.
+      # Free tier (512 MB) can't fit Chromium at the default 2x supersample — it gets OOM-killed
+      # mid-export (verified: 2x 502s even with production React). 1x is reliable but softer.
+      # For crisp 2x exports either upgrade this service to Standard (2 GB) and set "2",
+      # or export from a machine running `npm run export-server` locally (defaults to 2x).
       - key: EXPORT_SCALE
-        value: "2"
+        value: "1"
