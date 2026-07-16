@@ -81,7 +81,7 @@ function finalize(){
   for(const l of X.logos){ const el=frame.querySelector('[data-lslot="'+l.slot+'"]'); if(!el)continue;
     const fit=l.fit||"cover", pad=fit==="cover"?"0":"10px", sc=(l.scale!=null?l.scale:1);
     if(l.bg) el.style.backgroundColor=l.bg;
-    if(l.border) { el.style.border="2px solid "+l.border; el.style.boxSizing="border-box"; } else if(l.border===null) el.style.border="none";
+    if(l.border) { el.style.border=(l.borderW || 2)+"px solid "+l.border; el.style.boxSizing="border-box"; } else if(l.border===null) el.style.border="none";
     el.innerHTML='<img src="'+l.uri+'" style="width:100%;height:100%;object-fit:'+fit+';padding:'+pad+';box-sizing:border-box;transform:scale('+sc+');transform-origin:center">'; }
   // editor-only affordances never belong in the export
   frame.querySelectorAll("[data-ctl]").forEach(e => e.remove());
