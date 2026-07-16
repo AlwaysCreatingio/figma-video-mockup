@@ -202,11 +202,8 @@ function DemoPreview({ d, t, rec, pre, onClose, onOpen }) {
   const ps = t ? Math.min(860 / t.width, 560 / t.height) : 1;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={onClose}>
-      <div className="bg-[#212121] shadow-2xl max-w-[min(920px,94vw)] w-full overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10">
-          <div className="text-sm font-semibold truncate pr-4">{d.name}</div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-[30px] text-zinc-400 hover:bg-white/10 transition">✕</button>
-        </div>
+      <div className="relative bg-[#212121] rounded-[30px] shadow-2xl max-w-[min(920px,94vw)] w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-zinc-300 hover:bg-black/70 hover:text-white transition">✕</button>
         <div className="bg-zinc-950 flex items-center justify-center">
           {mp4
             ? <video src={mp4} controls autoPlay loop muted playsInline className="max-h-[70vh] w-auto max-w-full" />
@@ -275,9 +272,9 @@ function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onDelete }) {
   }, [menu]);
   useDemoOverrides(ref, rec);
   return (
-    <div className="text-left group w-[248px] relative">
+    <div className="text-left group/card w-[248px] relative">
       <button onClick={onPreview} className="block w-full text-left">
-        <div className="rounded-[30px] overflow-hidden bg-white/[0.03] border border-white/10 group-hover:border-white/25 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.08] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: CW, height: CH }}>
+        <div className="rounded-[30px] overflow-hidden bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200 relative" style={{ width: CW, height: CH }}>
           {mp4
             ? <video src={mp4} autoPlay loop muted playsInline className="w-full h-full object-contain" />
             : pre
@@ -288,7 +285,7 @@ function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onDelete }) {
       {/* ⋯ actions menu (hover, over the preview) */}
       <div className="absolute top-3 right-3 z-20">
         <button onClick={(e) => { e.stopPropagation(); setMenu(m => !m); }} title="Actions"
-          className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover:opacity-100 transition">
+          className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover/card:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
         {menu && <div className="absolute right-0 top-9 z-40 w-44 rounded-[30px] bg-[#242424] shadow-xl border border-white/10 py-1.5" onClick={e => e.stopPropagation()}>
@@ -1710,10 +1707,10 @@ function App() {
                   const sc = uniform ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
                   const ox = (CW - t.width * sc) / 2, oy = (CH - t.height * sc) / 2;
                   return (
-                    <button key={t.id} onClick={() => setSel(t.id)} className="text-left group w-[248px]">
-                      <div className="relative overflow-hidden rounded-[30px] bg-white/[0.03] border border-white/10 group-hover:border-white/25 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.08] group-hover:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: CH }}>
+                    <button key={t.id} onClick={() => setSel(t.id)} className="text-left group/card w-[248px]">
+                      <div className="relative overflow-hidden rounded-[30px] bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: CH }}>
                         <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><t.Component /></div>
-                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 group-hover:bg-zinc-950/30 opacity-0 group-hover:opacity-100 transition duration-200">
+                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 group-hover/card:bg-zinc-950/30 opacity-0 group-hover/card:opacity-100 transition duration-200">
                           <span className="px-3.5 py-1.5 rounded-[30px] bg-white text-zinc-900 text-sm font-medium shadow-lg">Use template</span>
                         </div>
                       </div>
