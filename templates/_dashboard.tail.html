@@ -256,7 +256,7 @@ function useDemoOverrides(ref, rec) {
   }, [rec]);
 }
 
-function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onDelete }) {
+function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onRender, onDelete }) {
   const ref = useRef(null);
   const [menu, setMenu] = useState(false);
   const CW = 248;
@@ -288,8 +288,9 @@ function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onDelete }) {
           className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover/card:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
-        {menu && <div className="absolute right-0 top-9 z-40 w-44 rounded-[30px] bg-[#242424] shadow-xl border border-white/10 py-1.5" onClick={e => e.stopPropagation()}>
+        {menu && <div className="absolute right-0 top-9 z-40 w-44 rounded-[22px] overflow-hidden bg-[#242424] shadow-xl border border-white/10 py-1.5" onClick={e => e.stopPropagation()}>
           {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="block w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Download MP4</a>}
+          {!mp4 && onRender && <button onClick={() => { setMenu(false); onRender(); }} className="w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Render MP4</button>}
           <button onClick={() => { setMenu(false); onOpen(); }} className="w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Open in editor</button>
           {IS_LOCAL && onDelete && <button onClick={(e) => { setMenu(false); onDelete(e); }} className="w-full text-left px-3.5 py-2 text-sm text-red-400 hover:bg-red-500/10 transition">Delete</button>}
         </div>}
@@ -454,7 +455,7 @@ function AssetCard({ file, label, bg, onPreview }) {
           className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 text-zinc-300 hover:bg-white/20 hover:text-white transition">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
         </button>
-        {menu && <div className="absolute right-2 bottom-11 z-40 w-28 rounded-[18px] bg-[#242424] shadow-xl border border-white/10 py-1.5" onClick={e => e.stopPropagation()}>
+        {menu && <div className="absolute right-2 bottom-11 z-40 w-28 rounded-[18px] overflow-hidden bg-[#242424] shadow-xl border border-white/10 py-1.5" onClick={e => e.stopPropagation()}>
           {fmts.map(f => <button key={f} onClick={() => dl(f)} className="w-full text-left px-3.5 py-1.5 text-sm text-zinc-200 hover:bg-white/10 transition uppercase">{f}</button>)}
         </div>}
       </div>
@@ -774,7 +775,7 @@ function App() {
   const [exporting, setExporting] = useState(false);
   const [exportProg, setExportProg] = useState(null);   // { pct, label } while an export runs
   const [page, setPage] = useState(() => routeFromHash().page);
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
   const [demos, setDemos] = useState([]);
   const [demoRecs, setDemoRecs] = useState({});
   const [preview, setPreview] = useState(null);   // demo id shown in the preview modal
@@ -783,7 +784,7 @@ function App() {
     window.__toast = (m) => { setToast(m); clearTimeout(window.__toastT); window.__toastT = setTimeout(() => setToast(null), 2200); };
     return () => { delete window.__toast; };
   }, []);
-  const toastEl = toast ? <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-white text-zinc-900 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div> : null;
+  const toastEl = toast ? <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-[#242424] border border-white/10 text-zinc-100 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div> : null;
   const [tplFilter, setTplFilter] = useState("all");  // template gallery aspect filter
   const [tplQuery, setTplQuery] = useState("");       // template gallery search
   const [demoFilter, setDemoFilter] = useState("all"); // demos aspect filter
@@ -1156,7 +1157,7 @@ function App() {
       const slotEl = v.closest("[data-vslot]");
       const slotMute = slotEl ? !!((xfFor(sel)[slotEl.getAttribute("data-vslot")] || {}).mute) : false;
       v.muted = !soundOn || slotMute;
-      if (soundOn) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+      if (soundOn) { const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; const q = v.play(); if (q && q.catch) q.catch(() => {}); }); }
     }); };
     sync();
     const mo = new MutationObserver(sync);
@@ -1249,6 +1250,34 @@ function App() {
     window.__demoPending = rec;
     setSel(rec.templateId);
   }
+  // build the export spec straight from a saved record — lets old demos (saved before
+  // background rendering) get their hosted MP4 without opening the editor
+  async function renderDemoMp4(id) {
+    const rec = demoRecs[id]; const t = rec && templates.find(x => x.id === rec.templateId);
+    if (!rec || !t) return;
+    if (window.__toast) window.__toast("Rendering video…");
+    try {
+      const up = async (url) => {
+        const blob = await blobFrom(url);
+        const ext = ((blob.type.split("/")[1] || "mp4").split(";")[0]);
+        const r = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob });
+        if (!r.ok) throw new Error("upload failed");
+        return (await r.json()).id;
+      };
+      const idBySrc = {};
+      const slots = Object.keys(rec.vids || {});
+      await Promise.all([...new Set(slots.map(k => rec.vids[k].url))].map(u => up(u).then(i => { idBySrc[u] = i; })));
+      const videoSlots = slots.map(k => ({ slot: k, videoId: idBySrc[rec.vids[k].url] }));
+      if (!videoSlots.length) { alert("This demo has no media to render."); return; }
+      const logos = Object.entries(rec.logos || {}).map(([slot, v]) => ({ slot, uri: v.uri, fit: (window.__FILL_LOGOS || []).indexOf(v.uri) >= 0 ? "cover" : "contain", bg: v.bg, scale: v.scale }));
+      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient: null, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
+      const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+      if (!res.ok) throw new Error(await res.text());
+      await demoStore.attachMp4(id, await res.blob());
+      await refreshDemos();
+      if (window.__toast) window.__toast("Demo video rendered");
+    } catch (e) { alert("Render failed: " + (e.message || e)); }
+  }
   async function deleteDemo(id, e) {
     if (e) e.stopPropagation();
     await demoStore.remove(id);
@@ -1286,14 +1315,11 @@ function App() {
       const blur = parseFloat(((cs.filter || "").match(/blur\(([\d.]+)px\)/) || [])[1]) || 60;
       ambient = { blur, opacity: parseFloat(cs.opacity) || 0.3 };
     }
-    // slots hold a <video> or an <img>; upload whichever is present
-    const videoSlots = [];
-    for (const el of slotMediaEls) {
-      const slot = el.closest("[data-vslot]");
-      const src = el.currentSrc || el.src || el.getAttribute("src");
-      const id = idBySrc[src] || (idBySrc[src] = await uploadBlob(src));
-      videoSlots.push({ slot: slot.getAttribute("data-vslot"), videoId: id });
-    }
+    // upload every unique media file in parallel (slots + ambient), then map slots to ids
+    const slotEntries = slotMediaEls.map(el => ({ slot: el.closest("[data-vslot]").getAttribute("data-vslot"), src: el.currentSrc || el.src || el.getAttribute("src") }));
+    const uniqueSrcs = [...new Set([...slotEntries.map(e => e.src), ...(ambientSrc ? [ambientSrc] : [])].filter(Boolean))];
+    await Promise.all(uniqueSrcs.map(src => uploadBlob(src).then(id => { idBySrc[src] = id; })));
+    const videoSlots = slotEntries.map(e => ({ slot: e.slot, videoId: idBySrc[e.src] }));
     const logos = [];
     for (const img of root.querySelectorAll("[data-lslot] img")) {
       const orig = img.getAttribute("src");
@@ -1309,7 +1335,7 @@ function App() {
     }
     const merged = JSON.parse(JSON.stringify(ovFor(t.id)));
     for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); merged[p] = { ...(merged[p] || {}), text: inp.value }; }
-    if (ambient && ambientSrc) ambient.videoId = idBySrc[ambientSrc] || (idBySrc[ambientSrc] = await uploadBlob(ambientSrc));
+    if (ambient && ambientSrc) ambient.videoId = idBySrc[ambientSrc];
     const showPlus = !!root.querySelector("[data-plus]");
     const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
     const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
@@ -1347,6 +1373,18 @@ function App() {
     setExporting(false);
   }
 
+  // warn before leaving the editor when there are edits in progress
+  const editorDirty = () => {
+    const root = containerRef.current;
+    return !!(sel && root && (root.querySelector("[data-vslot] video, [data-vslot] img") || Object.keys(ovFor(sel)).length));
+  };
+  useEffect(() => {
+    if (!sel) return;
+    const h = (e) => { if (!editorDirty()) return; e.preventDefault(); e.returnValue = "Leave the editor? Your edits aren't saved."; };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [sel]);
+
   // templates read this to show editor-only affordances (e.g. a "Show logos" control) that must
   // never appear in gallery thumbnails or exports.
   if (typeof window !== "undefined") window.__EDITOR = !!sel;
@@ -1362,7 +1400,7 @@ function App() {
       <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
         <aside style={{ width: SB }} className="shrink-0 h-screen bg-[#1f1f1f] border-r border-white/10 flex flex-col">
           <div className="h-14 shrink-0 flex items-center px-5 border-b border-white/10">
-            <button onClick={() => { deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← All templates</button>
+            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as a demo yet.")) return; deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← All templates</button>
           </div>
 
           <div className="px-5 py-5 flex-1 overflow-y-auto">
@@ -1382,7 +1420,6 @@ function App() {
                     <button onClick={() => setMediaFit(insp.slot, "cover")} className={insp.mediaFit !== "contain" ? SEG_ON : SEG}>Fill</button>
                     <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Inset</button>
                   </div>
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Fill covers the frame edge-to-edge; Inset frames the video with even padding on all sides.</p>
                 </div>
                 <div>
                   <label className={LBL}>Corner radius · {insp.mediaRadius}px</label>
@@ -1401,7 +1438,6 @@ function App() {
                   <input type="range" min="50" max="300" value={Math.round(insp.mediaScale * 100)}
                     onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
                     className="w-full accent-white" />
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Zoom in to crop out letterbox bars — or below 100% to shrink the video inside its frame.</p>
                 </div>
                 {insp.isVideo && <div>
                   <label className={LBL}>Audio in export & preview</label>
@@ -1409,10 +1445,8 @@ function App() {
                     <button onClick={() => setMediaMute(insp.slot, false)} className={!insp.mediaMute ? SEG_ON : SEG}>On</button>
                     <button onClick={() => setMediaMute(insp.slot, true)} className={insp.mediaMute ? SEG_ON : SEG}>Muted</button>
                   </div>
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Each video can be muted individually — keep both, one, or neither audio track in the final MP4.</p>
                 </div>}
                 <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position & zoom</button>
-                <p className="text-xs text-neutral-400 leading-relaxed">Drag the video on the canvas to reposition it inside its frame — snaps to an 8px grid (hold Alt for free movement).</p>
               </section>
             </div>}
 
@@ -1429,7 +1463,6 @@ function App() {
                   <input type="range" min="20" max="200" value={Math.round(insp.logoScale * 100)}
                     onChange={e => { const s = +e.target.value / 100; insp.logoApi.setScale(s); setInsp({ ...insp, logoScale: s }); }}
                     className="w-full accent-white" />
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Resizes the logo inside the tile — the tile itself stays the same size.</p>
                 </div>
                 <div>
                   <label className={LBL}>Background</label>
@@ -1439,17 +1472,12 @@ function App() {
                     </label>
                     <span className="text-sm text-zinc-400 flex-1">{insp.logoBg}</span>
                   </div>
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Defaults to the logo's main color.</p>
                 </div>
               </section>
               {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
             </div>}
 
             {insp && !insp.isLogo && !insp.isMedia && <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{insp.isText ? "Text" : insp.isSlot ? "Media slot" : "Element"}</span>
-              </div>
-
               {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Upload media into slot</button>}
 
               {insp.swapKey != null && <section className="space-y-3">
@@ -1458,7 +1486,6 @@ function App() {
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: null }); deselect(); } }} className={!insp.swapOn ? SEG_ON : SEG}>Logo</button>
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { const cur = (api.labelText || {})[insp.swapKey]; api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: cur != null ? cur : "AGENT OPUS" }); deselect(); } }} className={insp.swapOn ? SEG_ON : SEG}>Text</button>
                 </div>
-                <p className="text-xs text-neutral-400 leading-relaxed">Swap the logo for editable text — then click the text to change it.</p>
               </section>}
 
               {insp.pinPath != null && <section className="space-y-3">
@@ -1471,7 +1498,6 @@ function App() {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-neutral-400 leading-relaxed">Moves the label pill to a corner of its card.</p>
               </section>}
 
               <section className="space-y-3">
@@ -1501,7 +1527,6 @@ function App() {
                       <button key={k} onClick={() => setPattern(k)} className={(insp.pattern || "none") === k ? SEG_ON : SEG}>{label}</button>
                     ))}
                   </div>
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Overlays a subtle pattern on top of the background color.</p>
                 </div>
                 {insp.tag === "img" && insp.imgH != null && <div>
                   <label className={LBL}>Size · {insp.imgH}px</label>
@@ -1510,7 +1535,6 @@ function App() {
                     className="w-full accent-white" />
                 </div>}
                 {insp.moved && <button onClick={() => setStyle("transform", "", { moved: false })} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position</button>}
-                <p className="text-xs text-neutral-400 leading-relaxed">Drag the ✥ handle on the canvas to move this element — it snaps to an 8px grid (hold Alt for free movement).</p>
               </section>
 
               {insp.isText && <section className="space-y-3">
@@ -1552,7 +1576,6 @@ function App() {
                     <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-[30px] underline text-sm border border-white/10 " + (insp.underline ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>U</button>
                   </div>
                 </div>
-                <p className="text-xs text-neutral-400 leading-relaxed">Type on the highlighted text to change the words.</p>
               </section>}
             </div>}
           </div>
@@ -1577,7 +1600,7 @@ function App() {
             {exporting ? "Exporting…" : "Export"}</button>
         </header>
         <main ref={mainRef} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
-          <div style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
+          <div style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <t.Component />
@@ -1643,7 +1666,7 @@ function App() {
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
       })}
       </div>
     </div>

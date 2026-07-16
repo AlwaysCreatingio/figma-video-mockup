@@ -139,13 +139,32 @@ function hasAudio(file) {
   });
 }
 
+// one long-lived browser + context: skips per-export Chromium startup and keeps the HTTP cache,
+// so the CDN scripts/fonts load from cache after the first export. Recreated on crash.
+let BROWSER = null, CTX = null;
+async function getContext() {
+  if (BROWSER && BROWSER.isConnected() && CTX) return CTX;
+  try { if (BROWSER) await BROWSER.close(); } catch {}
+  BROWSER = await chromium.launch({ args: CHROME_ARGS });
+  CTX = await BROWSER.newContext({ deviceScaleFactor: SCALE, viewport: { width: 1280, height: 800 } });
+  return CTX;
+}
+
 async function renderPlate(templateId, X, W, H, plateOut) {
   const file = path.join(TDIR, "T_" + templateId.replace(/-/g, "_") + ".jsx");
   const tplSrc = fs.readFileSync(file, "utf8");
   const html = buildHtml(tplSrc, X);
-  const browser = await chromium.launch({ args: CHROME_ARGS });
+  let page;
   try {
-    const page = await browser.newPage({ viewport: { width: W + 40, height: H + 40 }, deviceScaleFactor: SCALE });
+    const ctx = await getContext();
+    page = await ctx.newPage();
+  } catch (e) {
+    BROWSER = null; CTX = null;                      // stale after a crash — relaunch once
+    const ctx = await getContext();
+    page = await ctx.newPage();
+  }
+  try {
+    await page.setViewportSize({ width: W + 40, height: H + 40 });
     await page.setContent(html, { waitUntil: "networkidle" });
     await page.waitForFunction(() => window.__DONE === true, { timeout: 20000 });
     const rects = await page.evaluate(() => window.__RECTS);
@@ -153,7 +172,7 @@ async function renderPlate(templateId, X, W, H, plateOut) {
     const el = await page.$("#root > *");
     await el.screenshot({ path: plateOut, omitBackground: true });
     return { rects, frameBg };
-  } finally { await browser.close(); }
+  } finally { try { await page.close(); } catch {} }
 }
 
 function cssToHex(c) {
