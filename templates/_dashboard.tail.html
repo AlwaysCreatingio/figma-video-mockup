@@ -291,10 +291,10 @@ function solidifySlotsIn(root) {
   });
 }
 
-function TplPreview({ t, d }) {
+function TplPreview({ t, d, pre }) {
   const ref = useRef(null);
   useDemoOverrides(ref, d ? { overrides: d.overrides, mediaXf: d.mediaXf } : null);
-  return <div ref={ref} className="pointer-events-none w-full h-full"><t.Component preload={d && d.labelText ? { labelText: d.labelText } : undefined} /></div>;
+  return <div ref={ref} className="pointer-events-none w-full h-full"><t.Component preload={pre || (d && d.labelText ? { labelText: d.labelText } : undefined)} /></div>;
 }
 
 const __normOv = new WeakSet();
@@ -1111,6 +1111,7 @@ function App() {
     logoBgs: Object.fromEntries(Object.entries(rec.logos || {}).map(([k, v]) => [k, v.bg])),
     logoBorders: Object.fromEntries(Object.entries(rec.logos || {}).filter(([k, v]) => v.border !== undefined).map(([k, v]) => [k, v.border])),
     logoBorderWs: Object.fromEntries(Object.entries(rec.logos || {}).filter(([k, v]) => v.borderW != null).map(([k, v]) => [k, v.borderW])),
+    logoRadii: Object.fromEntries(Object.entries(rec.logos || {}).filter(([k, v]) => v.radius != null).map(([k, v]) => [k, v.radius])),
   } : null;
   const [, force] = useState(0);
 
@@ -1140,7 +1141,7 @@ function App() {
   useEffect(() => { if (!sel) document.querySelectorAll("video").forEach(v => { if (!v.muted) { v.muted = true; try { v.pause(); } catch (e) {} } }); }, [sel]);
   // logo tiles register themselves here on click → show the Logo inspector (replace / size / background)
   useEffect(() => {
-    window.__selectLogo = (api) => { clearActive(); setOpenSec("Logo"); setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff", logoBorder: api.border !== undefined ? api.border : undefined, logoBorderW: api.borderW != null ? api.borderW : 2 }); };
+    window.__selectLogo = (api) => { clearActive(); setOpenSec("Logo"); setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff", logoBorder: api.border !== undefined ? api.border : undefined, logoBorderW: api.borderW != null ? api.borderW : 2, logoRadius: api.radius }); };
     return () => { delete window.__selectLogo; };
   }, []);
   // a slot can register text: __editText focuses its text layer and opens the text inspector (even when empty)
@@ -1978,41 +1979,44 @@ function App() {
     overrides.current[sel] = JSON.parse(JSON.stringify(d.overrides || {}));
     mediaXf.current[sel] = JSON.parse(JSON.stringify(d.mediaXf || {}));
     applyAll();
-    if (d.labelText && Object.keys(d.labelText).length) {
-      let tries = 0;
-      const inject = () => {
-        const api = window.__slotAPI;
-        if (!api || !api.setLabelText) { if (tries++ < 30) setTimeout(inject, 100); return; }
-        api.setLabelText(d.labelText);
-      };
-      setTimeout(inject, 150);
-    }
+    injectRecordState(d, { skipVids: true });
   }, [sel, tplDefaults]);
-  useEffect(() => {
-    if (!sel) return;
-    const rec = window.__demoPending; if (!rec || rec.templateId !== sel) return;
-    window.__demoPending = null;
+  function injectRecordState(rec, opts) {
     let tries = 0;
     const inject = () => {
       const api = window.__slotAPI;
       if (!api || !api.setVids) { if (tries++ < 50) return setTimeout(inject, 100); return; }
-      const v = {}; for (const k in (rec.vids || {})) v[k] = { url: rec.vids[k].url, img: rec.vids[k].img };
-      api.setVids(v);
-      if (api.setLogos && rec.logos) {
-        const L = {}, Sc = {}, Bg = {};
-        for (const k in rec.logos) { L[k] = rec.logos[k].uri; Sc[k] = rec.logos[k].scale; Bg[k] = rec.logos[k].bg; }
+      if (!(opts && opts.skipVids) && rec.vids && Object.keys(rec.vids).length) {
+        const v = {}; for (const k in rec.vids) v[k] = { url: rec.vids[k].url, img: rec.vids[k].img };
+        api.setVids(v);
+      }
+      if (api.setLogos && rec.logos && Object.keys(rec.logos).length) {
+        const L = {}, Sc = {}, Bg = {}, Bd = {}, Bw = {};
+        for (const k in rec.logos) {
+          L[k] = rec.logos[k].uri; Sc[k] = rec.logos[k].scale; Bg[k] = rec.logos[k].bg;
+          if (rec.logos[k].border !== undefined) Bd[k] = rec.logos[k].border;
+          if (rec.logos[k].borderW != null) Bw[k] = rec.logos[k].borderW;
+        }
         api.setLogos(L); api.setLogoScales(Sc); api.setLogoBgs(Bg);
+        if (api.setLogoBorders) api.setLogoBorders(Bd);
+        if (api.setLogoBorderWs) api.setLogoBorderWs(Bw);
+        if (api.setLogoRadii) { const Rd = {}; for (const k in rec.logos) if (rec.logos[k].radius != null) Rd[k] = rec.logos[k].radius; api.setLogoRadii(Rd); }
       }
       if (api.setBoxText && rec.boxText) api.setBoxText(rec.boxText);
-      if (api.setLabelText && rec.labelText) api.setLabelText(rec.labelText);
+      if (api.setLabelText && rec.labelText && Object.keys(rec.labelText).length) api.setLabelText(rec.labelText);
       if (api.setArrowOn && rec.arrowOn != null) api.setArrowOn(!!rec.arrowOn);
       if (api.setShowPlus && rec.showPlus != null) api.setShowPlus(rec.showPlus);
-      if (api.setHiddenLogos && rec.hiddenLogos) api.setHiddenLogos(rec.hiddenLogos);
+      if (api.setHiddenLogos && rec.hiddenLogos && Object.keys(rec.hiddenLogos).length) api.setHiddenLogos(rec.hiddenLogos);
       if (api.setLogosHidden && rec.logosHidden != null) api.setLogosHidden(rec.logosHidden);
       requestAnimationFrame(applyAll);
     };
-    const tid = setTimeout(inject, 200);
-    return () => clearTimeout(tid);
+    setTimeout(inject, 150);
+  }
+  useEffect(() => {
+    if (!sel) return;
+    const rec = window.__demoPending; if (!rec || rec.templateId !== sel) return;
+    window.__demoPending = null;
+    injectRecordState(rec);
   }, [sel]);
 
   async function collectDemoRecord(t, id) {
@@ -2031,7 +2035,7 @@ function App() {
       const tile = img.closest("[data-lslot]"); const slot = tile.getAttribute("data-lslot");
       const sm = (img.style.transform || "").match(/scale\(([\d.]+)\)/);
       const bw = parseFloat(getComputedStyle(tile).borderTopWidth) || 0;
-      logos[slot] = { uri: await srcToDataURL(img.getAttribute("src")), scale: sm ? +sm[1] : 1, bg: getComputedStyle(tile).backgroundColor, border: bw > 0 ? getComputedStyle(tile).borderTopColor : null, borderW: bw > 0 ? bw : undefined };
+      logos[slot] = { uri: await srcToDataURL(img.getAttribute("src")), scale: sm ? +sm[1] : 1, bg: getComputedStyle(tile).backgroundColor, border: bw > 0 ? getComputedStyle(tile).borderTopColor : null, borderW: bw > 0 ? bw : undefined, radius: parseInt(getComputedStyle(tile).borderTopLeftRadius) || 0 };
     }
     const ov = JSON.parse(JSON.stringify(ovFor(sel)));
     for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); ov[p] = { ...(ov[p] || {}), text: inp.value }; }
@@ -2086,10 +2090,19 @@ function App() {
   async function saveTemplateDefaults() {
     const t = templates.find(x => x.id === sel); if (!t) return;
     try {
+      const root = containerRef.current;
+      const logos = {};
+      if (root) for (const img of root.querySelectorAll("[data-lslot] img")) {
+        const tile = img.closest("[data-lslot]"); const slot = tile.getAttribute("data-lslot");
+        const sm = (img.style.transform || "").match(/scale\(([\d.]+)\)/);
+        const bw = parseFloat(getComputedStyle(tile).borderTopWidth) || 0;
+        logos[slot] = { uri: await srcToDataURL(img.getAttribute("src")), scale: sm ? +sm[1] : 1, bg: getComputedStyle(tile).backgroundColor, border: bw > 0 ? getComputedStyle(tile).borderTopColor : null, borderW: bw > 0 ? bw : undefined, radius: parseInt(getComputedStyle(tile).borderTopLeftRadius) || 0 };
+      }
+      const api = window.__slotAPI || {};
       await demoStore.replace({
-        id: "tpl:" + sel, name: "__template__", templateId: sel, vids: {}, logos: {}, boxText: {},
-        labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), campaign: null,
-        showPlus: true, hiddenLogos: {}, logosHidden: false,
+        id: "tpl:" + sel, name: "__template__", templateId: sel, vids: {}, logos, boxText: {},
+        labelText: api.labelText || {}, arrowOn: !!api.arrowOn, campaign: null,
+        showPlus: api.plusOn != null ? api.plusOn : true, hiddenLogos: api.hiddenLogos || {}, logosHidden: !!api.logosHidden,
         mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: JSON.parse(JSON.stringify(ovFor(sel))), thumb: null,
       });
       await refreshDemos();
@@ -2256,7 +2269,7 @@ function App() {
       const sm = (img.style.transform || "").match(/scale\(([\d.]+)\)/);
       const scale = sm ? +sm[1] : 1;
       const bw2 = parseFloat(getComputedStyle(tile).borderTopWidth) || 0;
-      logos.push({ slot: tile.getAttribute("data-lslot"), uri, fit, bg, scale, border: bw2 > 0 ? getComputedStyle(tile).borderTopColor : null, borderW: bw2 > 0 ? bw2 : undefined });
+      logos.push({ slot: tile.getAttribute("data-lslot"), uri, fit, bg, scale, border: bw2 > 0 ? getComputedStyle(tile).borderTopColor : null, borderW: bw2 > 0 ? bw2 : undefined, radius: parseInt(getComputedStyle(tile).borderTopLeftRadius) || 0 });
     }
     const merged = JSON.parse(JSON.stringify(ovFor(t.id)));
     for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); merged[p] = { ...(merged[p] || {}), text: inp.value }; }
@@ -2642,6 +2655,11 @@ function App() {
                   <label className={LBL}>Border thickness · {insp.logoBorderW}px</label>
                   <input type="range" min="1" max="12" value={insp.logoBorderW}
                     onChange={e => { insp.logoApi.setBorderW(+e.target.value); setInsp({ ...insp, logoBorderW: +e.target.value }); }} className="w-full accent-white" />
+                </div>}
+                {insp.logoApi.setRadius && <div>
+                  <label className={LBL}>Corner radius · {insp.logoRadius}px</label>
+                  <input type="range" min="0" max="70" value={insp.logoRadius}
+                    onChange={e => { insp.logoApi.setRadius(+e.target.value); setInsp({ ...insp, logoRadius: +e.target.value }); }} className="w-full accent-white" />
                 </div>}
               </Sec>
               {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
@@ -3139,7 +3157,7 @@ function App() {
                   return (
                     <button key={t.id} onClick={() => { editingDemoRef.current = null; resetTemplateSession(t.id); setSel(t.id); }} className="text-left group/card" style={{ width: CW }}>
                       <div className="relative overflow-hidden rounded-[30px] bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: CH }}>
-                        <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><TplPreview t={t} d={tplDefaults[t.id]} /></div>
+                        <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><TplPreview t={t} d={tplDefaults[t.id]} pre={tplDefaults[t.id] ? demoPreload(tplDefaults[t.id]) : undefined} /></div>
                         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 group-hover/card:bg-zinc-950/30 opacity-0 group-hover/card:opacity-100 transition duration-200">
                           <span className="px-3.5 py-1.5 rounded-[30px] bg-white text-zinc-900 text-sm font-medium shadow-lg">Use template</span>
                         </div>
