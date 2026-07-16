@@ -291,10 +291,10 @@ function useDemoOverrides(ref, rec) {
   }, [rec]);
 }
 
-function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onRender, onTag, onDelete }) {
+function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, onTag, onDelete }) {
   const ref = useRef(null);
   const [menu, setMenu] = useState(false);
-  const CW = 248;
+  const CW = wide ? 336 : 248;
   const CH = uniform !== false ? Math.round(CW * 16 / 9) : Math.round(t.height * (CW / t.width));
   const sc = uniform !== false ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
   const ox = (CW - t.width * sc) / 2, oy = (CH - t.height * sc) / 2;
@@ -307,7 +307,7 @@ function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onRender, onTag,
   }, [menu]);
   useDemoOverrides(ref, rec);
   return (
-    <div className="text-left group/card w-[248px] relative">
+    <div className="text-left group/card relative" style={{ width: CW }}>
       <button onClick={onPreview} className="block w-full text-left">
         <div className="rounded-[30px] overflow-hidden bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200 relative" style={{ width: CW, height: CH }}>
           {mp4
@@ -395,7 +395,7 @@ const CAMPAIGNS = [
   {
     id: "product-ads",
     resources: [
-      { title: "How To Make Animated Ads With OpusClip AI", desc: "OpusClip tutorial on YouTube.", url: "https://www.youtube.com/watch?v=tyjFXsmMUXk", external: true },
+      { title: "How To Make Animated Ads With OpusClip AI", desc: "Turn products into animated ad creatives with OpusClip AI.", thumb: "https://i.ytimg.com/vi/tyjFXsmMUXk/hqdefault.jpg", url: "https://www.youtube.com/watch?v=tyjFXsmMUXk", external: true },
     ],
     grad: "radial-gradient(120% 130% at 80% 85%, rgba(255,211,77,.95) 0%, transparent 50%), linear-gradient(120deg, #FF3D00 0%, #FF7A00 55%, #FFB300 100%)",
     title: "Product Ads",
@@ -412,10 +412,10 @@ const CAMPAIGNS = [
   {
     id: "channels",
     resources: [
-      { title: "How To Start A Faceless YouTube Channel (Without Guessing)", desc: "OpusClip tutorial on YouTube.", url: "https://www.youtube.com/watch?v=ArWGceF7lUo", external: true },
-      { title: "I Copied Fern's Faceless YouTube Channel with AI (Claude + Seedance 2.0)", desc: "Digital Income Project on YouTube.", url: "https://www.youtube.com/watch?v=2PYfV90AQFo", external: true },
-      { title: "Make High RPM Finance Videos with AI (Full Workflow)", desc: "OpusClip tutorial on YouTube.", url: "https://www.youtube.com/watch?v=dCNI-Q1zyhU", external: true },
-      { title: "How To Make Animated Ads With OpusClip AI", desc: "OpusClip tutorial on YouTube.", url: "https://www.youtube.com/watch?v=tyjFXsmMUXk", external: true },
+      { title: "How To Start A Faceless YouTube Channel (Without Guessing)", desc: "Plan, script, and publish a faceless channel with AI, step by step.", thumb: "https://i.ytimg.com/vi/ArWGceF7lUo/hqdefault.jpg", url: "https://www.youtube.com/watch?v=ArWGceF7lUo", external: true },
+      { title: "I Copied Fern's Faceless YouTube Channel with AI (Claude + Seedance 2.0)", desc: "Case study: recreating Fern's faceless channel with Claude and Seedance.", thumb: "https://i.ytimg.com/vi/2PYfV90AQFo/hqdefault.jpg", url: "https://www.youtube.com/watch?v=2PYfV90AQFo", external: true },
+      { title: "Make High RPM Finance Videos with AI (Full Workflow)", desc: "The full workflow for high-RPM finance videos, from idea to upload.", thumb: "https://i.ytimg.com/vi/dCNI-Q1zyhU/hqdefault.jpg", url: "https://www.youtube.com/watch?v=dCNI-Q1zyhU", external: true },
+      { title: "How To Make Animated Ads With OpusClip AI", desc: "Turn products into animated ad creatives with OpusClip AI.", thumb: "https://i.ytimg.com/vi/tyjFXsmMUXk/hqdefault.jpg", url: "https://www.youtube.com/watch?v=tyjFXsmMUXk", external: true },
     ],
     grad: "radial-gradient(140% 120% at 75% 15%, rgba(34,211,238,.8) 0%, transparent 55%), linear-gradient(120deg, #06B6D4 0%, #0E7490 55%, #164E63 100%)",
     title: "Monetizable Channels",
@@ -921,7 +921,11 @@ function App() {
   const [toast, setToast] = useState(null);       // transient success toast
   const [navCollapsed, setNavCollapsed] = useState(false); // icon-only sidebar
   useEffect(() => {
-    window.__toast = (m) => { setToast(m); clearTimeout(window.__toastT); window.__toastT = setTimeout(() => setToast(null), 2200); };
+    window.__toast = (m, opts) => {
+      setToast(m); clearTimeout(window.__toastT);
+      if (!(opts && opts.sticky)) window.__toastT = setTimeout(() => setToast(null), 2200);
+    };
+    window.__toastClear = () => { clearTimeout(window.__toastT); setToast(null); };
     return () => { delete window.__toast; };
   }, []);
   const toastEl = toast ? <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-[#242424] border border-white/10 text-zinc-100 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div> : null;
@@ -1608,7 +1612,7 @@ function App() {
   async function renderDemoMp4(id, dl) {
     const rec = demoRecs[id]; const t = rec && templates.find(x => x.id === rec.templateId);
     if (!rec || !t) return;
-    if (window.__toast) window.__toast("Rendering video…");
+    if (window.__toast) window.__toast("Rendering video… this takes about a minute", { sticky: true });
     try {
       const up = async (url) => {
         const blob = await blobFrom(url);
@@ -1626,7 +1630,15 @@ function App() {
       const ambient = (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on && videoSlots.length)
         ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
       const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
-      const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+      const doExport = () => fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+      let res;
+      try { res = await doExport(); }
+      catch (e) {
+        // export server may be waking from idle: give it a moment and retry once
+        if (window.__toast) window.__toast("Waking the render server…", { sticky: true });
+        await new Promise(r => setTimeout(r, 8000));
+        res = await doExport();
+      }
       if (!res.ok) throw new Error(await res.text());
       const blob = await res.blob();
       await demoStore.attachMp4(id, blob);
@@ -1638,7 +1650,10 @@ function App() {
         a.click();
       }
       if (window.__toast) window.__toast(dl ? "Downloading MP4" : "Demo video rendered");
-    } catch (e) { alert("Render failed: " + (e.message || e)); }
+    } catch (e) {
+      if (window.__toastClear) window.__toastClear();
+      alert("Render failed: " + (e.message || e) + "\n\nThe render server may be waking up. Try again in a minute.");
+    }
   }
   async function tagDemo(id, campaign) {
     await demoStore.patch(id, { campaign });
@@ -2113,7 +2128,7 @@ function App() {
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} wide={demoFilter === "16:9" || demoFilter === "1:1"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
       })}
       </div>
     </div>
@@ -2230,7 +2245,9 @@ function App() {
                               ? <div className="flex flex-wrap gap-3">
                                   {c.resources.map(r => (
                                     <a key={r.title} href={r.url} target={r.external ? "_blank" : undefined} rel={r.external ? "noreferrer" : undefined}
-                                      className="w-[280px] p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col gap-1.5">
+                                      className="w-[280px] rounded-[22px] overflow-hidden bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col">
+                                      {r.thumb && <div className="aspect-video w-full overflow-hidden"><img src={r.thumb} alt="" className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-300" /></div>}
+                                      <div className="p-4 flex flex-col gap-1.5">
                                       <div className="flex items-center justify-between gap-2">
                                         <span className="text-sm font-semibold text-white">{r.title}</span>
                                         <span className="text-zinc-500 group-hover:text-zinc-200 transition">
@@ -2238,6 +2255,7 @@ function App() {
                                         </span>
                                       </div>
                                       <p className="text-[13px] leading-relaxed text-zinc-400">{r.desc}</p>
+                                      </div>
                                     </a>
                                   ))}
                                 </div>
@@ -2305,13 +2323,13 @@ function App() {
               </header>
               <div className="flex flex-wrap gap-6">
                 {shownTemplates.map(t => {
-                  const CW = 248;
+                  const CW = (tplFilter === "16:9" || tplFilter === "1:1") ? 336 : 248;
                   const uniform = tplFilter === "all";
                   const CH = uniform ? Math.round(CW * 16 / 9) : Math.round(t.height * (CW / t.width));
                   const sc = uniform ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
                   const ox = (CW - t.width * sc) / 2, oy = (CH - t.height * sc) / 2;
                   return (
-                    <button key={t.id} onClick={() => setSel(t.id)} className="text-left group/card w-[248px]">
+                    <button key={t.id} onClick={() => setSel(t.id)} className="text-left group/card" style={{ width: CW }}>
                       <div className="relative overflow-hidden rounded-[30px] bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: CH }}>
                         <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><t.Component /></div>
                         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 group-hover/card:bg-zinc-950/30 opacity-0 group-hover/card:opacity-100 transition duration-200">
