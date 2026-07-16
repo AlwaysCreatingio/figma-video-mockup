@@ -1354,6 +1354,7 @@ function App() {
     el.style.outline = "2px solid #2563eb";
     el.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
     if (el.tagName !== "INPUT") el.style.cursor = "move";
+    if (el.tagName === "IMG") el.draggable = false;
     activeRef.current = { el, path, text };
     if (mainRef.current) {
       const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
@@ -2325,7 +2326,7 @@ function App() {
         </header>
         <main ref={mainRef} onClick={(e) => { if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0">
-            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart}
+            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <t.Component />
             </div>
