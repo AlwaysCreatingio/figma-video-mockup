@@ -47,14 +47,14 @@
                 raw footage
               </p>
             </div>
-            <Slot k="slot1" className="bg-[rgba(255,255,255,0.6)] relative rounded-[20px] shrink-0 w-full" style={{ aspectRatio: "467.03857421875/262.7091979980469" }} />
+            <Slot k="slot1" className="bg-[rgba(255,255,255,0.6)] relative shrink-0 w-full" style={{ aspectRatio: "467.03857421875/262.7091979980469" }} />
           </div>
           <div className="flex flex-col gap-[14px] items-start relative shrink-0 w-[504px]">
             <div className="flex items-center justify-center p-[10px] relative rounded-[7.624px] shrink-0" style={{ backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" }}>
               <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
             </div>
             
-              <Slot k="slot2" className="bg-[rgba(255,255,255,0.6)] relative rounded-[20px] shrink-0 w-full" style={{ aspectRatio: "467.03857421875/262.7091979980469" }} />
+              <Slot k="slot2" className="bg-[rgba(255,255,255,0.6)] relative shrink-0 w-full" style={{ aspectRatio: "467.03857421875/262.7091979980469" }} />
             
           </div>
         </div>

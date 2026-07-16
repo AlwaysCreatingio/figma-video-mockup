@@ -25,7 +25,7 @@
 
     const pillStyle = { backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" };
     const Label = ({ text, logo }) => (
-      <div className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
+      <div data-pin className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
         {logo
           ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
           : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{text}</p>}
@@ -34,7 +34,7 @@
 
     const Card = ({ k, text, logo }) => (
       <div className="relative shrink-0 w-[504px] h-[283.5px]">
-        <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)] rounded-[20px]" />
+        <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
         {Label({ text, logo })}
       </div>
     );

@@ -49,7 +49,7 @@
           <div className="flex flex-col items-center h-[620px] w-[348.75px]">
             <Slot
               k="slot1"
-              className="bg-white rounded-[28.885px] w-full h-full"
+              className="bg-white w-full h-full"
             />
           </div>
         </div>

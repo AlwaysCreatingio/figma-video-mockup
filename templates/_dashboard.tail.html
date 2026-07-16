@@ -70,7 +70,7 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left"];
 function parseColor(str) {
   const m = (str || "").match(/[\d.]+/g);
   if (!m) return { hex: "#ffffff", a: 1 };
@@ -348,8 +348,17 @@ function App() {
     const cs = getComputedStyle(el);
     const ovs = (ovFor(sel)[path] || {}).style || {};
     const bg = parseColor(ovs.backgroundColor || cs.backgroundColor);
+    // [data-pin] labels (or anything inside one) get a corner-pin control
+    const pinEl = el.closest("[data-pin]");
+    const pinPath = pinEl && root.contains(pinEl) ? pathOf(pinEl, root) : null;
+    let pin = "tl";
+    if (pinPath != null) {
+      const ps = (ovFor(sel)[pinPath] || {}).style || {};
+      pin = ((ps.bottom && ps.bottom !== "auto") ? "b" : "t") + ((ps.right && ps.right !== "auto") ? "r" : "l");
+    }
     setInsp({
       path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
+      pinPath, pin,
       bgHex: bg.hex, bgTransparent: bg.a === 0,
       opacity: Math.round(parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity) * 100),
       radius: parseInt(ovs.borderRadius != null ? ovs.borderRadius : cs.borderRadius) || 0,
@@ -392,7 +401,7 @@ function App() {
         clearActive();
         const k = mslot.getAttribute("data-vslot");
         const t = xfFor(sel)[k] || {};
-        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14 });
+        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0 });
         return;
       }
       const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
@@ -474,6 +483,31 @@ function App() {
     t.pad = pad;
     applyXf(containerRef.current, sel);
     setInsp(i => ({ ...i, mediaPad: pad }));
+  }
+  // slot corner radius is stored as a style override on the slot element, so it flows into demos + exports
+  function setMediaRadius(k, px) {
+    const root = containerRef.current;
+    const el = root.querySelector('[data-vslot="' + k + '"]'); if (!el) return;
+    const rec = ovFor(sel)[pathOf(el, root)] = ovFor(sel)[pathOf(el, root)] || {};
+    rec.style = rec.style || {}; rec.style.borderRadius = px + "px";
+    el.style.borderRadius = px + "px";
+    setInsp(i => ({ ...i, mediaRadius: px }));
+  }
+  // pin a [data-pin] label pill to a corner of its card (stored as style overrides → demos + exports)
+  function setPin(corner) {
+    const root = containerRef.current; if (!insp || insp.pinPath == null) return;
+    const el = nodeAt(root, insp.pinPath); if (!el) return;
+    const inset = "12px";
+    const v = {
+      tl: { top: inset, left: inset, right: "auto", bottom: "auto" },
+      tr: { top: inset, right: inset, left: "auto", bottom: "auto" },
+      bl: { bottom: inset, left: inset, top: "auto", right: "auto" },
+      br: { bottom: inset, right: inset, top: "auto", left: "auto" },
+    }[corner];
+    const rec = ovFor(sel)[insp.pinPath] = ovFor(sel)[insp.pinPath] || {};
+    rec.style = rec.style || {};
+    for (const k in v) { rec.style[k] = v[k]; el.style[k] = v[k]; }
+    setInsp({ ...insp, pin: corner });
   }
   function resetMediaXf(k) {
     xfFor(sel)[k] = { x: 0, y: 0, s: 1 };
@@ -702,6 +736,12 @@ function App() {
                   </div>
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Fill covers the frame edge-to-edge; Inset frames the video with even padding on all sides.</p>
                 </div>
+                <div>
+                  <label className={LBL}>Corner radius · {insp.mediaRadius}px</label>
+                  <input type="range" min="0" max="60" value={insp.mediaRadius}
+                    onChange={e => setMediaRadius(insp.slot, +e.target.value)}
+                    className="w-full accent-[#6d5efc]" />
+                </div>
                 {insp.mediaFit === "contain" && <div>
                   <label className={LBL}>Padding · {insp.mediaPad}px</label>
                   <input type="range" min="0" max="60" value={insp.mediaPad}
@@ -759,6 +799,19 @@ function App() {
               </div>
 
               {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Upload media into slot</button>}
+
+              {insp.pinPath != null && <section className="space-y-3">
+                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Label position</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[["tl", "↖ Top left"], ["tr", "↗ Top right"], ["bl", "↙ Bottom left"], ["br", "↘ Bottom right"]].map(([c, label]) => (
+                    <button key={c} onClick={() => setPin(c)}
+                      className={"px-2.5 py-2 rounded-xl text-sm font-medium transition " + (insp.pin === c ? "bg-[#6d5efc] text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-neutral-400 leading-relaxed">Moves the label pill to a corner of its card.</p>
+              </section>}
 
               <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Appearance</div>

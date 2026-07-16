@@ -52,7 +52,7 @@
               </div>}
 
           {/* centered phone-shaped video slot */}
-          <Slot k="slotMAIN" className="bg-white shrink-0 rounded-[23.727px]" style={{ width: 286.47, aspectRatio: "1080 / 1920" }} />
+          <Slot k="slotMAIN" className="bg-white shrink-0 " style={{ width: 286.47, aspectRatio: "1080 / 1920" }} />
 
           {/* caption */}
           <p className="text-center font-medium text-[40px] leading-none tracking-[-0.2px] font-[Geist,sans-serif]">

@@ -69,7 +69,7 @@
             {/* Card 1 */}
             
               <div className="relative h-[294.155px] w-full">
-                <Slot k="slot1" className="absolute inset-0 bg-[rgba(255,255,255,0.6)] rounded-[20px]" />
+                <Slot k="slot1" className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
                 <div
                   className="absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px] pointer-events-none"
                   style={chipStyle}
@@ -81,7 +81,7 @@
 
             {/* Card 2 */}
             <div className="relative h-[294.155px] w-full">
-              <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)] rounded-[20px]" />
+              <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
               <div
                 className="absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px] pointer-events-none"
                 style={chipStyle}

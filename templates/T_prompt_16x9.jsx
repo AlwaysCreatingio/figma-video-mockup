@@ -51,7 +51,7 @@
 
           {/* video card with Agent Opus label */}
           <div className="relative w-[520px] h-[440px] shrink-0">
-            <Slot k="slot1" className="absolute inset-0 rounded-[20px] bg-[#a7aaab]" />
+            <Slot k="slot1" className="absolute inset-0 bg-[#a7aaab]" />
             <div className="absolute top-[14px] left-[14px] flex items-center justify-center p-[10px] rounded-[8px] pointer-events-none" style={pillBg}>
               <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[24px] object-contain" />
             </div>

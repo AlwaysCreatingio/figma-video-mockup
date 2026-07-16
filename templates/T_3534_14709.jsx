@@ -54,14 +54,14 @@
                 RAW FOOTAGE
               </p>
             </div>
-            <Slot k="slot1" className="aspect-[266.0107421875/472.9140625] bg-[#a7aaab] relative rounded-[20px] shrink-0 w-full" />
+            <Slot k="slot1" className="aspect-[266.0107421875/472.9140625] bg-[#a7aaab] relative shrink-0 w-full" />
           </div>
           <div className="flex flex-col gap-[10px] items-start relative shrink-0 w-[266.011px]">
             <div className="flex items-center justify-center p-[11.979px] relative rounded-[9.583px] shrink-0 w-full" style={labelBg}>
               <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[24px] object-contain mx-auto" />
             </div>
             
-              <Slot k="slot2" className="aspect-[266.0107421875/472.9140625] bg-[#a7aaab] relative rounded-[20px] shrink-0 w-full" />
+              <Slot k="slot2" className="aspect-[266.0107421875/472.9140625] bg-[#a7aaab] relative shrink-0 w-full" />
             
           </div>
         </div>

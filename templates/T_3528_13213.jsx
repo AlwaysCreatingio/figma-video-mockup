@@ -92,13 +92,13 @@
                   ORIGINAL
                 </p>
               </div>
-              <Slot k="slot1" className="aspect-[1080/1920] bg-[#565656] relative rounded-[20px] shrink-0 w-full" />
+              <Slot k="slot1" className="aspect-[1080/1920] bg-[#565656] relative shrink-0 w-full" />
             </div>
             <div className="flex flex-col gap-[20px] items-center relative shrink-0 w-[241.471px]">
               <div className="flex items-center justify-center w-full" style={{ height: 40 }}>
                 <img src={window.__AO_LOGO} alt="Agent Opus" className="h-[36px] object-contain" />
               </div>
-              <Slot k="slot2" className="aspect-[1080/1920] bg-[#565656] relative rounded-[20px] shrink-0 w-full" />
+              <Slot k="slot2" className="aspect-[1080/1920] bg-[#565656] relative shrink-0 w-full" />
             </div>
           </div>
 

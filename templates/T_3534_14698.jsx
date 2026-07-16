@@ -46,8 +46,8 @@
 
     const Card = ({ k, label, logo }) => (
       <div className="relative shrink-0 w-[452px] h-[472px]">
-        <Slot k={k} className="absolute inset-0 rounded-[20px] bg-[#a7aaab]" />
-        <div className="absolute top-[12.636px] left-[12.636px] flex items-center justify-center p-[10px] rounded-[7.624px]" style={badgeStyle}>
+        <Slot k={k} className="absolute inset-0 bg-[#a7aaab]" />
+        <div data-pin className="absolute top-[12.636px] left-[12.636px] flex items-center justify-center p-[10px] rounded-[7.624px]" style={badgeStyle}>
           {logo
             ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
             : <p className="font-medium leading-none text-[16px] text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">

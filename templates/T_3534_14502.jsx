@@ -102,7 +102,7 @@
           className="absolute rounded-[20px] overflow-hidden"
           style={{ left: 40, top: 321.53, width: 232.276, height: 412.94 }}
         >
-          <Slot k="slot1" className="absolute inset-0 bg-[#7a7a7a] rounded-[20px]" />
+          <Slot k="slot1" className="absolute inset-0 bg-[#7a7a7a] " />
           <div className="absolute inset-0 flex flex-col items-start p-[11.055px] pointer-events-none">
             <div
               className="flex items-center justify-center p-[11.845px] rounded-[9.476px]"
@@ -120,7 +120,7 @@
         {/* Card 2 — AGENT OPUS (larger, in front, overlapping to the right) */}
 
           <div className="absolute rounded-[20px] overflow-hidden" style={{ left: 250, top: 266.53, width: 294.15, height: 522.94 }}>
-            <Slot k="slot2" className="absolute inset-0 bg-[#474747] rounded-[20px]" />
+            <Slot k="slot2" className="absolute inset-0 bg-[#474747] " />
             <div className="absolute inset-0 flex flex-col items-start p-[14px] pointer-events-none">
               <div
                 className="flex items-center justify-center p-[15px] rounded-[12px]"

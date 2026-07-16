@@ -49,7 +49,7 @@
           </p>
           <Slot
             k="slot1"
-            className="bg-white rounded-[28.885px]"
+            className="bg-white "
             style={{ width: 348.75, height: 620 }}
           />
         </div>

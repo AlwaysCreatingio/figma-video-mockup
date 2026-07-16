@@ -49,7 +49,7 @@
               </div>}
 
           {/* centered phone video slot */}
-          <Slot k="slotMAIN" className="bg-white rounded-[23.727px] shrink-0 w-[286.47px] aspect-[1080/1920]" />
+          <Slot k="slotMAIN" className="bg-white shrink-0 w-[286.47px] aspect-[1080/1920]" />
 
           {/* caption */}
           <p className="text-center font-medium text-[40px] leading-none tracking-[-0.2px] font-[Geist,sans-serif]">
