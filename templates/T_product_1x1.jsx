@@ -1,4 +1,4 @@
-/* Template 3534-14453 — AI Product Ads 9:16 Comparison */
+/* Template product-1x1 — AI Product Ads 1:1 Comparison (square canvas variant of 3534-14453) */
 (function () {
   function Component(props) {
     const { useState } = React;
@@ -44,7 +44,7 @@
     };
 
     return (
-      <div className="relative overflow-hidden bg-[#101010]" style={{ width: 576, height: 1024 }}>
+      <div className="relative overflow-hidden bg-[#101010]" style={{ width: 1080, height: 1080 }}>
         {/* Ambient blurred background mirroring the uploaded footage */}
         {(() => { const __a = vids["slot1"] || vids["slot2"]; return __a ? (__a.img
           ? <img src={__a.url} className="absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none" />
@@ -52,41 +52,35 @@
 
         {/* Centered content */}
         <div
-          className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[40px] items-start w-[522.941px]"
-          style={{ left: '50%', top: 'calc(50% - 33px)' }}
+          className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[32px] items-start w-[900px]"
+          style={{ left: '50%', top: '50%' }}
         >
-          <p
-            className="font-medium h-[50.488px] leading-none text-[44px] text-center text-white tracking-[-0.22px] w-full font-[Geist,sans-serif]"
-          >
+          <p className="font-medium h-[56px] leading-none text-[48px] text-center text-white tracking-[-0.24px] w-full font-[Geist,sans-serif]">
             AI for Product ads
           </p>
 
           <div className="flex flex-col gap-[20px] items-start w-full">
             {/* Card 1 */}
-            
-              <div className="relative h-[294.155px] w-full">
-                <Slot k="slot1" className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
-                <div data-pin data-swap="label1"
-                  className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
-                  style={chipStyle}
-                >
-                  {labelText.label1 == null
-                    ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
-                    : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label1}</p>}
-                </div>
+            <div className="relative h-[420px] w-full">
+              <Slot k="slot1" className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
+              <div data-pin data-swap="label1"
+                className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
+                style={chipStyle}
+              >
+                {labelText.label1 == null
+                  ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+                  : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label1}</p>}
               </div>
-            
+            </div>
 
             {/* Card 2 */}
-            <div className="relative h-[294.155px] w-full">
-              <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
+            <div className="relative h-[420px] w-full">
+              <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
               <div
                 className="absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px] pointer-events-none"
                 style={chipStyle}
               >
-                <p
-                  className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]"
-                >
+                <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
                   original
                 </p>
               </div>
@@ -99,12 +93,12 @@
 
   window.TEMPLATES = window.TEMPLATES || [];
   window.TEMPLATES.push({
-    id: "3534-14453",
-    name: "AI Product Ads 9:16 Comparison",
-    width: 576,
-    height: 1024,
+    id: "product-1x1",
+    name: "AI Product Ads 1:1 Comparison",
+    width: 1080,
+    height: 1080,
     slots: 2,
-    desc: "Vertical 9:16 ad template comparing two labeled video cards over a blurred backdrop.",
+    desc: "Square 1:1 ad template comparing two labeled video cards over a blurred backdrop.",
     Component
   });
 })();

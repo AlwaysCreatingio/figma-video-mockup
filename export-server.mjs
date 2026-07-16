@@ -224,14 +224,17 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   });
   // the design plate (slots are transparent holes) goes straight on top — no colour keying at all
   fc.push(`[${last}][${plateIdx}:v]overlay=0:0[out]`);
-  // carry the source audio from the first slot video that has an audio track
+  // audio: every slot video that has a track AND isn't muted in the editor contributes;
+  // two or more get mixed, one maps straight through, zero exports silent
   const audioFlags = await Promise.all(videoFiles.map(hasAudio));
-  const aIdx = audioFlags.findIndex(Boolean);
+  const audible = rects.map((r, i) => (audioFlags[i] && !((mediaXf || {})[r.slot] || {}).mute) ? i : -1).filter(i => i >= 0);
+  if (audible.length > 1) fc.push(audible.map(i => `[${i}:a]`).join("") + `amix=inputs=${audible.length}:duration=longest[aout]`);
   args.push("-filter_complex", fc.join(";"), "-map", "[out]");
-  if (aIdx >= 0) args.push("-map", `${aIdx}:a`, "-c:a", "aac", "-b:a", "160k");
+  if (audible.length > 1) args.push("-map", "[aout]", "-c:a", "aac", "-b:a", "160k");
+  else if (audible.length === 1) args.push("-map", `${audible[0]}:a`, "-c:a", "aac", "-b:a", "160k");
   args.push("-t", DUR.toFixed(2), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
     "-pix_fmt", "yuv420p", "-r", "30", "-movflags", "+faststart");
-  if (aIdx < 0) args.push("-an");
+  if (!audible.length) args.push("-an");
   args.push(outFile);
   await run("ffmpeg", args);
 }

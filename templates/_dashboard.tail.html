@@ -169,13 +169,40 @@ const demoStore = {
     }
     return idbDel(id);
   },
+  // attach the rendered MP4 to an existing demo (the demo card then plays the real output)
+  async attachMp4(id, blob) {
+    if (SB) {
+      const p = id + "/out.mp4";
+      const up = await SB.storage.from(SB_BUCKET).upload(p, blob, { upsert: true, contentType: "video/mp4" });
+      if (up.error) { console.warn("[supabase] mp4 upload:", up.error.message); return; }
+      const url = SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl;
+      // RLS only grants select/insert/delete (no update) — replace the row instead
+      const { data } = await SB.from("demos").select("*").eq("id", id).single();
+      if (!data) return;
+      await SB.from("demos").delete().eq("id", id);
+      const { error } = await SB.from("demos").insert({ ...data, payload: { ...(data.payload || {}), mp4: url } });
+      if (error) console.warn("[supabase] mp4 attach:", error.message);
+      return;
+    }
+    const rec = await idbGet(id); if (!rec) return;
+    rec.mp4 = await toDataURL(blob);
+    return idbPut(rec);
+  },
 };
 
 /* a demo gallery card: renders the real template with its saved media/logos, then applies the saved
    text/style overrides so the thumbnail matches exactly what was saved (not the template defaults). */
 function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
   const ref = useRef(null);
+  const [menu, setMenu] = useState(false);
   const sc = 200 / t.width;
+  const mp4 = rec && rec.mp4;
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menu]);
   useEffect(() => {
     if (!rec || !rec.overrides) return;
     const apply = () => {
@@ -205,16 +232,29 @@ function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
     return () => ids.forEach(clearTimeout);
   }, [rec]);
   return (
-    <div className="text-left group w-[200px]">
-      <button onClick={onOpen} className="block w-full text-left">
+    <div className="text-left group w-[200px] relative">
+      <button onClick={mp4 ? undefined : onOpen} className="block w-full text-left" style={mp4 ? { cursor: "default" } : null}>
         <div className="rounded-2xl overflow-hidden bg-neutral-900 ring-1 ring-neutral-200 group-hover:ring-neutral-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.07] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: 200, height: t.height * sc }}>
-          {pre
-            ? <div ref={ref} className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${sc})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
-            : (d.thumb ? <img src={d.thumb} className="w-full h-full object-cover" /> : null)}
+          {mp4
+            ? <video src={mp4} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+            : pre
+              ? <div ref={ref} className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${sc})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
+              : (d.thumb ? <img src={d.thumb} className="w-full h-full object-cover" /> : null)}
         </div>
-        <div className="mt-2.5 text-sm font-medium truncate">{d.name}</div>
+        <div className="mt-2.5 text-sm font-medium truncate pr-8">{d.name}</div>
       </button>
-      {IS_LOCAL && onDelete && <button onClick={onDelete} className="mt-1 text-xs text-neutral-400 hover:text-red-500 transition">Delete</button>}
+      {/* ⋯ actions menu */}
+      <div className="absolute bottom-0 right-0">
+        <button onClick={(e) => { e.stopPropagation(); setMenu(m => !m); }} title="Actions"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 opacity-0 group-hover:opacity-100 transition">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+        {menu && <div className="absolute right-0 bottom-9 z-40 w-44 rounded-xl bg-white shadow-xl ring-1 ring-neutral-200 py-1.5" onClick={e => e.stopPropagation()}>
+          <button onClick={() => { setMenu(false); onOpen(); }} className="w-full text-left px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition">Open in editor</button>
+          {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="block w-full text-left px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition">Download MP4</a>}
+          {IS_LOCAL && onDelete && <button onClick={(e) => { setMenu(false); onDelete(e); }} className="w-full text-left px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition">Delete</button>}
+        </div>}
+      </div>
     </div>
   );
 }
@@ -224,8 +264,99 @@ const routeFromHash = () => {
   if (parts[0] === "template" && parts[1]) return { sel: decodeURIComponent(parts[1]), page: "templates" };
   if (parts[0] === "demos") return { sel: null, page: "demos" };
   if (parts[0] === "projects") return { sel: null, page: "showcase" };
+  if (parts[0] === "hooks") return { sel: null, page: "hooks" };
   return { sel: null, page: "templates" };
 };
+
+/* ---------- hook copy library (positioning lines per use case) ---------- */
+const HOOKS = [
+  {
+    title: "Product ads with AI",
+    sub: "Ads you actually run on Meta — UGC-style, variations at scale.",
+    hooks: [
+      "I tested every AI ad tool on the market and only one made it into my daily workflow.",
+      "10 ad tools became completely useless overnight. One AI agent replaced them all.",
+      "Running Meta ads just got a lot cheaper..",
+      "Stop paying $500 per UGC ad. Your entire ad pipeline now runs on one prompt.",
+      "I've been running product ads for years. Nothing ever made me feel like a whole creative team. Until now.",
+      "Every media buyer not using this right now is falling behind. This is not an opinion. This is a fact.",
+      "If you're still briefing an editor for every ad variation, you're doing it wrong. Agent Opus turns one product link into a week of creatives.",
+      "This is the best AI update for performance marketers I have ever seen. Hooks, variations, and full product ads from a single prompt.",
+    ],
+  },
+  {
+    title: "MCP — AI video inside Claude",
+    sub: "Create AI videos with Claude, bulk-create ads, build viral accounts on autopilot.",
+    hooks: [
+      "You can now make AI videos by just… asking Claude.",
+      "I connected Claude to Agent Opus and it built my entire content calendar overnight.",
+      "10 editing subscriptions became completely useless overnight. One MCP connection replaced them all.",
+      "Claude just got a lot more powerful..",
+      "Agent Opus quietly shipped the best MCP integration of the year.",
+      "Stop switching between seven tools to publish one video. Your whole video workflow now runs inside a single chat.",
+      "Every AI builder not wiring video into their agent workflows is falling behind. This is not an opinion. This is a fact.",
+      "If you're not bulk-creating ads through MCP, you're doing it wrong. One conversation, thirty ready-to-post videos.",
+    ],
+  },
+  {
+    title: "Monetizable theme accounts",
+    sub: "Faceless pages that earn — long form and short form.",
+    hooks: [
+      "I tested every faceless-channel workflow and only one survived a month.",
+      "Building a theme account used to take a team. Now it takes a prompt.",
+      "Faceless accounts just got a lot easier..",
+      "Stop spending weekends editing. A month of posts for your theme page can be generated in one sitting.",
+      "I've run theme pages for years. Nothing ever made me feel like a full studio. Until now.",
+      "Every theme-account owner not using AI video is falling behind. This is not an opinion. This is a fact.",
+      "If you're paying an editor per clip for your faceless account, you're doing it wrong.",
+      "Long form. Short form. One agent. This is the best AI update for account builders I have ever seen.",
+    ],
+  },
+  {
+    title: "Music videos & visualizers",
+    sub: "Turn tracks into videos, visualizers, and canvas loops.",
+    hooks: [
+      "I turned a raw track into a finished music video before the song ended.",
+      "Label-quality visualizers used to cost thousands. Now they cost a prompt.",
+      "Music marketing just got a lot cheaper..",
+      "Stop releasing songs with a static cover. Every track deserves a video now.",
+      "I've produced music for years. Nothing ever made me feel like I had a video team on call. Until now.",
+      "Every artist not pairing releases with AI visuals is falling behind. This is not an opinion. This is a fact.",
+      "If you're dropping an album without visualizers for every track, you're doing it wrong.",
+      "Agent Opus quietly became the best music-video tool of the year.",
+    ],
+  },
+];
+
+function HooksPage() {
+  const [copied, setCopied] = useState(null);
+  const copy = (text) => {
+    navigator.clipboard.writeText(text).then(() => { setCopied(text); setTimeout(() => setCopied(c => c === text ? null : c), 1200); });
+  };
+  return (
+    <div className="max-w-3xl mx-auto space-y-10">
+      <div className="text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">Hooks</h1>
+        <p className="mt-1 text-sm text-neutral-500">Positioning lines per use case — click any hook to copy it.</p>
+      </div>
+      {HOOKS.map(sec => (
+        <section key={sec.title}>
+          <h2 className="text-[15px] font-semibold">{sec.title}</h2>
+          <p className="text-xs text-neutral-400 mt-0.5 mb-3">{sec.sub}</p>
+          <div className="space-y-1.5">
+            {sec.hooks.map(h => (
+              <button key={h} onClick={() => copy(h)}
+                className="w-full text-left px-4 py-2.5 rounded-xl bg-white ring-1 ring-neutral-200 hover:ring-[#6d5efc]/50 hover:shadow-sm text-sm text-neutral-800 leading-relaxed transition flex items-start gap-3 group">
+                <span className="flex-1">{h}</span>
+                <span className={"shrink-0 text-xs mt-0.5 transition " + (copied === h ? "text-[#6d5efc] font-medium" : "text-neutral-300 group-hover:text-neutral-400")}>{copied === h ? "Copied ✓" : "Copy"}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 function App() {
   const [sel, setSel] = useState(() => routeFromHash().sel);
@@ -282,6 +413,7 @@ function App() {
       if (parts[0] === "template" && parts[1]) { setSel(decodeURIComponent(parts[1])); setPage("templates"); }
       else if (parts[0] === "demos") { setSel(null); setPage("demos"); }
       else if (parts[0] === "projects") { setSel(null); setPage("showcase"); }
+      else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
       else { setSel(null); setPage("templates"); }
     };
     apply();
@@ -289,7 +421,7 @@ function App() {
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   useEffect(() => {
-    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : "#/templates");
+    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : page === "hooks" ? "#/hooks" : "#/templates");
     if (location.hash !== want) location.hash = want;
   }, [sel, page]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
@@ -406,7 +538,7 @@ function App() {
         clearActive();
         const k = mslot.getAttribute("data-vslot");
         const t = xfFor(sel)[k] || {};
-        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0 });
+        setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0, mediaMute: !!t.mute, isVideo: !!mslot.querySelector("video") });
         return;
       }
       const pk = Object.keys(mslot).find(k => k.startsWith("__reactProps$"));
@@ -489,6 +621,14 @@ function App() {
     applyXf(containerRef.current, sel);
     setInsp(i => ({ ...i, mediaPad: pad }));
   }
+  // per-slot audio: mute flag lives in mediaXf so it flows into demos + the export spec
+  function setMediaMute(k, mute) {
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.mute = mute;
+    const m = containerRef.current.querySelector('[data-vslot="' + k + '"] video');
+    if (m) m.muted = !soundOn || mute;
+    setInsp(i => ({ ...i, mediaMute: mute }));
+  }
   // slot corner radius is stored as a style override on the slot element, so it flows into demos + exports
   function setMediaRadius(k, px) {
     const root = containerRef.current;
@@ -530,7 +670,12 @@ function App() {
   // preview audio: muted autoplay by default; the sound toggle (a user gesture) unmutes + plays every video
   useEffect(() => {
     const root = containerRef.current; if (!root || !sel) return;
-    const sync = () => { root.querySelectorAll("video").forEach(v => { v.muted = !soundOn; if (soundOn) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } }); };
+    const sync = () => { root.querySelectorAll("video").forEach(v => {
+      const slotEl = v.closest("[data-vslot]");
+      const slotMute = slotEl ? !!((xfFor(sel)[slotEl.getAttribute("data-vslot")] || {}).mute) : false;
+      v.muted = !soundOn || slotMute;
+      if (soundOn) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+    }); };
     sync();
     const mo = new MutationObserver(sync);
     mo.observe(root, { childList: true, subtree: true });
@@ -600,6 +745,18 @@ function App() {
       await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
       await refreshDemos();
       setSaved(true); setTimeout(() => setSaved(false), 1800);
+      // render the real output in the background so the demo card can play the final MP4;
+      // silently skipped if the export server isn't reachable (card falls back to a live preview)
+      (async () => {
+        try {
+          const spec = await buildExportSpec(t);
+          if (!spec) return;
+          const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+          if (!res.ok) throw new Error(await res.text());
+          await demoStore.attachMp4(id, await res.blob());
+          await refreshDemos();
+        } catch (e) { console.warn("demo mp4 render skipped:", e.message || e); }
+      })();
     } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
   }
   async function openDemo(id) {
@@ -619,63 +776,71 @@ function App() {
   const EXPORT_BASE = IS_LOCAL ? "http://localhost:5050" : ((typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050");
   const blobFrom = (u) => fetch(u).then(r => r.blob());
   const blobToDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-  async function exportMp4() {
-    const root = containerRef.current; const t = templates.find(x => x.id === sel);
+  // reads the live editor DOM, uploads all media to the export server, and returns the export
+  // spec — shared by the Export button and the demo-save background render
+  async function buildExportSpec(t, onUpload) {
+    const root = containerRef.current;
     const slotMediaEls = [...root.querySelectorAll("[data-vslot] video, [data-vslot] img")];
     const ambientEls = [...root.querySelectorAll("video, img")].filter(el => /blur-\[/.test(el.className || "") && !el.closest("[data-vslot]") && !el.closest("[data-lslot]"));
-    if (!slotMediaEls.length) { alert("Add a video or image to a slot first — click a slot to upload."); return; }
+    if (!slotMediaEls.length) return null;
+    const totalUploads = new Set([...slotMediaEls.map(el => el.currentSrc || el.src || el.getAttribute("src")), ...(ambientEls.length ? [ambientEls[0].currentSrc || ambientEls[0].src] : [])].filter(Boolean)).size;
+    let uploadsDone = 0;
+    const uploadBlob = async (url) => {
+      const blob = await blobFrom(url);
+      const ext = ((blob.type.split("/")[1] || "mp4").split(";")[0]);
+      const up = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob });
+      if (!up.ok) throw new Error("upload failed");
+      uploadsDone++;
+      if (onUpload) onUpload(uploadsDone, totalUploads);
+      return (await up.json()).id;
+    };
+    const idBySrc = {};
+    // read ambient footage meta while it's still in the DOM (computed styles need it attached)
+    let ambient = null, ambientSrc = null;
+    if (ambientEls.length) {
+      const av = ambientEls[0]; ambientSrc = av.currentSrc || av.src || av.getAttribute("src");
+      const cs = getComputedStyle(av);
+      const blur = parseFloat(((cs.filter || "").match(/blur\(([\d.]+)px\)/) || [])[1]) || 60;
+      ambient = { blur, opacity: parseFloat(cs.opacity) || 0.3 };
+    }
+    // slots hold a <video> or an <img>; upload whichever is present
+    const videoSlots = [];
+    for (const el of slotMediaEls) {
+      const slot = el.closest("[data-vslot]");
+      const src = el.currentSrc || el.src || el.getAttribute("src");
+      const id = idBySrc[src] || (idBySrc[src] = await uploadBlob(src));
+      videoSlots.push({ slot: slot.getAttribute("data-vslot"), videoId: id });
+    }
+    const logos = [];
+    for (const img of root.querySelectorAll("[data-lslot] img")) {
+      const orig = img.getAttribute("src");
+      const fit = (window.__FILL_LOGOS || []).indexOf(orig) >= 0 ? "cover" : "contain"; // app-icon logos fill, marks sit on white
+      let uri = orig;
+      if (uri && uri.startsWith("blob:")) uri = await blobToDataURL(await blobFrom(uri));
+      const tile = img.closest("[data-lslot]");
+      const cbg = getComputedStyle(tile).backgroundColor;
+      const bg = /rgba?\(0,\s*0,\s*0,\s*0\)|transparent/.test(cbg) ? null : cbg;
+      const sm = (img.style.transform || "").match(/scale\(([\d.]+)\)/);
+      const scale = sm ? +sm[1] : 1;
+      logos.push({ slot: tile.getAttribute("data-lslot"), uri, fit, bg, scale });
+    }
+    const merged = JSON.parse(JSON.stringify(ovFor(t.id)));
+    for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); merged[p] = { ...(merged[p] || {}), text: inp.value }; }
+    if (ambient && ambientSrc) ambient.videoId = idBySrc[ambientSrc] || (idBySrc[ambientSrc] = await uploadBlob(ambientSrc));
+    const showPlus = !!root.querySelector("[data-plus]");
+    const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
+    const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
+    return { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+  }
+  async function exportMp4() {
+    const t = templates.find(x => x.id === sel);
     deselect();
     setExporting(true);
-    const totalUploads = new Set([...slotMediaEls.map(el => el.currentSrc || el.src || el.getAttribute("src")), ...(ambientEls.length ? [ambientEls[0].currentSrc || ambientEls[0].src] : [])].filter(Boolean)).size;
-    let uploadsDone = 0, creep = null;
+    let creep = null;
     setExportProg({ pct: 4, label: "Preparing…" });
     try {
-      const uploadBlob = async (url) => {
-        const blob = await blobFrom(url);
-        const ext = ((blob.type.split("/")[1] || "mp4").split(";")[0]);
-        const up = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob });
-        if (!up.ok) throw new Error("upload failed");
-        uploadsDone++;
-        setExportProg({ pct: 5 + Math.round(45 * uploadsDone / Math.max(1, totalUploads)), label: `Uploading media ${uploadsDone}/${totalUploads}` });
-        return (await up.json()).id;
-      };
-      const idBySrc = {};
-      // read ambient footage meta while it's still in the DOM (computed styles need it attached)
-      let ambient = null, ambientSrc = null;
-      if (ambientEls.length) {
-        const av = ambientEls[0]; ambientSrc = av.currentSrc || av.src || av.getAttribute("src");
-        const cs = getComputedStyle(av);
-        const blur = parseFloat(((cs.filter || "").match(/blur\(([\d.]+)px\)/) || [])[1]) || 60;
-        ambient = { blur, opacity: parseFloat(cs.opacity) || 0.3 };
-      }
-      // slots hold a <video> or an <img>; upload whichever is present
-      const videoSlots = [];
-      for (const el of slotMediaEls) {
-        const slot = el.closest("[data-vslot]");
-        const src = el.currentSrc || el.src || el.getAttribute("src");
-        const id = idBySrc[src] || (idBySrc[src] = await uploadBlob(src));
-        videoSlots.push({ slot: slot.getAttribute("data-vslot"), videoId: id });
-      }
-      const logos = [];
-      for (const img of root.querySelectorAll("[data-lslot] img")) {
-        const orig = img.getAttribute("src");
-        const fit = (window.__FILL_LOGOS || []).indexOf(orig) >= 0 ? "cover" : "contain"; // app-icon logos fill, marks sit on white
-        let uri = orig;
-        if (uri && uri.startsWith("blob:")) uri = await blobToDataURL(await blobFrom(uri));
-        const tile = img.closest("[data-lslot]");
-        const cbg = getComputedStyle(tile).backgroundColor;
-        const bg = /rgba?\(0,\s*0,\s*0,\s*0\)|transparent/.test(cbg) ? null : cbg;
-        const sm = (img.style.transform || "").match(/scale\(([\d.]+)\)/);
-        const scale = sm ? +sm[1] : 1;
-        logos.push({ slot: tile.getAttribute("data-lslot"), uri, fit, bg, scale });
-      }
-      const merged = JSON.parse(JSON.stringify(ovFor(t.id)));
-      for (const inp of root.querySelectorAll("input")) { const p = pathOf(inp, root); merged[p] = { ...(merged[p] || {}), text: inp.value }; }
-      if (ambient && ambientSrc) ambient.videoId = idBySrc[ambientSrc] || (idBySrc[ambientSrc] = await uploadBlob(ambientSrc));
-      const showPlus = !!root.querySelector("[data-plus]");
-      const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
-      const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
-      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+      const spec = await buildExportSpec(t, (done, total) => setExportProg({ pct: 5 + Math.round(45 * done / Math.max(1, total)), label: `Uploading media ${done}/${total}` }));
+      if (!spec) { alert("Add a video or image to a slot first — click a slot to upload."); setExporting(false); setExportProg(null); return; }
       let pct = 55;
       setExportProg({ pct, label: "Rendering design…" });
       creep = setInterval(() => { pct = Math.min(93, pct + 1.5); setExportProg({ pct: Math.round(pct), label: pct > 72 ? "Compositing video…" : "Rendering design…" }); }, 600);
@@ -762,6 +927,14 @@ function App() {
                     className="w-full accent-[#6d5efc]" />
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Zoom in to crop out letterbox bars — or below 100% to shrink the video inside its frame.</p>
                 </div>
+                {insp.isVideo && <div>
+                  <label className={LBL}>Audio in export & preview</label>
+                  <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
+                    <button onClick={() => setMediaMute(insp.slot, false)} className={!insp.mediaMute ? SEG_ON : SEG}>On</button>
+                    <button onClick={() => setMediaMute(insp.slot, true)} className={insp.mediaMute ? SEG_ON : SEG}>Muted</button>
+                  </div>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Each video can be muted individually — keep both, one, or neither audio track in the final MP4.</p>
+                </div>}
                 <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position & zoom</button>
                 <p className="text-xs text-neutral-400 leading-relaxed">Drag the video on the canvas to reposition it inside its frame.</p>
               </section>
@@ -974,9 +1147,12 @@ function App() {
       <nav className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 h-14 bg-white/85 backdrop-blur border-b border-neutral-200">
         {navBtn("templates", "Templates")}
         {navBtn("showcase", "Demos")}
+        {navBtn("hooks", "Hooks")}
       </nav>
       <div className="max-w-6xl mx-auto px-8 py-10">
-        {page === "templates" ? (
+        {page === "hooks" ? (
+          <HooksPage />
+        ) : page === "templates" ? (
           <div className="flex flex-wrap justify-center gap-6">
             {templates.map(t => {
               const sc = 200 / t.width;
