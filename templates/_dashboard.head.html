@@ -17,11 +17,11 @@
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-thumb{background:#3f3f3f;border-radius:8px;border:2px solid #1A1A1A}
   ::-webkit-scrollbar-thumb:hover{background:#525252}
-  .hscroll{scrollbar-width:thin;scrollbar-color:transparent transparent}
-  .hscroll:hover{scrollbar-color:rgba(255,255,255,.28) transparent}
+  @property --sbc { syntax: '<color>'; initial-value: transparent; inherits: true; }
+  .hscroll{--sbc:transparent;transition:--sbc .35s ease;scrollbar-width:thin;scrollbar-color:var(--sbc) transparent}
+  .hscroll:hover{--sbc:rgba(255,255,255,.28)}
   .hscroll::-webkit-scrollbar{height:6px}
-  .hscroll::-webkit-scrollbar-thumb{background:transparent;border:none;border-radius:6px}
-  .hscroll:hover::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28)}
+  .hscroll::-webkit-scrollbar-thumb{background:var(--sbc);border:none;border-radius:6px}
   .hscroll:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
   .hscroll::-webkit-scrollbar-track{background:transparent}
   @property --ao-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
