@@ -1502,6 +1502,12 @@ function App() {
       if (!d.moved && Math.abs(dx) + Math.abs(dy) > 3) { d.moved = true; pushHistory(true); }
       t.x = d.baseX + dx; t.y = d.baseY + dy;
       if (!ev.altKey) { t.x = Math.round(t.x / GRID) * GRID; t.y = Math.round(t.y / GRID) * GRID; }
+      if (!d.media.isConnected) {
+        // slot remounts when the inspector opens mid-gesture — re-find the live media node
+        const slotEl2 = containerRef.current.querySelector('[data-vslot="' + d.k + '"]');
+        const m2 = slotEl2 && slotEl2.querySelector("video, img");
+        if (m2) d.media = m2;
+      }
       d.media.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.s || 1})`;
       d.media.style.transformOrigin = "center";
     };
