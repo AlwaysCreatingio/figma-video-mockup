@@ -97,7 +97,10 @@ function finalize(){
   // record the frame's own background, then make it transparent so slot holes fall through to the
   // ffmpeg base layer (painted with this colour). Decorative children/gradients stay in the plate.
   window.__FRAMEBG = getComputedStyle(frame).backgroundColor;
+  window.__HASBGIMG = getComputedStyle(frame).backgroundImage !== "none";
+  window.__BGIMG_INLINE = frame.style.backgroundImage;
   frame.style.backgroundColor = "transparent";
+  frame.style.backgroundImage = "none";
   // Cut each video slot into a TRANSPARENT, ROUNDED hole (no chroma key). We capture the rect + a
   // rounded-corner alpha mask so ffmpeg can round the composited video — nothing magenta ever exists,
   // so there is no fringe/purple and translucent overlays render correctly.
@@ -181,7 +184,18 @@ async function renderPlate(templateId, X, W, H, plateOut) {
     const frameBg = await page.evaluate(() => window.__FRAMEBG);
     const el = await page.$("#root > *");
     await el.screenshot({ path: plateOut, omitBackground: true });
-    return { rects, frameBg };
+    let bgPlate = null;
+    if (await page.evaluate(() => window.__HASBGIMG)) {
+      await page.evaluate(() => {
+        const frame = document.getElementById("root").firstElementChild;
+        frame.style.backgroundImage = window.__BGIMG_INLINE || "";
+        frame.style.backgroundColor = window.__FRAMEBG;
+        Array.from(frame.children).forEach(c => { c.style.visibility = "hidden"; });
+      });
+      bgPlate = plateOut.replace(/\.png$/, "_bg.png");
+      await el.screenshot({ path: bgPlate });
+    }
+    return { rects, frameBg, bgPlate };
   } finally { try { await page.close(); } catch {} }
 }
 
@@ -192,7 +206,7 @@ function cssToHex(c) {
   return "0x" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
 }
 
-async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf) {
+async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate) {
   // bound output to the shortest clip so the looped plate/color source can't run forever
   const durs = await Promise.all(videoFiles.map(probeDur));
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
@@ -208,12 +222,15 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   maskFiles.forEach(f => { args.push("-loop", "1", "-i", f); });                                            // nVid..2n-1 masks
   if (ambient) { if (ambDur === 0) args.push("-loop", "1"); args.push("-i", ambientFile); }
   args.push("-loop", "1", "-i", plate);
+  if (bgPlate) args.push("-loop", "1", "-i", bgPlate);
   const ambIdx = ambient ? nVid * 2 : -1;
   const plateIdx = nVid * 2 + (ambient ? 1 : 0);
+  const bgIdx = bgPlate ? plateIdx + 1 : -1;
   const fc = [];
   // base = the frame's own background colour (so rounded-corner gaps match the design); ambient adds blur
   fc.push(`color=c=${cssToHex(frameBg)}:s=${OW}x${OH}:r=30:d=${DUR.toFixed(2)}[base]`);
   let last = "base";
+  if (bgPlate) { fc.push(`[base][${bgIdx}:v]overlay=0:0[bgp]`); last = "bgp"; }
   if (ambient) {
     const sigma = Math.max(8, Math.round((ambient.blur || 60) / 2) * S);
     const op = Math.min(1, Math.max(0, ambient.opacity != null ? ambient.opacity : 0.3));
@@ -303,14 +320,14 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, mediaXf = {} } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, mediaXf = {} } = spec;
       const data = await enqueue(async () => {
         const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-        const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText }, W, H, plate);
+        const { rects, frameBg, bgPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn }, W, H, plate);
         const videoFiles = rects.map(r => path.join(WORK, r.videoId));
         const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
         const out = path.join(WORK, "out_" + Date.now() + ".mp4");
-        await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf);
+        await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf, bgPlate);
         return fs.readFileSync(out);
       });
       res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
