@@ -4,13 +4,11 @@ services:
   - type: web
     name: agentopus-export
     runtime: docker
-    plan: free
+    plan: pro
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      # Free tier (512 MB) can't fit Chromium at the default 2x supersample — it gets OOM-killed
-      # mid-export (verified: 2x 502s even with production React). 1x is reliable but softer.
-      # For crisp 2x exports either upgrade this service to Standard (2 GB) and set "2",
-      # or export from a machine running `npm run export-server` locally (defaults to 2x).
+      # Pro (4 GB / 2 CPU) comfortably fits Chromium at the 2x supersample — crisp text.
+      # If this service is ever downgraded below 2 GB, drop this back to "1" or exports OOM.
       - key: EXPORT_SCALE
-        value: "1"
+        value: "2"
