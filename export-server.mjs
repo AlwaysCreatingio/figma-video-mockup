@@ -36,7 +36,7 @@ const HEAD = `<!doctype html><html><head>
 <style>html,body{margin:0;background:transparent;}#root{display:inline-block;}*{font-family:'Geist',sans-serif;} @property --ao-a { syntax:'<angle>'; initial-value:0deg; inherits:false; } @keyframes ao-rot { to { --ao-a:360deg; } } .ao-glow::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:3px;background:conic-gradient(from var(--ao-a),transparent 50%,rgba(255,255,255,.85) 74%,#fff 82%,transparent 92%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:5;}</style>
 </head><body><div id="root"></div>`;
 
-const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left"];
+const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform"];
 
 let LOGOS_JS = "";
 try { LOGOS_JS = fs.readFileSync(path.join(ROOT, "_logos.js"), "utf8"); } catch {}

@@ -70,7 +70,7 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform"];
 function parseColor(str) {
   const m = (str || "").match(/[\d.]+/g);
   if (!m) return { hex: "#ffffff", a: 1 };
@@ -105,11 +105,11 @@ function textUnit(el) {
 const IS_LOCAL = typeof location !== "undefined" && (location.hostname === "localhost" || location.hostname === "127.0.0.1");
 
 /* light-theme class tokens */
-const ACCENT = "#6d5efc";
-const FIELD = "w-full bg-neutral-100 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-800 outline-none focus:border-[#6d5efc] focus:ring-2 focus:ring-[#6d5efc]/20 transition";
+const ACCENT = "#18181b";
+const FIELD = "w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/10 transition";
 const LBL = "block text-xs font-medium text-neutral-500 mb-1.5";
-const SEG = "px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 transition";
-const SEG_ON = "px-2.5 py-1.5 text-sm text-white bg-[#6d5efc]";
+const SEG = "px-2.5 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 transition";
+const SEG_ON = "px-2.5 py-1.5 text-sm text-white bg-zinc-900";
 
 /* ---------- demos persistence (IndexedDB holds the media-heavy records; localStorage holds a light index) ---------- */
 function idbOpen() {
@@ -346,9 +346,9 @@ function HooksPage() {
           <div className="space-y-1.5">
             {sec.hooks.map(h => (
               <button key={h} onClick={() => copy(h)}
-                className="w-full text-left px-4 py-2.5 rounded-xl bg-white ring-1 ring-neutral-200 hover:ring-[#6d5efc]/50 hover:shadow-sm text-sm text-neutral-800 leading-relaxed transition flex items-start gap-3 group">
+                className="w-full text-left px-4 py-2.5 rounded-xl bg-white ring-1 ring-neutral-200 hover:ring-zinc-400 hover:shadow-sm text-sm text-neutral-800 leading-relaxed transition flex items-start gap-3 group">
                 <span className="flex-1">{h}</span>
-                <span className={"shrink-0 text-xs mt-0.5 transition " + (copied === h ? "text-[#6d5efc] font-medium" : "text-neutral-300 group-hover:text-neutral-400")}>{copied === h ? "Copied ✓" : "Copy"}</span>
+                <span className={"shrink-0 text-xs mt-0.5 transition " + (copied === h ? "text-zinc-900 font-medium" : "text-neutral-300 group-hover:text-neutral-400")}>{copied === h ? "Copied ✓" : "Copy"}</span>
               </button>
             ))}
           </div>
@@ -385,6 +385,8 @@ function App() {
   } : null;
   const [, force] = useState(0);
 
+  const [handle, setHandle] = useState(null);   // move-handle position (main-relative) for the selected element
+  const mainRef = useRef(null);
   const overrides = useRef({});
   const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
   const dragRef = useRef(null);
@@ -468,6 +470,33 @@ function App() {
 
   function clearActive() {
     if (activeRef.current) { const { el } = activeRef.current; if (el) { el.contentEditable = "false"; el.style.outline = ""; el.style.outlineOffset = ""; } activeRef.current = null; }
+    setHandle(null);
+  }
+  // drag the floating ✥ handle to move the selected element; offset is stored as a composed
+  // transform override so it survives demos and exports
+  function startMoveDrag(e) {
+    e.preventDefault(); e.stopPropagation();
+    const rec0 = activeRef.current; if (!rec0 || !insp) return;
+    let el = rec0.el;
+    if (!el || !el.isConnected) el = nodeAt(containerRef.current, rec0.path);
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    const base = cs.transform === "none" ? "" : cs.transform + " ";
+    const startX = e.clientX, startY = e.clientY;
+    const h0 = handle;
+    setInsp(i => (i ? { ...i, moved: true } : i));
+    const move = (ev) => {
+      const sc = editorScaleRef.current || 1;
+      const dx = (ev.clientX - startX) / sc, dy = (ev.clientY - startY) / sc;
+      const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
+      el.style.transform = t;
+      const rec = ovFor(sel)[rec0.path] = ovFor(sel)[rec0.path] || {};
+      rec.style = rec.style || {}; rec.style.transform = t;
+      if (h0) setHandle({ x: h0.x + dx * sc, y: h0.y + dy * sc });
+    };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
   function selectEl(el, forceText) {
     const root = containerRef.current; if (!el || !root.contains(el)) return;
@@ -476,8 +505,12 @@ function App() {
     const text = forceText || isTextLeaf(el);
     const slotEl = el.closest(".cursor-pointer");
     if (text && el.tagName !== "INPUT") { el.contentEditable = "true"; el.focus(); }
-    el.style.outline = "2px solid #6d5efc"; el.style.outlineOffset = "1px";
+    el.style.outline = "2px solid #2563eb"; el.style.outlineOffset = "1px";
     activeRef.current = { el, path };
+    if (mainRef.current) {
+      const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
+      setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop });
+    }
     const cs = getComputedStyle(el);
     const ovs = (ovFor(sel)[path] || {}).style || {};
     const bg = parseColor(ovs.backgroundColor || cs.backgroundColor);
@@ -495,7 +528,7 @@ function App() {
     }
     setInsp({
       path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
-      pinPath, pin, swapKey, swapOn,
+      pinPath, pin, swapKey, swapOn, moved: !!ovs.transform,
       bgHex: bg.hex, bgTransparent: bg.a === 0,
       opacity: Math.round(parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity) * 100),
       radius: parseInt(ovs.borderRadius != null ? ovs.borderRadius : cs.borderRadius) || 0,
@@ -875,7 +908,7 @@ function App() {
     const s = Math.min(1, (window.innerHeight - 152) / t.height, (window.innerWidth - SB - 96) / t.width);
     editorScaleRef.current = s;
     return (
-      <div className="h-screen flex text-neutral-900 bg-[#f6f6f8]">
+      <div className="h-screen flex text-neutral-900 bg-zinc-50">
         <aside style={{ width: SB }} className="shrink-0 h-screen bg-white border-r border-neutral-200 flex flex-col">
           <div className="px-5 pt-5 pb-4">
             <button onClick={() => { deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 transition">← All templates</button>
@@ -897,7 +930,7 @@ function App() {
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Media</span>
                 <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-lg text-neutral-500 bg-neutral-100 hover:bg-neutral-200 transition">✕</button>
               </div>
-              <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Replace media…</button>
+              <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium shadow-sm transition">Replace media…</button>
               <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Fit</div>
                 <div>
@@ -912,19 +945,19 @@ function App() {
                   <label className={LBL}>Corner radius · {insp.mediaRadius}px</label>
                   <input type="range" min="0" max="60" value={insp.mediaRadius}
                     onChange={e => setMediaRadius(insp.slot, +e.target.value)}
-                    className="w-full accent-[#6d5efc]" />
+                    className="w-full accent-zinc-900" />
                 </div>
                 {insp.mediaFit === "contain" && <div>
                   <label className={LBL}>Padding · {insp.mediaPad}px</label>
                   <input type="range" min="0" max="60" value={insp.mediaPad}
                     onChange={e => setMediaPad(insp.slot, +e.target.value)}
-                    className="w-full accent-[#6d5efc]" />
+                    className="w-full accent-zinc-900" />
                 </div>}
                 <div>
                   <label className={LBL}>Zoom · {Math.round(insp.mediaScale * 100)}%</label>
                   <input type="range" min="50" max="300" value={Math.round(insp.mediaScale * 100)}
                     onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
-                    className="w-full accent-[#6d5efc]" />
+                    className="w-full accent-zinc-900" />
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Zoom in to crop out letterbox bars — or below 100% to shrink the video inside its frame.</p>
                 </div>
                 {insp.isVideo && <div>
@@ -945,14 +978,14 @@ function App() {
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</span>
                 <button onClick={deselect} title="Deselect" className="w-7 h-7 flex items-center justify-center text-xs rounded-lg text-neutral-500 bg-neutral-100 hover:bg-neutral-200 transition">✕</button>
               </div>
-              <button onClick={() => insp.logoApi.replace()} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Replace logo…</button>
+              <button onClick={() => insp.logoApi.replace()} className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium shadow-sm transition">Replace logo…</button>
               <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Logo</div>
                 <div>
                   <label className={LBL}>Logo size · {Math.round(insp.logoScale * 100)}%</label>
                   <input type="range" min="20" max="200" value={Math.round(insp.logoScale * 100)}
                     onChange={e => { const s = +e.target.value / 100; insp.logoApi.setScale(s); setInsp({ ...insp, logoScale: s }); }}
-                    className="w-full accent-[#6d5efc]" />
+                    className="w-full accent-zinc-900" />
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Resizes the logo inside the tile — the tile itself stays the same size.</p>
                 </div>
                 <div>
@@ -978,7 +1011,7 @@ function App() {
                 </div>
               </div>
 
-              {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Upload media into slot</button>}
+              {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium shadow-sm transition">Upload media into slot</button>}
 
               {insp.swapKey != null && <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Label content</div>
@@ -994,7 +1027,7 @@ function App() {
                 <div className="grid grid-cols-2 gap-2">
                   {[["tl", "↖ Top left"], ["tr", "↗ Top right"], ["bl", "↙ Bottom left"], ["br", "↘ Bottom right"]].map(([c, label]) => (
                     <button key={c} onClick={() => setPin(c)}
-                      className={"px-2.5 py-2 rounded-xl text-sm font-medium transition " + (insp.pin === c ? "bg-[#6d5efc] text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>
+                      className={"px-2.5 py-2 rounded-xl text-sm font-medium transition " + (insp.pin === c ? "bg-zinc-900 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>
                       {label}
                     </button>
                   ))}
@@ -1011,17 +1044,19 @@ function App() {
                       <input type="color" value={insp.bgHex} onChange={e => setStyle("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
                     </label>
                     <span className="text-sm text-neutral-500 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
-                    <button onClick={() => setStyle("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-lg transition " + (insp.bgTransparent ? "bg-[#6d5efc] text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>Clear</button>
+                    <button onClick={() => setStyle("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-lg transition " + (insp.bgTransparent ? "bg-zinc-900 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>Clear</button>
                   </div>
                 </div>
                 <div>
                   <label className={LBL}>Opacity · {insp.opacity}%</label>
-                  <input type="range" min="0" max="100" value={insp.opacity} onChange={e => setStyle("opacity", (+e.target.value / 100).toString(), { opacity: +e.target.value })} className="w-full accent-[#6d5efc]" />
+                  <input type="range" min="0" max="100" value={insp.opacity} onChange={e => setStyle("opacity", (+e.target.value / 100).toString(), { opacity: +e.target.value })} className="w-full accent-zinc-900" />
                 </div>
                 <div>
                   <label className={LBL}>Corner radius</label>
                   <input type="number" min="0" value={insp.radius} onChange={e => setStyle("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
                 </div>
+                {insp.moved && <button onClick={() => setStyle("transform", "", { moved: false })} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position</button>}
+                <p className="text-xs text-neutral-400 leading-relaxed">Drag the ✥ handle on the canvas to move this element anywhere.</p>
               </section>
 
               {insp.isText && <section className="space-y-3">
@@ -1059,8 +1094,8 @@ function App() {
                     <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100">
                       {["left", "center", "right"].map(a => <button key={a} onClick={() => setStyle("textAlign", a, { align: a })} className={insp.align === a ? SEG_ON : SEG}>{a[0].toUpperCase()}</button>)}
                     </div>
-                    <button onClick={() => setStyle("fontStyle", insp.italic ? "normal" : "italic", { italic: !insp.italic })} className={"px-3 py-1.5 rounded-xl italic text-sm border border-neutral-200 " + (insp.italic ? "bg-[#6d5efc] text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>I</button>
-                    <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-xl underline text-sm border border-neutral-200 " + (insp.underline ? "bg-[#6d5efc] text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>U</button>
+                    <button onClick={() => setStyle("fontStyle", insp.italic ? "normal" : "italic", { italic: !insp.italic })} className={"px-3 py-1.5 rounded-xl italic text-sm border border-neutral-200 " + (insp.italic ? "bg-zinc-900 text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>I</button>
+                    <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-xl underline text-sm border border-neutral-200 " + (insp.underline ? "bg-zinc-900 text-white border-transparent" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200")}>U</button>
                   </div>
                 </div>
                 <p className="text-xs text-neutral-400 leading-relaxed">Type on the highlighted text to change the words.</p>
@@ -1079,7 +1114,7 @@ function App() {
         <header className="h-14 shrink-0 bg-white/85 backdrop-blur border-b border-neutral-200 flex items-center justify-end gap-3 px-4">
           {exportProg && <div className="flex items-center gap-2 w-72">
             <div className="flex-1 h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-              <div className="h-full bg-[#6d5efc] transition-all duration-300" style={{ width: exportProg.pct + "%" }} />
+              <div className="h-full bg-zinc-900 transition-all duration-300" style={{ width: exportProg.pct + "%" }} />
             </div>
             <span className="text-xs text-neutral-500 whitespace-nowrap">{exportProg.label}</span>
           </div>}
@@ -1087,15 +1122,22 @@ function App() {
             className="text-sm px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition disabled:opacity-60 disabled:cursor-wait">
             {exporting ? "Exporting…" : "Export MP4"}</button>
         </header>
-        <main className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
+        <main ref={mainRef} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div style={{ width: t.width * s, height: t.height * s }} className="overflow-hidden rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <t.Component />
             </div>
           </div>
+          {handle && insp && !insp.isMedia && !insp.isLogo && (
+            <button onPointerDown={startMoveDrag} title="Drag to move"
+              style={{ left: handle.x - 2, top: handle.y - 34 }}
+              className="absolute z-40 w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-900 text-white shadow-lg cursor-move select-none">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/><path d="M9 5l3-3 3 3"/><path d="M9 19l3 3 3-3"/><path d="M5 9l-3 3 3 3"/><path d="M19 9l3 3-3 3"/></svg>
+            </button>
+          )}
           <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
-            className={"absolute bottom-6 right-6 w-11 h-11 flex items-center justify-center rounded-full shadow-lg transition " + (soundOn ? "bg-[#6d5efc] text-white" : "bg-white text-neutral-700 hover:bg-neutral-100 ring-1 ring-neutral-200")}>
+            className={"absolute bottom-6 right-6 w-11 h-11 flex items-center justify-center rounded-full shadow-lg transition " + (soundOn ? "bg-zinc-900 text-white" : "bg-white text-neutral-700 hover:bg-neutral-100 ring-1 ring-neutral-200")}>
             {soundOn
               ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
               : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
@@ -1185,7 +1227,7 @@ function LogoPicker({ onPick, onClose }) {
         </div>
         <div className="grid grid-cols-4 gap-3">
           {LOGO_LIBRARY.map(l => (
-            <button key={l.name} onClick={() => onPick(l.uri)} title={l.name} className="aspect-square rounded-2xl bg-neutral-50 ring-1 ring-neutral-200 hover:ring-[#6d5efc] hover:bg-white flex items-center justify-center p-3.5 transition">
+            <button key={l.name} onClick={() => onPick(l.uri)} title={l.name} className="aspect-square rounded-2xl bg-neutral-50 ring-1 ring-neutral-200 hover:ring-zinc-900 hover:bg-white flex items-center justify-center p-3.5 transition">
               <img src={l.uri} alt={l.name} className="w-full h-full object-contain" />
             </button>
           ))}
