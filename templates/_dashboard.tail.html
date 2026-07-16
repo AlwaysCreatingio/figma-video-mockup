@@ -1017,6 +1017,8 @@ function App() {
   const mediaTimeRef = useRef({});            // slot -> last playback time, restored across remounts
   const multiRef = useRef([]);                // extra selected elements ({el, path}) via shift/cmd-click
   const editingDemoRef = useRef(null);        // demo id currently open in the editor (update-in-place)
+  const pendingCreativeRef = useRef(null);    // creative id from the URL, opened once demos load
+  const openDemoRef = useRef(null);
   const [toast, setToast] = useState(null);       // transient success toast
   const [navCollapsed, setNavCollapsed] = useState(false); // icon-only sidebar
   const [mobileNav, setMobileNav] = useState(false);       // hamburger drawer on small screens
@@ -1059,6 +1061,10 @@ function App() {
     const m = {}; normal.forEach(r => m[r.id] = r); setDemoRecs(m);
   };
   useEffect(() => { refreshDemos(); }, []);
+  useEffect(() => {
+    const id = pendingCreativeRef.current;
+    if (id && demoRecs[id]) { pendingCreativeRef.current = null; openDemo(id); }
+  }, [demoRecs]);
   const demoPreload = (rec) => rec ? {
     vids: rec.vids || {},
     boxText: rec.boxText || {},
@@ -1109,6 +1115,11 @@ function App() {
     const apply = () => {
       const parts = (location.hash || "").replace(/^#\/?/, "").split("/");
       if (parts[0] === "template" && parts[1]) { setSel(decodeURIComponent(parts[1])); setPage("templates"); }
+      else if (parts[0] === "creative" && parts[1]) {
+        const id = decodeURIComponent(parts[1]);
+        setPage("templates");
+        if (editingDemoRef.current !== id && !(openDemoRef.current && openDemoRef.current(id))) pendingCreativeRef.current = id;
+      }
       else if (parts[0] === "demos") { setSel(null); setPage("demos"); }
       else if (parts[0] === "projects") { setSel(null); setPage("showcase"); setDemoFilter(SLUG_ASPECT[parts[1]] || "all"); }
       else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
@@ -1122,7 +1133,7 @@ function App() {
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   useEffect(() => {
-    const want = sel ? "#/template/" + sel
+    const want = sel ? (editingDemoRef.current && demoRecs[editingDemoRef.current] ? "#/creative/" + editingDemoRef.current : "#/template/" + sel)
       : page === "demos" ? "#/demos"
       : page === "showcase" ? "#/projects" + (demoFilter !== "all" ? "/" + ASPECT_SLUG[demoFilter] : "")
       : page === "hooks" ? "#/hooks"
@@ -1959,6 +1970,9 @@ function App() {
       if (!rec) { setSaved(false); return; }
       if (updating) await demoStore.replace(rec); else await demoStore.save(rec);
       await refreshDemos();
+      editingDemoRef.current = id;
+      try { history.replaceState(null, "", "#/creative/" + encodeURIComponent(id)); } catch (e) {}
+      cleanSigRef.current = editorSig();
       setSaved(true); if (window.__toast) window.__toast(updating ? "Creative updated" : "Saved to Creatives"); setTimeout(() => setSaved(false), 1800);
       // render the real output in the background so the demo card can play the final MP4;
       // silently skipped if the export server isn't reachable (card falls back to a live preview)
@@ -1989,9 +2003,10 @@ function App() {
       if (window.__toast) window.__toast("Template default saved for everyone");
     } catch (e) { alert("Couldn't save template default: " + (e.message || e)); }
   }
-  async function openDemo(id) {
-    const rec = demoRecs[id]; if (!rec) return;
+  function openDemo(id) {
+    const rec = demoRecs[id]; if (!rec) return false;
     editingDemoRef.current = id;
+    try { history.replaceState(null, "", "#/creative/" + encodeURIComponent(id)); } catch (e) {}
     overrides.current[rec.templateId] = rec.overrides || {};
     mediaXf.current[rec.templateId] = JSON.parse(JSON.stringify(rec.mediaXf || {}));
     window.__demoPending = rec;
@@ -1999,6 +2014,7 @@ function App() {
   }
   // build the export spec straight from a saved record — lets old demos (saved before
   // background rendering) get their hosted MP4 without opening the editor
+  openDemoRef.current = openDemo;
   async function renderDemoMp4(id, dl) {
     const rec = demoRecs[id]; const t = rec && templates.find(x => x.id === rec.templateId);
     if (!rec || !t) return;
@@ -2207,10 +2223,22 @@ function App() {
     return () => window.removeEventListener("keydown", h);
   }, [sel]);
 
-  // warn before leaving the editor when there are edits in progress
+  // warn before leaving the editor only when the session differs from the last saved/opened state
+  const cleanSigRef = useRef(null);
+  const editorSig = () => {
+    const root = containerRef.current; if (!root || !sel) return "";
+    const vids = [...root.querySelectorAll("[data-vslot]")].map(el => el.getAttribute("data-vslot") + ":" + (((el.querySelector("video, img") || {}).currentSrc) || ((el.querySelector("video, img") || {}).src) || "")).join("|");
+    return JSON.stringify({ o: ovFor(sel), x: xfFor(sel), v: vids, l: (window.__slotAPI && window.__slotAPI.labelText) || {}, a: !!(window.__slotAPI && window.__slotAPI.arrowOn) });
+  };
+  useEffect(() => {
+    if (!sel) { cleanSigRef.current = null; return; }
+    const t = setTimeout(() => { cleanSigRef.current = editorSig(); }, 700);
+    return () => clearTimeout(t);
+  }, [sel]);
   const editorDirty = () => {
     const root = containerRef.current;
-    return !!(sel && root && (root.querySelector("[data-vslot] video, [data-vslot] img") || Object.keys(ovFor(sel)).length));
+    if (!sel || !root || cleanSigRef.current == null) return false;
+    return editorSig() !== cleanSigRef.current;
   };
   useEffect(() => {
     if (!sel) return;
@@ -2234,7 +2262,7 @@ function App() {
       <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
         <aside style={{ width: SB }} className="shrink-0 h-screen bg-[#1f1f1f] border-r border-white/10 flex flex-col">
           <div className="h-14 shrink-0 flex items-center px-5 border-b border-white/10">
-            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as a demo yet.")) return; deselect(); setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← Back</button>
+            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as a demo yet.")) return; deselect(); editingDemoRef.current = null; setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← Back</button>
           </div>
 
           <div className="px-5 py-5 flex-1 overflow-y-auto">
