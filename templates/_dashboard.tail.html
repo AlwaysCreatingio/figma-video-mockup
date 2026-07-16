@@ -152,7 +152,7 @@ const demoStore = {
       for (const k in rec.vids) {
         const v = rec.vids[k], ext = ((v.type || "video/mp4").split("/")[1] || "bin").split(";")[0], p = rec.id + "/" + k + "." + ext;
         const up = await SB.storage.from(SB_BUCKET).upload(p, v.blob, { upsert: true, contentType: v.type });
-        if (up.error) console.warn("[supabase] upload:", up.error.message);
+        if (up.error) throw new Error("upload failed for " + k + ": " + up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
       const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, arrowOn: !!rec.arrowOn, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
@@ -351,6 +351,7 @@ function useDemoOverrides(ref, rec) {
 function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, onTag, onDuplicate, onDelete }) {
   const ref = useRef(null);
   const [menu, setMenu] = useState(false);
+  const [menuSide, setMenuSide] = useState("r");
   const CW = wide ? 336 : 248;
   const CH = uniform !== false ? Math.round(CW * 16 / 9) : Math.round(t.height * (CW / t.width));
   const sc = uniform !== false ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
@@ -376,11 +377,11 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
       </button>
       {/* ⋯ actions menu (hover, over the preview) */}
       <div className="absolute bottom-3 right-3 z-20">
-        <button onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new Event("click")); setMenu(m => !m); }} title="Actions"
+        <button onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new Event("click")); const rct = e.currentTarget.getBoundingClientRect(); setMenuSide(window.innerWidth - rct.right > 244 ? "r" : "l"); setMenu(m => !m); }} title="Actions"
           className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover/card:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
-        {menu && <div className="absolute right-0 bottom-10 z-40 w-[224px] rounded-[16px] bg-[#2b2b2b]/85 backdrop-blur-2xl shadow-2xl border border-white/10 p-1.5" onClick={e => e.stopPropagation()}>
+        {menu && <div className={"absolute bottom-10 z-40 w-[224px] rounded-[16px] bg-[#2b2b2b]/85 backdrop-blur-2xl shadow-2xl border border-white/10 p-1.5 " + (menuSide === "r" ? "left-0" : "right-0")} onClick={e => e.stopPropagation()}>
           {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download</a>}
           {!mp4 && onRender && <button onClick={() => { setMenu(false); onRender(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
@@ -1017,6 +1018,7 @@ function App() {
   const mediaTimeRef = useRef({});            // slot -> last playback time, restored across remounts
   const multiRef = useRef([]);                // extra selected elements ({el, path}) via shift/cmd-click
   const editingDemoRef = useRef(null);        // demo id currently open in the editor (update-in-place)
+  const renderTokRef = useRef({});            // per-creative token: only the latest save may attach its mp4
   const pendingCreativeRef = useRef(null);    // creative id from the URL, opened once demos load
   const openDemoRef = useRef(null);
   const [toast, setToast] = useState(null);       // transient success toast
@@ -1513,7 +1515,6 @@ function App() {
     }
     const cs = getComputedStyle(el);
     const ovs = (ovFor(sel)[path] || {}).style || {};
-    const bg = parseColor(ovs.backgroundColor || cs.backgroundColor);
     // [data-swap] pills can toggle between the AO logo and editable text
     const swapEl = el.closest("[data-swap]");
     const swapKey = swapEl && root.contains(swapEl) ? swapEl.getAttribute("data-swap") : null;
@@ -1521,6 +1522,12 @@ function App() {
     // [data-pin] labels (or anything inside one) get a corner-pin control
     const pinEl = el.closest("[data-pin]");
     const pinPath = pinEl && root.contains(pinEl) ? pathOf(pinEl, root) : null;
+    // text inside a label pill: appearance edits target the pill so they read as one element
+    const apEl = (text && ((pinEl && pinEl !== el) || (swapEl && swapEl !== el))) ? (pinEl || swapEl) : el;
+    const apPath = apEl === el ? path : pathOf(apEl, root);
+    const acs = apEl === el ? cs : getComputedStyle(apEl);
+    const aovs = apEl === el ? ovs : ((ovFor(sel)[apPath] || {}).style || {});
+    const bg = parseColor(aovs.backgroundColor || acs.backgroundColor);
     let pin = "tl";
     if (pinPath != null) {
       const ps = (ovFor(sel)[pinPath] || {}).style || {};
@@ -1528,16 +1535,16 @@ function App() {
     }
     setOpenSec(text ? "Text" : swapKey != null ? "Label content" : "Appearance");
     setInsp({
-      path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
+      path, apPath, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
       pinPath, pin, swapKey, swapOn, moved: !!ovs.transform,
       textValue: (text && el.tagName !== "INPUT" && el.children.length === 0) ? el.textContent : null,
       pinBg: (pinEl && pinEl !== el) ? parseColor(getComputedStyle(pinEl).backgroundColor).hex : null,
-      pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[path] || {}).styleMeta || {}).kind || ((cs.backgroundImage && cs.backgroundImage !== "none") ? "custom" : undefined)),
-      styleMeta: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? ovFor(sel).__bgBlur : (ovFor(sel)[path] || {}).styleMeta || null,
+      pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[apPath] || {}).styleMeta || {}).kind || ((acs.backgroundImage && acs.backgroundImage !== "none") ? "custom" : undefined)),
+      styleMeta: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? ovFor(sel).__bgBlur : (ovFor(sel)[apPath] || {}).styleMeta || null,
       imgH: el.tagName === "IMG" ? (parseInt(ovs.height) || Math.round(parseFloat(cs.height)) || 24) : null,
       bgHex: bg.hex, bgTransparent: bg.a === 0,
-      opacity: Math.round(((path === "0" || path === "") ? bg.a : parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity)) * 100),
-      radius: parseInt(ovs.borderRadius != null ? ovs.borderRadius : cs.borderRadius) || 0,
+      opacity: Math.round(((path === "0" || path === "") ? bg.a : parseFloat(aovs.opacity != null ? aovs.opacity : acs.opacity)) * 100),
+      radius: parseInt(aovs.borderRadius != null ? aovs.borderRadius : acs.borderRadius) || 0,
       font: (ovs.fontFamily || cs.fontFamily || "Geist").replace(/["']/g, "").split(",")[0].trim(),
       weight: parseInt(ovs.fontWeight || cs.fontWeight) || 400,
       size: parseInt(ovs.fontSize || cs.fontSize) || 16,
@@ -1862,6 +1869,11 @@ function App() {
     setInsp(i => ({ ...i, pattern: kind }));
   }
   // pin a [data-pin] label pill to a corner of its card (stored as style overrides → demos + exports)
+  // appearance writes route to the pill when a label's text is the selection
+  function setAp(prop, val, patch) {
+    if (insp && insp.apPath != null && insp.apPath !== insp.path) { setStyleAt(insp.apPath, prop, val); if (patch) setInsp({ ...insp, ...patch }); }
+    else setStyle(prop, val, patch);
+  }
   function setStyleAt(path, prop, val) {
     const root = containerRef.current; if (!root || path == null) return;
     const el = nodeAt(root, path); if (!el) return;
@@ -1970,7 +1982,8 @@ function App() {
     const vids = {};
     for (const el of root.querySelectorAll("[data-vslot] video, [data-vslot] img")) {
       const slot = el.closest("[data-vslot]").getAttribute("data-vslot");
-      const blob = await fetch(el.currentSrc || el.src).then(r => r.blob());
+      const blob = await blobFrom(el.currentSrc || el.src);
+      if (!/^(video|image)\//.test(blob.type || "") || blob.size < 1000) throw new Error("The media in " + slot + " is unreadable (its file may be missing). Re-add it, then save again.");
       vids[slot] = { blob, img: el.tagName === "IMG", type: blob.type };
     }
     if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as a demo."); return null; }
@@ -2013,13 +2026,16 @@ function App() {
       setSaved(true); if (window.__toast) window.__toast(updating ? "Creative updated" : "Saved to Creatives"); setTimeout(() => setSaved(false), 1800);
       // render the real output in the background so the demo card can play the final MP4;
       // silently skipped if the export server isn't reachable (card falls back to a live preview)
+      const tok = (renderTokRef.current[id] = (renderTokRef.current[id] || 0) + 1);
       (async () => {
         try {
           const spec = await buildExportSpec(t);
           if (!spec) return;
           const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
           if (!res.ok) throw new Error(await res.text());
-          await demoStore.attachMp4(id, await res.blob());
+          const mp4blob = await res.blob();
+          if (renderTokRef.current[id] !== tok) return;
+          await demoStore.attachMp4(id, mp4blob);
           await refreshDemos();
           if (window.__toast) window.__toast("Creative rendered");
         } catch (e) { console.warn("demo mp4 render skipped:", e.message || e); }
@@ -2141,7 +2157,7 @@ function App() {
 
   // local dev talks to the local export server; the deployed site uses the hosted one (window.__EXPORT_BASE)
   const EXPORT_BASE = IS_LOCAL ? "http://localhost:5050" : ((typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050");
-  const blobFrom = (u) => fetch(u).then(r => r.blob());
+  const blobFrom = (u) => fetch(u).then(r => { if (!r.ok) throw new Error("media fetch failed (" + r.status + ")"); return r.blob(); });
   const blobToDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
   // reads the live editor DOM, uploads all media to the export server, and returns the export
   // spec — shared by the Export button and the demo-save background render
@@ -2293,7 +2309,7 @@ function App() {
     const t = templates.find(x => x.id === sel);
     if (!t) { setSel(null); return null; }
     const SB = 320;
-    const s = Math.min(1, (window.innerHeight - 152) / t.height, (window.innerWidth - SB - 96) / t.width);
+    const s = Math.min(1, (window.innerHeight - 152) / t.height, (window.innerWidth - SB - 96 - (insp ? 300 : 0)) / t.width);
     editorScaleRef.current = s;
     return (
       <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
@@ -2384,8 +2400,50 @@ function App() {
           </div>}
         </aside>
 
-        {/* settings popover for the current selection */}
-        {insp && <div className="fixed left-[336px] top-16 bottom-6 w-[300px] z-40 flex flex-col rounded-[22px] bg-[#1f1f1f]/95 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden">
+        <div className="flex-1 h-screen flex flex-col">
+        <header className="h-14 shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-b border-white/10 flex items-center justify-end gap-3 px-4">
+
+          <button onClick={undoEdit} disabled={!histFor(sel).length} title="Undo (⌘Z)"
+            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
+          </button>
+          <button onClick={redoEdit} disabled={!redoFor(sel).length} title="Redo (⇧⌘Z)"
+            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>
+          </button>
+          <button onClick={exportMp4} disabled={exporting}
+            className="text-sm px-4 py-2 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
+            {exporting ? "Exporting…" : "Export"}</button>
+        </header>
+        <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
+          <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
+            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
+              style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
+              <t.Component />
+            </div>
+            {guides && <div className="absolute inset-0 pointer-events-none z-30">
+              <div className="absolute top-0 bottom-0 w-px" style={{ left: guides.x * s, background: guides.cx ? "#f45f00" : "rgba(37,99,235,.8)" }} />
+              <div className="absolute left-0 right-0 h-px" style={{ top: guides.y * s, background: guides.cy ? "#f45f00" : "rgba(37,99,235,.8)" }} />
+            </div>}
+            <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
+            className={"absolute top-3 right-3 z-40 w-10 h-10 flex items-center justify-center rounded-full shadow-lg opacity-0 group-hover/canvas:opacity-100 transition " + (soundOn ? "bg-white text-zinc-900" : "bg-black/60 text-zinc-200 hover:bg-black/80")}>
+            {soundOn
+              ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
+              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
+          </button>
+          </div>
+          {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
+            [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1]].map(([c, fx, fy]) => (
+              <button key={c} onPointerDown={(e) => startResizeDrag(e, c)} title="Drag to resize"
+                style={{ left: handle.x + fx * handle.w - 7, top: handle.y + fy * handle.h - 7, cursor: (c === "nw" || c === "se") ? "nwse-resize" : "nesw-resize" }}
+                className="absolute z-40 w-3.5 h-3.5 rounded-[4px] bg-white ring-2 ring-[#2563eb] select-none" />
+            ))}
+
+        </main>
+        </div>
+
+        {/* settings column for the current selection */}
+        {insp && <div className="w-[300px] shrink-0 h-screen flex flex-col border-l border-white/5 bg-[#1A1A1A] overflow-hidden">
           <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
             <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element"}{multiRef.current.length > 0 ? ` · +${multiRef.current.length} selected` : ""}</span>
             <button onClick={deselect} title="Close" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
@@ -2489,7 +2547,7 @@ function App() {
                 </div>
               </Sec>}
 
-              {insp.pinPath != null && insp.pinPath !== insp.path && <Sec open={openSec === "Label style"} onToggle={toggleSec} title="Label style">
+              {insp.pinPath != null && insp.pinPath !== insp.path && insp.pinPath !== insp.apPath && <Sec open={openSec === "Label style"} onToggle={toggleSec} title="Label style">
                 <div>
                   <label className={LBL}>Label background</label>
                   <div className="flex items-center gap-2">
@@ -2521,10 +2579,10 @@ function App() {
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
                     <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
-                      <input type="color" value={insp.bgHex} onChange={e => setStyle("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
+                      <input type="color" value={insp.bgHex} onChange={e => setAp("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
                     </label>
                     <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
-                    <button onClick={() => setStyle("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (insp.bgTransparent ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>Clear</button>
+                    <button onClick={() => setAp("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (insp.bgTransparent ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>Clear</button>
                   </div>
                 </div>
                 <div>
@@ -2535,21 +2593,21 @@ function App() {
                       // background: fade the color itself, not the whole canvas
                       const m = (insp.bgHex || "#181818").match(/[0-9a-f]{2}/gi) || ["18", "18", "18"];
                       setStyle("backgroundColor", `rgba(${m.map(x => parseInt(x, 16)).join(", ")}, ${v / 100})`, { opacity: v });
-                    } else setStyle("opacity", (v / 100).toString(), { opacity: v });
+                    } else setAp("opacity", (v / 100).toString(), { opacity: v });
                   }} className="w-full accent-white" />
                 </div>
                 <div>
                   <label className={LBL}>Corner radius</label>
-                  <input type="number" min="0" value={insp.radius} onChange={e => setStyle("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
+                  <input type="number" min="0" value={insp.radius} onChange={e => setAp("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
                 </div>
-                <div>
+                {insp.apPath === insp.path && <div>
                   <label className={LBL}>Style</label>
                   <select value={insp.pattern || "none"} onChange={e => setPattern(e.target.value)} className={FIELD} style={SELECT_STYLE}>
                     {[...(insp.pattern === "custom" ? [["custom", "Custom"]] : []), ["none", "Color"], ["gradient", "Gradient"], ...(insp.path === "0" ? [["blur", "Blur"]] : []), ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
                       <option key={k} value={k}>{label}</option>
                     ))}
                   </select>
-                </div>
+                </div>}
                 {insp.pattern === "gradient" && <React.Fragment>
                   <div>
                     <label className={LBL}>Direction</label>
@@ -2658,48 +2716,6 @@ function App() {
             </div>}
           </div>
         </div>}
-
-        <div className="flex-1 h-screen flex flex-col">
-        <header className="h-14 shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-b border-white/10 flex items-center justify-end gap-3 px-4">
-
-          <button onClick={undoEdit} disabled={!histFor(sel).length} title="Undo (⌘Z)"
-            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
-          </button>
-          <button onClick={redoEdit} disabled={!redoFor(sel).length} title="Redo (⇧⌘Z)"
-            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>
-          </button>
-          <button onClick={exportMp4} disabled={exporting}
-            className="text-sm px-4 py-2 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
-            {exporting ? "Exporting…" : "Export"}</button>
-        </header>
-        <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
-          <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
-            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
-              style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
-              <t.Component />
-            </div>
-            {guides && <div className="absolute inset-0 pointer-events-none z-30">
-              <div className="absolute top-0 bottom-0 w-px" style={{ left: guides.x * s, background: guides.cx ? "#f45f00" : "rgba(37,99,235,.8)" }} />
-              <div className="absolute left-0 right-0 h-px" style={{ top: guides.y * s, background: guides.cy ? "#f45f00" : "rgba(37,99,235,.8)" }} />
-            </div>}
-            <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
-            className={"absolute top-3 right-3 z-40 w-10 h-10 flex items-center justify-center rounded-full shadow-lg opacity-0 group-hover/canvas:opacity-100 transition " + (soundOn ? "bg-white text-zinc-900" : "bg-black/60 text-zinc-200 hover:bg-black/80")}>
-            {soundOn
-              ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
-              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
-          </button>
-          </div>
-          {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
-            [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1]].map(([c, fx, fy]) => (
-              <button key={c} onPointerDown={(e) => startResizeDrag(e, c)} title="Drag to resize"
-                style={{ left: handle.x + fx * handle.w - 7, top: handle.y + fy * handle.h - 7, cursor: (c === "nw" || c === "se") ? "nwse-resize" : "nesw-resize" }}
-                className="absolute z-40 w-3.5 h-3.5 rounded-[4px] bg-white ring-2 ring-[#2563eb] select-none" />
-            ))}
-
-        </main>
-        </div>
 
         {exporting && exportProg && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm">
           <div className="w-[min(420px,90vw)] rounded-[30px] bg-[#212121] border border-white/10 shadow-2xl p-7 text-center">
@@ -2841,7 +2857,6 @@ function App() {
               <div className="relative mb-10 h-[240px] rounded-[30px] overflow-hidden border border-white/10 flex flex-col justify-center">
                 <div className="absolute inset-0" style={{ background: "radial-gradient(120% 160% at 85% 0%, rgba(198,235,247,.55) 0%, transparent 45%), linear-gradient(115deg, #FF7A00 0%, #E4572E 45%, #1A1A1A 92%)" }} />
                 <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px)", backgroundSize: "44px 44px" }} />
-                <div className="absolute inset-0 bg-zinc-950/45" />
                 <div className="relative px-8 md:px-12 max-w-2xl mx-auto text-center">
                   <h1 className="flex items-center justify-center gap-3 text-[40px] md:text-[46px] font-medium tracking-tight text-white leading-none">
                     <svg aria-label="agent opus logo" fill="currentColor" viewBox="0 0 24 24" width="38" height="38"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
