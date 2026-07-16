@@ -2337,7 +2337,7 @@ function App() {
     const t = templates.find(x => x.id === sel);
     if (!t) { setSel(null); return null; }
     const SB = 320;
-    const s = Math.min(1, (window.innerHeight - 152) / t.height, (window.innerWidth - SB - 96 - (insp ? 300 : 0)) / t.width);
+    const s = Math.min(1, (window.innerHeight - 176) / t.height, (window.innerWidth - SB - 96 - (insp ? 300 : 0)) / t.width);
     editorScaleRef.current = s;
     return (
       <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
@@ -2429,7 +2429,17 @@ function App() {
           </div>}
         </aside>
 
-        <div className="flex-1 h-screen flex flex-col">
+        <div className="flex-1 h-screen flex flex-col relative">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5">
+            <button onClick={undoEdit} disabled={!histFor(sel).length} title="Undo (⌘Z)"
+              className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 bg-[#1A1A1A]/70 backdrop-blur hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
+            </button>
+            <button onClick={redoEdit} disabled={!redoFor(sel).length} title="Redo (⇧⌘Z)"
+              className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 bg-[#1A1A1A]/70 backdrop-blur hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>
+            </button>
+          </div>
 
         <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
@@ -2499,31 +2509,18 @@ function App() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13 12L4.5 6v12L13 12z"/><path d="M17.5 6H20v12h-2.5z"/></svg>
               </button>
           </div>
-          <div className="flex items-center justify-end gap-3">
-
-
-          <button onClick={undoEdit} disabled={!histFor(sel).length} title="Undo (⌘Z)"
-            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
-          </button>
-          <button onClick={redoEdit} disabled={!redoFor(sel).length} title="Redo (⇧⌘Z)"
-            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>
-          </button>
-          <button onClick={exportMp4} disabled={exporting}
-            className="text-sm px-4 py-2 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
-            {exporting ? "Exporting…" : "Export"}</button>
-          </div>
+          <div />
         </footer>
         </div>
 
         {/* settings column for the current selection */}
-        {insp && <div className="w-[300px] shrink-0 h-screen flex flex-col border-l border-white/5 bg-[#1A1A1A] overflow-hidden">
+        <div className="w-[300px] shrink-0 h-screen flex flex-col border-l border-white/5 bg-[#1A1A1A] overflow-hidden">
           <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element"}{multiRef.current.length > 0 ? ` · +${multiRef.current.length} selected` : ""}</span>
-            <button onClick={deselect} title="Close" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>
+            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{!insp ? "Design" : (insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element") + (multiRef.current.length > 0 ? " · +" + multiRef.current.length + " selected" : "")}</span>
+            {insp && <button onClick={deselect} title="Close" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>}
           </div>
-          <div className="vscroll overflow-y-auto px-4 pb-4">
+          <div className="vscroll overflow-y-auto px-4 pb-4 flex-1">
+            {!insp && <p className="text-sm text-zinc-500 pt-1">Select anything on the canvas to edit it.</p>}
             {insp && insp.isMedia && <div className="space-y-5">
               <button onClick={() => replaceMedia(insp.slot)} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">{insp.hasMedia ? "Replace media…" : "Upload media…"}</button>
               <Sec open={openSec === "Fit"} onToggle={toggleSec} title="Fit">
@@ -2790,7 +2787,12 @@ function App() {
               </Sec>}
             </div>}
           </div>
-        </div>}
+          <div className="shrink-0 p-4 border-t border-white/5">
+            <button onClick={exportMp4} disabled={exporting}
+              className="w-full text-sm px-4 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
+              {exporting ? "Exporting…" : "Export"}</button>
+          </div>
+        </div>
 
         {exporting && exportProg && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm">
           <div className="w-[min(420px,90vw)] rounded-[30px] bg-[#212121] border border-white/10 shadow-2xl p-7 text-center">
