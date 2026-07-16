@@ -28,8 +28,8 @@ setInterval(() => {
 }, 30 * 60e3).unref();
 
 const HEAD = `<!doctype html><html><head>
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Bebas+Neue&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -47,7 +47,8 @@ function buildHtml(tplSrc, X) {
 <script type="text/babel">${tplSrc}</script>
 <script type="text/babel">
 const t = window.TEMPLATES[window.TEMPLATES.length-1];
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(t.Component));
+const __PRE = ${JSON.stringify({ labelText: X.labelText || {} })};
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(t.Component, { preload: __PRE }));
 </script>
 <script>
 const X = ${JSON.stringify(X)};
@@ -195,10 +196,19 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   rects.forEach((r, i) => {
     const x = r.x * S, y = r.y * S, w = r.w * S, h = r.h * S;
     const t = (mediaXf && mediaXf[r.slot]) || null;
-    const zs = t && t.s ? Math.max(1, t.s) : 1;                    // zoom (≥1 keeps the slot covered)
+    const zs = t && t.s ? Math.max(0.25, t.s) : 1;
     const ox = t ? Math.round((t.x || 0) * S) : 0, oy = t ? Math.round((t.y || 0) * S) : 0;
     const zw = Math.round(w * zs / 2) * 2, zh = Math.round(h * zs / 2) * 2;
-    if (t && t.fit === "contain") {
+    if (zs < 1) {
+      // shrunk below 100%: the video covers only a zw×zh patch — pad out to the slot with its
+      // background colour, panning via the pad offsets (clamped so the patch stays inside)
+      const pd = (t && t.fit === "contain") ? Math.round((t.pad != null ? t.pad : 14) * S) : 0;
+      const bw = Math.max(2, Math.round((w - 2 * pd) / 2) * 2), bh = Math.max(2, Math.round((h - 2 * pd) / 2) * 2);
+      const sw = Math.max(2, Math.round(bw * zs / 2) * 2), sh = Math.max(2, Math.round(bh * zs / 2) * 2);
+      const px = Math.min(Math.max(Math.round((w - sw) / 2 + ox), 0), w - sw);
+      const py = Math.min(Math.max(Math.round((h - sh) / 2 + oy), 0), h - sh);
+      fc.push(`[${i}:v]scale=${sw}:${sh}:force_original_aspect_ratio=increase,crop=${sw}:${sh},pad=${w}:${h}:${px}:${py}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+    } else if (t && t.fit === "contain") {
       // Inset: uniform padding on all four sides; the video covers the inner rect (cropped minimally)
       const pd = Math.round((t.pad != null ? t.pad : 14) * S);
       const iw = Math.max(2, Math.round((w - 2 * pd) / 2) * 2), ih = Math.max(2, Math.round((h - 2 * pd) / 2) * 2);
@@ -252,10 +262,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, mediaXf = {} } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, mediaXf = {} } = spec;
       const data = await enqueue(async () => {
         const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-        const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden }, W, H, plate);
+        const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText }, W, H, plate);
         const videoFiles = rects.map(r => path.join(WORK, r.videoId));
         const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
         const out = path.join(WORK, "out_" + Date.now() + ".mp4");

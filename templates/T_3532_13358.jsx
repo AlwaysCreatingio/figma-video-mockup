@@ -12,7 +12,7 @@
         : <div className="flex flex-col items-center justify-center gap-1 text-neutral-400 group-hover:text-neutral-600"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M10 9l5 3-5 3z" /></svg><span className="text-xs font-medium">Add video</span></div>}
       </div>
     );
-    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { logo1: window.__CLAUDE_LOGO, logo2: window.__CHANNELS_LOGO });
+    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { logo1: window.__CLAUDE_LOGO, logo2: window.__AGENT_OPUS_MARK });
     const [logoBgs, setLogoBgs] = useState(() => (props && props.preload && props.preload.logoBgs) || {});
     const [logoScales, setLogoScales] = useState(() => (props && props.preload && props.preload.logoScales) || { logo1: 0.7 });
     const [logoBgDefault, setLogoBgDefault] = useState({});

@@ -4,7 +4,10 @@
     const { useState } = React;
 
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
+    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
     const pick = k => {
       const i = document.createElement('input');
       i.type = 'file';
@@ -24,18 +27,18 @@
     );
 
     const pillStyle = { backgroundImage: "linear-gradient(90deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.7) 100%), linear-gradient(90deg, rgba(104, 104, 104, 0.4) 0%, rgba(104, 104, 104, 0.4) 100%)" };
-    const Label = ({ text, logo }) => (
-      <div data-pin className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
-        {logo
+    const Label = ({ k, text, logo }) => (
+      <div data-pin data-swap={logo ? k : undefined} className="absolute left-[12.136px] top-[12.136px] z-10 flex items-center justify-center p-[10px] rounded-[7.624px]" style={pillStyle}>
+        {logo && labelText[k] == null
           ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[26px] object-contain" />
-          : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{text}</p>}
+          : <p className="font-medium text-[16px] leading-none text-center text-white tracking-[0.48px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{logo ? labelText[k] : text}</p>}
       </div>
     );
 
     const Card = ({ k, text, logo }) => (
       <div className="relative shrink-0 w-[504px] h-[283.5px]">
         <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
-        {Label({ text, logo })}
+        {Label({ k: "label-" + k, text, logo })}
       </div>
     );
 
@@ -62,11 +65,15 @@
           }
         `}</style>
         <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(130% 90% at 50% 118%, rgba(140,150,170,0.22), transparent 55%)" }} />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[16px] items-center">
-          {Card({ k: "slot1", text: "RAW FOOTAGE" })}
-          
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[22px] items-center">
+          {/* editable title above the videos — click to edit; leave empty to omit */}
+          <p className="w-[1024px] text-center text-white text-[38px] font-semibold leading-none tracking-[-0.4px] font-[Geist,sans-serif]">Same clip. Two results.</p>
+          <div className="flex gap-[16px] items-center">
+            {Card({ k: "slot1", text: "RAW FOOTAGE" })}
             {Card({ k: "slot2", logo: true })}
-          
+          </div>
+          {/* smaller CTA under the videos */}
+          <p className="w-[1024px] text-center text-white/60 text-[17px] font-medium leading-none tracking-[0.34px] font-[Geist,sans-serif]">opus.pro/agent</p>
         </div>
       </div>
     );

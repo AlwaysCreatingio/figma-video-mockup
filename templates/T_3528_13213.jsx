@@ -5,6 +5,9 @@
 
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
+    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
     const pick = k => {
       const i = document.createElement('input');
       i.type = 'file';
@@ -35,7 +38,7 @@
       </div>
     );
 
-    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { logo1: window.__CLAUDE_LOGO, logo2: window.__CHANNELS_LOGO });
+    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { logo1: window.__CLAUDE_LOGO, logo2: window.__AGENT_OPUS_MARK });
     const [logoBgs, setLogoBgs] = useState(() => (props && props.preload && props.preload.logoBgs) || {});
     const [logoScales, setLogoScales] = useState(() => (props && props.preload && props.preload.logoScales) || { logo1: 0.7 });
     const [logoBgDefault, setLogoBgDefault] = useState({});
@@ -95,8 +98,10 @@
               <Slot k="slot1" className="aspect-[1080/1920] bg-[#565656] relative shrink-0 w-full" />
             </div>
             <div className="flex flex-col gap-[20px] items-center relative shrink-0 w-[241.471px]">
-              <div className="flex items-center justify-center w-full" style={{ height: 40 }}>
-                <img src={window.__AO_LOGO} alt="Agent Opus" className="h-[36px] object-contain" />
+              <div data-swap="label2" className="flex items-center justify-center w-full" style={{ height: 40 }}>
+                {labelText.label2 == null
+                  ? <img src={window.__AO_LOGO} alt="Agent Opus" className="h-[36px] object-contain" />
+                  : <p className="font-[Geist,sans-serif] font-bold leading-none text-[32px] text-black text-center tracking-[-0.16px] uppercase">{labelText.label2}</p>}
               </div>
               <Slot k="slot2" className="aspect-[1080/1920] bg-[#565656] relative shrink-0 w-full" />
             </div>

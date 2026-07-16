@@ -5,6 +5,9 @@
 
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
+    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
     const pick = k => { const i=document.createElement('input'); i.type='file'; i.accept='video/*,image/*'; i.onchange=e=>{const f=e.target.files[0]; if(f) setVids(v=>({...v,[k]:{url:URL.createObjectURL(f),img:(f.type||"").startsWith("image")}}));}; i.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0'; document.body.appendChild(i); i.addEventListener('change',function(){setTimeout(function(){i.remove();},0);},{once:true}); i.click(); };
     const Slot = ({ k, className, style }) => (
       <div data-vslot={k} onClick={() => pick(k)} className={'overflow-hidden cursor-pointer group flex items-center justify-center ' + (className || '')} style={style}>
@@ -33,8 +36,10 @@
         {/* Agent opus card (white, on top) */}
         <div className="absolute rounded-[20px]" style={{ left: 250, top: 266.53, width: 294.15, height: 522.94 }}>
           <Slot k="slot2" className="absolute inset-0 bg-white " />
-          <div className="absolute flex items-center justify-center px-[15px] py-[9px] rounded-[12px]" style={{ left: 14, top: 14, ...pillBg }}>
-            <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+          <div data-pin data-swap="label2" className="absolute flex items-center justify-center px-[15px] py-[9px] rounded-[12px]" style={{ left: 14, top: 14, ...pillBg }}>
+            {labelText.label2 == null
+              ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+              : <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2}</p>}
           </div>
         </div>
       </div>

@@ -61,7 +61,7 @@ function deepmindSVG() {
 const svgURI = (svg) => "data:image/svg+xml;utf8," + encodeURIComponent(svg);
 const LOGO_LIBRARY = [
   { name: "Claude", uri: window.__CLAUDE_LOGO || svgURI(claudeSVG()) },
-  { name: "OpusClip", uri: window.__CHANNELS_LOGO || svgURI(opusClipSVG()) },
+  { name: "Agent Opus", uri: window.__AGENT_OPUS_MARK || window.__CHANNELS_LOGO || svgURI(opusClipSVG()) },
   { name: "DeepMind", uri: svgURI(deepmindSVG()) },
   { name: "Gemini", uri: window.__GEMINI_LOGO || svgURI(claudeSVG()) },
   { name: "Suno", uri: window.__SUNO_LOGO || svgURI(claudeSVG()) },
@@ -152,7 +152,7 @@ const demoStore = {
         if (up.error) console.warn("[supabase] upload:", up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } });
+      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } });
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
       return;
     }
@@ -244,6 +244,7 @@ function App() {
   const demoPreload = (rec) => rec ? {
     vids: rec.vids || {},
     boxText: rec.boxText || {},
+    labelText: rec.labelText || {},
     showPlus: rec.showPlus,
     hiddenLogos: rec.hiddenLogos || {},
     logosHidden: rec.logosHidden,
@@ -348,6 +349,10 @@ function App() {
     const cs = getComputedStyle(el);
     const ovs = (ovFor(sel)[path] || {}).style || {};
     const bg = parseColor(ovs.backgroundColor || cs.backgroundColor);
+    // [data-swap] pills can toggle between the AO logo and editable text
+    const swapEl = el.closest("[data-swap]");
+    const swapKey = swapEl && root.contains(swapEl) ? swapEl.getAttribute("data-swap") : null;
+    const swapOn = swapKey != null && window.__slotAPI && window.__slotAPI.labelText && window.__slotAPI.labelText[swapKey] != null;
     // [data-pin] labels (or anything inside one) get a corner-pin control
     const pinEl = el.closest("[data-pin]");
     const pinPath = pinEl && root.contains(pinEl) ? pathOf(pinEl, root) : null;
@@ -358,7 +363,7 @@ function App() {
     }
     setInsp({
       path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
-      pinPath, pin,
+      pinPath, pin, swapKey, swapOn,
       bgHex: bg.hex, bgTransparent: bg.a === 0,
       opacity: Math.round(parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity) * 100),
       radius: parseInt(ovs.borderRadius != null ? ovs.borderRadius : cs.borderRadius) || 0,
@@ -549,6 +554,7 @@ function App() {
         api.setLogos(L); api.setLogoScales(Sc); api.setLogoBgs(Bg);
       }
       if (api.setBoxText && rec.boxText) api.setBoxText(rec.boxText);
+      if (api.setLabelText && rec.labelText) api.setLabelText(rec.labelText);
       if (api.setShowPlus && rec.showPlus != null) api.setShowPlus(rec.showPlus);
       if (api.setHiddenLogos && rec.hiddenLogos) api.setHiddenLogos(rec.hiddenLogos);
       if (api.setLogosHidden && rec.logosHidden != null) api.setLogosHidden(rec.logosHidden);
@@ -580,6 +586,7 @@ function App() {
     const showPlus = !!root.querySelector("[data-plus]");
     const hiddenLogos = (window.__slotAPI && window.__slotAPI.hiddenLogos) || {};
     const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
+    const labelText = (window.__slotAPI && window.__slotAPI.labelText) || {};
     let thumb = null;
     try {
       const m = root.querySelector("[data-vslot] video, [data-vslot] img");
@@ -590,7 +597,7 @@ function App() {
     const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("d_" + Date.now());
     setSaved("saving");
     try {
-      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
+      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
       await refreshDemos();
       setSaved(true); setTimeout(() => setSaved(false), 1800);
     } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
@@ -668,7 +675,7 @@ function App() {
       const showPlus = !!root.querySelector("[data-plus]");
       const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
       const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
-      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
       let pct = 55;
       setExportProg({ pct, label: "Rendering design…" });
       creep = setInterval(() => { pct = Math.min(93, pct + 1.5); setExportProg({ pct: Math.round(pct), label: pct > 72 ? "Compositing video…" : "Rendering design…" }); }, 600);
@@ -750,10 +757,10 @@ function App() {
                 </div>}
                 <div>
                   <label className={LBL}>Zoom · {Math.round(insp.mediaScale * 100)}%</label>
-                  <input type="range" min="100" max="300" value={Math.round(insp.mediaScale * 100)}
+                  <input type="range" min="50" max="300" value={Math.round(insp.mediaScale * 100)}
                     onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
                     className="w-full accent-[#6d5efc]" />
-                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Zoom in to crop out letterbox bars baked into the footage.</p>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Zoom in to crop out letterbox bars — or below 100% to shrink the video inside its frame.</p>
                 </div>
                 <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position & zoom</button>
                 <p className="text-xs text-neutral-400 leading-relaxed">Drag the video on the canvas to reposition it inside its frame.</p>
@@ -799,6 +806,15 @@ function App() {
               </div>
 
               {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-xl bg-[#6d5efc] hover:brightness-105 text-white text-sm font-medium shadow-sm shadow-[#6d5efc]/30 transition">Upload media into slot</button>}
+
+              {insp.swapKey != null && <section className="space-y-3">
+                <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Label content</div>
+                <div className="flex rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 w-max">
+                  <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: null }); deselect(); } }} className={!insp.swapOn ? SEG_ON : SEG}>Logo</button>
+                  <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { const cur = (api.labelText || {})[insp.swapKey]; api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: cur != null ? cur : "AGENT OPUS" }); deselect(); } }} className={insp.swapOn ? SEG_ON : SEG}>Text</button>
+                </div>
+                <p className="text-xs text-neutral-400 leading-relaxed">Swap the logo for editable text — then click the text to change it.</p>
+              </section>}
 
               {insp.pinPath != null && <section className="space-y-3">
                 <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Label position</div>

@@ -30,6 +30,9 @@
 
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
+    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
     const pick = (k) => {
       const i = document.createElement('input');
       i.type = 'file';
@@ -121,12 +124,14 @@
 
           <div className="absolute rounded-[20px] overflow-hidden" style={{ left: 250, top: 266.53, width: 294.15, height: 522.94 }}>
             <Slot k="slot2" className="absolute inset-0 bg-[#474747] " />
-            <div className="absolute inset-0 flex flex-col items-start p-[14px] pointer-events-none">
-              <div
+            <div className={"absolute inset-0 flex flex-col items-start p-[14px]" + (window.__EDITOR ? "" : " pointer-events-none")}>
+              <div data-swap="label2"
                 className="flex items-center justify-center p-[15px] rounded-[12px]"
                 style={badgeBg}
               >
-                <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+                {labelText.label2 == null
+                  ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
+                  : <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2}</p>}
               </div>
             </div>
           </div>

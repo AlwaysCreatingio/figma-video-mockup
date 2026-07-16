@@ -5,6 +5,9 @@
 
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
+    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
     const pick = k => {
       const i = document.createElement('input');
       i.type = 'file';
@@ -31,12 +34,12 @@
     const Card = ({ k, label }) => (
       <div className="relative h-[294.155px] w-full rounded-[20px] overflow-hidden">
         <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
-        <div className="relative p-[14px] pointer-events-none">
-          <div className="inline-flex items-center justify-center px-[15px] py-[13px] rounded-[12px]" style={badgeBg}>
-            {String(label).toLowerCase() === "agent opus"
+        <div className={"relative p-[14px]" + (window.__EDITOR ? "" : " pointer-events-none")}>
+          <div data-swap={String(label).toLowerCase() === "agent opus" ? "label-" + k : undefined} className="inline-flex items-center justify-center px-[15px] py-[13px] rounded-[12px]" style={badgeBg}>
+            {String(label).toLowerCase() === "agent opus" && labelText["label-" + k] == null
               ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[34px] object-contain" />
               : <p className="font-[Geist,sans-serif] font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap">
-                  {label}
+                  {String(label).toLowerCase() === "agent opus" ? labelText["label-" + k] : label}
                 </p>}
           </div>
         </div>

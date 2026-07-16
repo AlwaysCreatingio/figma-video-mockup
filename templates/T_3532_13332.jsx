@@ -4,7 +4,10 @@
     const { useState } = React;
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
-    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { logo1: window.__CLAUDE_LOGO, logo2: window.__CHANNELS_LOGO });
+    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
+    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { logo1: window.__CLAUDE_LOGO, logo2: window.__AGENT_OPUS_MARK });
     const [logoBgs, setLogoBgs] = useState(() => (props && props.preload && props.preload.logoBgs) || {});
     const [logoScales, setLogoScales] = useState(() => (props && props.preload && props.preload.logoScales) || { logo1: 0.7 });
     const [logoBgDefault, setLogoBgDefault] = useState({});
@@ -66,7 +69,7 @@
             : <div data-logogroup className="relative group flex gap-[20px] items-center"><LogoSlot k="logo1" className="bg-white rounded-[15.75px] size-[90px]" /><div className="relative size-[34px]"><span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-[34px] leading-none font-light">+</span></div><LogoSlot k="logo2" className="bg-white rounded-[15.75px] size-[90px]" /><button data-ctl onClick={() => setLogosHidden(true)} className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition text-[11px] font-medium px-2.5 py-1 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">Hide logos</button></div>}
           <div className="flex gap-[40px]">
             <div className="flex flex-col gap-[20px] items-center w-[241.471px]"><input value={titles.left} onChange={e => setTitles(t => ({ ...t, left: e.target.value }))} className="bg-transparent text-center uppercase text-white font-medium text-[32px] tracking-[-0.16px] w-full outline-none" style={{ lineHeight: "1" }} />{renderBox("left")}</div>
-            <div className="flex flex-col gap-[20px] items-center w-[241.471px]"><img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[34px] object-contain mx-auto" />{renderBox("right")}</div>
+            <div className="flex flex-col gap-[20px] items-center w-[241.471px]"><div data-swap="label2" className="flex items-center justify-center h-[34px] w-full">{labelText.label2 == null ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[34px] object-contain mx-auto" /> : <p className="font-medium leading-none text-[32px] text-center text-white tracking-[-0.16px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2}</p>}</div>{renderBox("right")}</div>
           </div>
           <p className="text-center font-medium text-[40px] tracking-[-0.2px]"><span className="text-white">Comment </span><span className="text-[#ff570a]">“Agent Opus”</span></p>
         </div>
