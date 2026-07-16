@@ -1404,6 +1404,7 @@ function App() {
       path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
       pinPath, pin, swapKey, swapOn, moved: !!ovs.transform,
       textValue: (text && el.tagName !== "INPUT" && el.children.length === 0) ? el.textContent : null,
+      pinBg: (pinEl && pinEl !== el) ? parseColor(getComputedStyle(pinEl).backgroundColor).hex : null,
       pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[path] || {}).styleMeta || {}).kind || ((cs.backgroundImage && cs.backgroundImage !== "none") ? "custom" : undefined)),
       styleMeta: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? ovFor(sel).__bgBlur : (ovFor(sel)[path] || {}).styleMeta || null,
       imgH: el.tagName === "IMG" ? (parseInt(ovs.height) || Math.round(parseFloat(cs.height)) || 24) : null,
@@ -1552,7 +1553,7 @@ function App() {
     const media = slot.querySelector("video, img");
     if (!media) return;
     e.preventDefault();
-    if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot"))) selectMediaSlot(slot);
+    if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot") && insp.hasMedia === !!slot.querySelector("video, img"))) selectMediaSlot(slot);
     const k = slot.getAttribute("data-vslot");
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     const d = { k, media, startX: e.clientX, startY: e.clientY, baseX: t.x || 0, baseY: t.y || 0, moved: false };
@@ -1692,6 +1693,16 @@ function App() {
     setInsp(i => ({ ...i, pattern: kind }));
   }
   // pin a [data-pin] label pill to a corner of its card (stored as style overrides → demos + exports)
+  function setStyleAt(path, prop, val) {
+    const root = containerRef.current; if (!root || path == null) return;
+    const el = nodeAt(root, path); if (!el) return;
+    pushHistory();
+    ensureBase(path, el, prop === "backgroundColor" ? [prop, "backgroundImage"] : [prop]);
+    const rec = ovFor(sel)[path] = ovFor(sel)[path] || {};
+    rec.style = rec.style || {};
+    rec.style[prop] = val; el.style[prop] = val;
+    if (prop === "backgroundColor") { rec.style.backgroundImage = "none"; el.style.backgroundImage = "none"; }
+  }
   function setPin(corner) {
     const root = containerRef.current; if (!insp || insp.pinPath == null) return;
     const el = nodeAt(root, insp.pinPath); if (!el) return;
@@ -2244,6 +2255,22 @@ function App() {
                 </div>
               </Sec>}
 
+              {insp.pinPath != null && insp.pinPath !== insp.path && <Sec open={openSec === "Label style"} onToggle={toggleSec} title="Label style">
+                <div>
+                  <label className={LBL}>Label background</label>
+                  <div className="flex items-center gap-2">
+                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.pinBg || "#000000" }}>
+                      <input type="color" value={insp.pinBg || "#000000"} onChange={e => { setStyleAt(insp.pinPath, "backgroundColor", e.target.value); setInsp({ ...insp, pinBg: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <span className="text-sm text-zinc-400 flex-1">{insp.pinBg || "Default"}</span>
+                    <button onClick={() => { setStyleAt(insp.pinPath, "backgroundColor", ""); setStyleAt(insp.pinPath, "backgroundImage", ""); setInsp({ ...insp, pinBg: null }); }} className="px-2.5 py-1 text-xs rounded-[30px] bg-white/10 text-zinc-300 hover:bg-white/15 transition">Reset</button>
+                  </div>
+                </div>
+                <div>
+                  <label className={LBL}>Label corner radius</label>
+                  <input type="number" min="0" defaultValue={8} onChange={e => setStyleAt(insp.pinPath, "borderRadius", (+e.target.value) + "px")} className={FIELD} />
+                </div>
+              </Sec>}
               {insp.pinPath != null && <Sec open={openSec === "Label position"} onToggle={toggleSec} title="Label position">
                 <div className="grid grid-cols-2 gap-2">
                   {[["tl", "↖ Top left"], ["tr", "↗ Top right"], ["bl", "↙ Bottom left"], ["br", "↘ Bottom right"]].map(([c, label]) => (
