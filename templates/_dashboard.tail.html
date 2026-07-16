@@ -359,7 +359,7 @@ const routeFromHash = () => {
   if (parts[0] === "hooks") return { sel: null, page: "hooks" };
   if (parts[0] === "tutorials") return { sel: null, page: "tutorials", filter: parts[1] ? decodeURIComponent(parts[1]) : "all" };
   if (parts[0] === "brand") return { sel: null, page: "brand" };
-  if (parts[0] === "campaigns") return { sel: null, page: "campaigns", campaign: parts[1] ? decodeURIComponent(parts[1]) : null };
+  if (parts[0] === "campaigns") return { sel: null, page: "campaigns", campaign: parts[1] ? decodeURIComponent(parts[1]) : null, campTab: parts[2] === "resources" ? "resources" : "overview" };
   return { sel: null, page: "templates", filter: SLUG_ASPECT[parts[1]] || "all" };
 };
 
@@ -937,7 +937,7 @@ function App() {
   const [demoFilter, setDemoFilter] = useState(() => (routeFromHash().page === "showcase" && routeFromHash().filter) || "all"); // demos aspect filter
   const [tutFilter, setTutFilter] = useState(() => (routeFromHash().page === "tutorials" && routeFromHash().filter) || "all"); // tutorials campaign filter
   const [openCampaign, setOpenCampaign] = useState(() => routeFromHash().campaign || null); // campaign id expanded in the modal
-  const [campTab, setCampTab] = useState("overview");
+  const [campTab, setCampTab] = useState(() => routeFromHash().campTab || "overview");
   const [saved, setSaved] = useState(false);
   const [saveCampaign, setSaveCampaign] = useState("");   // campaign tag applied on Save to Demos
   const [openSec, setOpenSec] = useState("Appearance");   // one inspector section open at a time
@@ -996,7 +996,7 @@ function App() {
       else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
       else if (parts[0] === "tutorials") { setSel(null); setPage("tutorials"); setTutFilter(parts[1] ? decodeURIComponent(parts[1]) : "all"); }
       else if (parts[0] === "brand") { setSel(null); setPage("brand"); }
-      else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); setOpenCampaign(parts[1] ? decodeURIComponent(parts[1]) : null); }
+      else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); setOpenCampaign(parts[1] ? decodeURIComponent(parts[1]) : null); setCampTab(parts[2] === "resources" ? "resources" : "overview"); }
       else { setSel(null); setPage("templates"); setTplFilter(SLUG_ASPECT[parts[1]] || "all"); }
     };
     apply();
@@ -1010,10 +1010,10 @@ function App() {
       : page === "hooks" ? "#/hooks"
       : page === "tutorials" ? "#/tutorials" + (tutFilter !== "all" ? "/" + tutFilter : "")
       : page === "brand" ? "#/brand"
-      : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign : "#/campaigns")
+      : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign + (campTab === "resources" ? "/resources" : "") : "#/campaigns")
       : "#/templates" + (tplFilter !== "all" ? "/" + ASPECT_SLUG[tplFilter] : "");
     if (location.hash !== want) location.hash = want;
-  }, [sel, page, openCampaign, tplFilter, demoFilter, tutFilter]);
+  }, [sel, page, openCampaign, tplFilter, demoFilter, tutFilter, campTab]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
   const histFor = (id) => (histRef.current[id] = histRef.current[id] || []);
   const redoFor = (id) => (redoRef.current[id] = redoRef.current[id] || []);
@@ -2225,7 +2225,7 @@ function App() {
                 {CAMPAIGNS.map(c => {
                   const count = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId)).length;
                   return (
-                    <button key={c.id} onClick={() => setOpenCampaign(c.id)} className="text-left group/card w-[340px]">
+                    <button key={c.id} onClick={() => { setOpenCampaign(c.id); setCampTab("overview"); }} className="text-left group/card w-[340px]">
                       <div className="relative h-[190px] rounded-[30px] overflow-hidden border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:-translate-y-0.5 transition-all duration-200">
                         <div className="absolute inset-0" style={{ background: c.grad }} />
                         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/20 to-transparent" />
