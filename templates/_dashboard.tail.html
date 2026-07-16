@@ -1141,7 +1141,15 @@ function App() {
   useEffect(() => { if (!sel) document.querySelectorAll("video").forEach(v => { if (!v.muted) { v.muted = true; try { v.pause(); } catch (e) {} } }); }, [sel]);
   // logo tiles register themselves here on click → show the Logo inspector (replace / size / background)
   useEffect(() => {
-    window.__selectLogo = (api) => { clearActive(); setOpenSec("Logo"); setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff", logoBorder: api.border !== undefined ? api.border : undefined, logoBorderW: api.borderW != null ? api.borderW : 2, logoRadius: api.radius }); };
+    window.__selectLogo = (api) => {
+      clearActive(); setOpenSec("Logo");
+      const tile = api.k != null && containerRef.current ? containerRef.current.querySelector('[data-lslot="' + api.k + '"]') : null;
+      if (tile) {
+        tile.style.outline = "2px solid #2563eb"; tile.style.outlineOffset = "1px";
+        activeRef.current = { el: tile, path: pathOf(tile, containerRef.current) };
+      }
+      setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff", logoBorder: api.border !== undefined ? api.border : undefined, logoBorderW: api.borderW != null ? api.borderW : 2, logoRadius: api.radius });
+    };
     return () => { delete window.__selectLogo; };
   }, []);
   // a slot can register text: __editText focuses its text layer and opens the text inspector (even when empty)
