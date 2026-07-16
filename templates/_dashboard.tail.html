@@ -1092,6 +1092,15 @@ function App() {
     if (location.hash !== want) location.hash = want;
   }, [sel, page, openCampaign, tplFilter, demoFilter, tutFilter, campTab]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
+  // opening a template from the gallery starts a clean session (in-memory edits don't leak back in)
+  const resetTemplateSession = (id) => {
+    delete overrides.current[id];
+    delete mediaXf.current[id];
+    delete histRef.current[id];
+    delete redoRef.current[id];
+    delete baseRef.current[id];
+    mediaTimeRef.current = {};
+  };
   const histFor = (id) => (histRef.current[id] = histRef.current[id] || []);
   const redoFor = (id) => (redoRef.current[id] = redoRef.current[id] || []);
   const baseFor = (id) => (baseRef.current[id] = baseRef.current[id] || {});
@@ -2662,7 +2671,7 @@ function App() {
                   const sc = uniform ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
                   const ox = (CW - t.width * sc) / 2, oy = (CH - t.height * sc) / 2;
                   return (
-                    <button key={t.id} onClick={() => { editingDemoRef.current = null; setSel(t.id); }} className="text-left group/card" style={{ width: CW }}>
+                    <button key={t.id} onClick={() => { editingDemoRef.current = null; resetTemplateSession(t.id); setSel(t.id); }} className="text-left group/card" style={{ width: CW }}>
                       <div className="relative overflow-hidden rounded-[30px] bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: CH }}>
                         <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><TplPreview t={t} d={tplDefaults[t.id]} /></div>
                         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 group-hover/card:bg-zinc-950/30 opacity-0 group-hover/card:opacity-100 transition duration-200">
