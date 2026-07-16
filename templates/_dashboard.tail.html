@@ -101,6 +101,9 @@ function textUnit(el) {
   return n;
 }
 
+// owner mode: demo management (save/delete) is only exposed when running locally
+const IS_LOCAL = typeof location !== "undefined" && (location.hostname === "localhost" || location.hostname === "127.0.0.1");
+
 /* light-theme class tokens */
 const ACCENT = "#6d5efc";
 const FIELD = "w-full bg-neutral-100 border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-800 outline-none focus:border-[#6d5efc] focus:ring-2 focus:ring-[#6d5efc]/20 transition";
@@ -211,6 +214,7 @@ function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
         </div>
         <div className="mt-2.5 text-sm font-medium truncate">{d.name}</div>
       </button>
+      {IS_LOCAL && onDelete && <button onClick={onDelete} className="mt-1 text-xs text-neutral-400 hover:text-red-500 transition">Delete</button>}
     </div>
   );
 }
@@ -229,6 +233,7 @@ function App() {
   const [insp, setInsp] = useState(null);
   const [picker, setPicker] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [exportProg, setExportProg] = useState(null);   // { pct, label } while an export runs
   const [page, setPage] = useState(() => routeFromHash().page);
   const [soundOn, setSoundOn] = useState(false);
   const [demos, setDemos] = useState([]);
@@ -570,8 +575,7 @@ function App() {
   }
 
   // local dev talks to the local export server; the deployed site uses the hosted one (window.__EXPORT_BASE)
-  const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-  const EXPORT_BASE = isLocal ? "http://localhost:5050" : ((typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050");
+  const EXPORT_BASE = IS_LOCAL ? "http://localhost:5050" : ((typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050");
   const blobFrom = (u) => fetch(u).then(r => r.blob());
   const blobToDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
   async function exportMp4() {
@@ -581,12 +585,17 @@ function App() {
     if (!slotMediaEls.length) { alert("Add a video or image to a slot first — click a slot to upload."); return; }
     deselect();
     setExporting(true);
+    const totalUploads = new Set([...slotMediaEls.map(el => el.currentSrc || el.src || el.getAttribute("src")), ...(ambientEls.length ? [ambientEls[0].currentSrc || ambientEls[0].src] : [])].filter(Boolean)).size;
+    let uploadsDone = 0, creep = null;
+    setExportProg({ pct: 4, label: "Preparing…" });
     try {
       const uploadBlob = async (url) => {
         const blob = await blobFrom(url);
         const ext = ((blob.type.split("/")[1] || "mp4").split(";")[0]);
         const up = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob });
         if (!up.ok) throw new Error("upload failed");
+        uploadsDone++;
+        setExportProg({ pct: 5 + Math.round(45 * uploadsDone / Math.max(1, totalUploads)), label: `Uploading media ${uploadsDone}/${totalUploads}` });
         return (await up.json()).id;
       };
       const idBySrc = {};
@@ -626,14 +635,23 @@ function App() {
       const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
       const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
       const spec = { templateId: t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+      let pct = 55;
+      setExportProg({ pct, label: "Rendering design…" });
+      creep = setInterval(() => { pct = Math.min(93, pct + 1.5); setExportProg({ pct: Math.round(pct), label: pct > 72 ? "Compositing video…" : "Rendering design…" }); }, 600);
       const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+      clearInterval(creep); creep = null;
       if (!res.ok) throw new Error(await res.text());
+      setExportProg({ pct: 97, label: "Downloading…" });
       const mp4 = await res.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(mp4);
       a.download = (t.name || "video").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4";
       a.click();
+      setExportProg({ pct: 100, label: "Done ✓" });
+      setTimeout(() => setExportProg(null), 1600);
     } catch (e) {
+      if (creep) clearInterval(creep);
+      setExportProg(null);
       alert("Export failed: " + (e.message || e) + "\n\nMake sure the export server is running:\n  node export-server.mjs");
     }
     setExporting(false);
@@ -648,7 +666,7 @@ function App() {
     const t = templates.find(x => x.id === sel);
     if (!t) { setSel(null); return null; }
     const SB = 320;
-    const s = Math.min(1, (window.innerHeight - 88) / t.height, (window.innerWidth - SB - 96) / t.width);
+    const s = Math.min(1, (window.innerHeight - 152) / t.height, (window.innerWidth - SB - 96) / t.width);
     editorScaleRef.current = s;
     return (
       <div className="h-screen flex text-neutral-900 bg-[#f6f6f8]">
@@ -808,17 +826,26 @@ function App() {
             </div>}
           </div>
 
-          <div className="px-5 py-4 border-t border-neutral-100 space-y-2">
+          {IS_LOCAL && <div className="px-5 py-4 border-t border-neutral-100">
             <button onClick={saveDemo}
               className="w-full text-sm px-3 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-medium transition">
               {saved === "saving" ? "Saving…" : saved ? "Saved to Demos ✓" : "Save to Demos"}</button>
-            <button onClick={exportMp4} disabled={exporting}
-              className="w-full text-sm px-3 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition disabled:opacity-60 disabled:cursor-wait">
-              {exporting ? "Rendering MP4…" : "Export MP4"}</button>
-          </div>
+          </div>}
         </aside>
 
-        <main className="flex-1 h-screen flex items-center justify-center p-12 overflow-auto relative">
+        <div className="flex-1 h-screen flex flex-col">
+        <header className="h-14 shrink-0 bg-white/85 backdrop-blur border-b border-neutral-200 flex items-center justify-end gap-3 px-4">
+          {exportProg && <div className="flex items-center gap-2 w-72">
+            <div className="flex-1 h-1.5 rounded-full bg-neutral-200 overflow-hidden">
+              <div className="h-full bg-[#6d5efc] transition-all duration-300" style={{ width: exportProg.pct + "%" }} />
+            </div>
+            <span className="text-xs text-neutral-500 whitespace-nowrap">{exportProg.label}</span>
+          </div>}
+          <button onClick={exportMp4} disabled={exporting}
+            className="text-sm px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-medium transition disabled:opacity-60 disabled:cursor-wait">
+            {exporting ? "Exporting…" : "Export MP4"}</button>
+        </header>
+        <main className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div style={{ width: t.width * s, height: t.height * s }} className="overflow-hidden rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
@@ -832,6 +859,7 @@ function App() {
               : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
           </button>
         </main>
+        </div>
 
         {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
       </div>
@@ -839,10 +867,10 @@ function App() {
   }
 
   /* ---------- gallery / showcase (with icon nav) ---------- */
-  const navBtn = (id, label, icon) => (
+  const navBtn = (id, label) => (
     <button onClick={() => setPage(id)} title={label} aria-label={label}
-      className={"inline-flex items-center gap-2 h-10 px-4 rounded-xl text-sm font-medium transition " + (page === id ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800")}>
-      {icon}<span>{label}</span>
+      className={"inline-flex items-center h-10 px-4 rounded-xl text-sm font-medium transition " + (page === id ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800")}>
+      {label}
     </button>
   );
   const iconTemplates = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>;
@@ -875,8 +903,8 @@ function App() {
   return (
     <div className="min-h-screen text-neutral-900">
       <nav className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 h-14 bg-white/85 backdrop-blur border-b border-neutral-200">
-        {navBtn("templates", "Templates", iconTemplates)}
-        {navBtn("showcase", "Demos", iconShowcase)}
+        {navBtn("templates", "Templates")}
+        {navBtn("showcase", "Demos")}
       </nav>
       <div className="max-w-6xl mx-auto px-8 py-10">
         {page === "templates" ? (
@@ -885,7 +913,7 @@ function App() {
               const sc = 200 / t.width;
               return (
                 <button key={t.id} onClick={() => setSel(t.id)} className="text-left group w-[200px]">
-                  <div className="rounded-2xl overflow-hidden bg-white ring-1 ring-neutral-200 group-hover:ring-neutral-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.07] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: 200, height: t.height * sc }}>
+                  <div className="overflow-hidden bg-white ring-1 ring-neutral-200 group-hover:ring-neutral-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.07] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: 200, height: t.height * sc }}>
                     <div className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${sc})`, transformOrigin: "top left" }}><t.Component /></div>
                   </div>
                 </button>

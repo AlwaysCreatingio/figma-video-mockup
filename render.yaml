@@ -7,3 +7,8 @@ services:
     plan: free
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      # free tier = 512 MB; Chromium at the default 2x supersample gets OOM-killed mid-export.
+      # Remove this (back to 2x, crisper text) on a Standard (2 GB) instance or better.
+      - key: EXPORT_SCALE
+        value: "1"

@@ -9,6 +9,12 @@ import { chromium } from "playwright";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = +(process.env.PORT || 5050);
+// supersample factor for the design plate (and final video). 2 = crisp text; set EXPORT_SCALE=1
+// on small hosts (e.g. Render free tier, 512 MB) where Chromium at 2x gets OOM-killed.
+const SCALE = Math.max(1, +(process.env.EXPORT_SCALE || 2));
+// keep Chromium alive inside slim containers: use disk instead of the tiny /dev/shm, and skip the
+// sandbox (containers run as root, where the sandbox refuses to start)
+const CHROME_ARGS = ["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu", "--no-zygote", "--renderer-process-limit=1"];
 const TDIR = path.join(ROOT, "templates");
 const WORK = path.join(os.tmpdir(), "figma-export");
 fs.mkdirSync(WORK, { recursive: true });
@@ -136,9 +142,9 @@ async function renderPlate(templateId, X, W, H, plateOut) {
   const file = path.join(TDIR, "T_" + templateId.replace(/-/g, "_") + ".jsx");
   const tplSrc = fs.readFileSync(file, "utf8");
   const html = buildHtml(tplSrc, X);
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: CHROME_ARGS });
   try {
-    const page = await browser.newPage({ viewport: { width: W + 40, height: H + 40 }, deviceScaleFactor: 2 });
+    const page = await browser.newPage({ viewport: { width: W + 40, height: H + 40 }, deviceScaleFactor: SCALE });
     await page.setContent(html, { waitUntil: "networkidle" });
     await page.waitForFunction(() => window.__DONE === true, { timeout: 20000 });
     const rects = await page.evaluate(() => window.__RECTS);
@@ -162,7 +168,7 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
   const finite = durs.filter(d => d > 0);
   const DUR = Math.max(0.5, Math.min(...(finite.length ? finite : [ambDur > 0 ? ambDur : 4])));
-  const S = 2;                    // plate is rendered at 2x (deviceScaleFactor) — supersample for crisp text/edges
+  const S = SCALE;                // plate is rendered at SCALE x (deviceScaleFactor) — supersample for crisp text/edges
   const OW = W * S, OH = H * S;
   // write each slot's rounded-corner alpha mask to disk
   const maskFiles = rects.map((r, i) => { const f = path.join(WORK, "mask_" + Date.now() + "_" + i + ".png"); fs.writeFileSync(f, Buffer.from(r.mask.split(",")[1], "base64")); return f; });
@@ -227,6 +233,10 @@ function cors(res) {
 }
 function readBody(req) { return new Promise((res) => { const c = []; req.on("data", d => c.push(d)); req.on("end", () => res(Buffer.concat(c))); }); }
 
+// one export at a time — Chromium + FFmpeg together already push small hosts to the memory limit
+let exportChain = Promise.resolve();
+function enqueue(fn) { const p = exportChain.then(fn, fn); exportChain = p.then(() => {}, () => {}); return p; }
+
 const server = http.createServer(async (req, res) => {
   cors(res);
   if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
@@ -243,13 +253,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
       const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, mediaXf = {} } = spec;
-      const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-      const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden }, W, H, plate);
-      const videoFiles = rects.map(r => path.join(WORK, r.videoId));
-      const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
-      const out = path.join(WORK, "out_" + Date.now() + ".mp4");
-      await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf);
-      const data = fs.readFileSync(out);
+      const data = await enqueue(async () => {
+        const plate = path.join(WORK, "plate_" + Date.now() + ".png");
+        const { rects, frameBg } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden }, W, H, plate);
+        const videoFiles = rects.map(r => path.join(WORK, r.videoId));
+        const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
+        const out = path.join(WORK, "out_" + Date.now() + ".mp4");
+        await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf);
+        return fs.readFileSync(out);
+      });
       res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
       return res.end(data);
     }
