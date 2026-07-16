@@ -1245,7 +1245,15 @@ function App() {
         el.style.outlineOffset = (a.path === "0" || a.path === "") ? "-2px" : "1px";
         if (a.text) el.contentEditable = "true";
         else if (el.tagName !== "INPUT" && !el.hasAttribute("data-vslot")) el.style.cursor = "move";
+        if (el.tagName === "IMG") el.draggable = false;
       }
+    }
+    // keep the resize grips glued to the element's live rect (style edits reflow it)
+    if (a && a.el && a.el.isConnected && mainRef.current) {
+      const mr = mainRef.current.getBoundingClientRect(), er = a.el.getBoundingClientRect();
+      const nx = er.left - mr.left + mainRef.current.scrollLeft, ny = er.top - mr.top + mainRef.current.scrollTop;
+      setHandle(h => (!h || Math.abs(h.x - nx) > 0.5 || Math.abs(h.y - ny) > 0.5 || Math.abs(h.w - er.width) > 0.5 || Math.abs(h.h - er.height) > 0.5)
+        ? { x: nx, y: ny, w: er.width, h: er.height } : h);
     }
     requestAnimationFrame(() => { applyingRef.current = false; });
   }
