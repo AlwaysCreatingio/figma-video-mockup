@@ -1830,13 +1830,13 @@ function App() {
                   ))}
                 </div>
               </div>
-              <div>
+              {(window.__slotAPI.logoCount || 3) >= 2 && <div>
                 <label className={LBL}>Plus sign between logos</label>
                 <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                   <button onClick={() => { window.__slotAPI.setPlusOn(true); force(x => x + 1); }} className={window.__slotAPI.plusOn !== false ? SEG_ON : SEG}>On</button>
                   <button onClick={() => { window.__slotAPI.setPlusOn(false); force(x => x + 1); }} className={window.__slotAPI.plusOn === false ? SEG_ON : SEG}>Off</button>
                 </div>
-              </div>
+              </div>}
             </Sec>}
 
             {insp && insp.isMedia && <div className="space-y-5">
@@ -2215,8 +2215,8 @@ function App() {
               <div className="relative mb-10 h-[240px] rounded-[30px] overflow-hidden border border-white/10 flex flex-col justify-center">
                 <div className="absolute inset-0" style={{ background: "radial-gradient(120% 160% at 85% 0%, rgba(198,235,247,.55) 0%, transparent 45%), linear-gradient(115deg, #FF7A00 0%, #E4572E 45%, #1A1A1A 92%)" }} />
                 <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px)", backgroundSize: "44px 44px" }} />
-                <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/70 via-zinc-950/30 to-transparent" />
-                <div className="relative px-8 md:px-12 max-w-2xl">
+                <div className="absolute inset-0 bg-zinc-950/45" />
+                <div className="relative px-8 md:px-12 max-w-2xl mx-auto text-center">
                   <h1 className="text-[40px] md:text-[46px] font-semibold tracking-tight text-white leading-none">Campaigns</h1>
                   <p className="mt-4 text-[16px] leading-relaxed text-zinc-200">Every active campaign with its brief, hooks, and ready-to-post demo videos. Pick one, grab the assets, and start creating.</p>
                 </div>
