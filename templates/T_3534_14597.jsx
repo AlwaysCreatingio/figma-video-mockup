@@ -38,7 +38,7 @@
 
     const Card = ({ k, text, logo }) => (
       <div className="relative shrink-0 w-[504px] h-[283.5px]">
-        <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)] " />
+        <Slot k={k} className="absolute inset-0 bg-[#9f9f9f] " />
         {Label({ k: "label-" + k, text, logo })}
       </div>
     );

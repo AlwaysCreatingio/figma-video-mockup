@@ -42,7 +42,7 @@
         {/* Ambient blurred background mirroring the uploaded footage */}
         {(() => { const __a = vids["slot1"] || vids["slot2"]; return __a ? (__a.img
           ? <div className="hidden" />
-          : <div className="hidden" />) : null; })()}
+          : <div className="hidden" />) : <div className="hidden" />; })()}
 
         {/* Centered content */}
         <div
@@ -52,7 +52,7 @@
           <div className="flex flex-col gap-[16px] items-start w-full">
             {/* Card 1 */}
             <div className="relative h-[472px] w-full">
-              <Slot k="slot1" className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
+              <Slot k="slot1" className="absolute inset-0 bg-[#9f9f9f]" />
               <div data-pin data-swap="label1"
                 className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
                 style={chipStyle}
@@ -65,7 +65,7 @@
 
             {/* Card 2 */}
             <div className="relative h-[472px] w-full">
-              <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
+              <Slot k="slot2" className="absolute inset-0 bg-[#9f9f9f]" />
               <div data-pin data-swap="label2"
                 className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
                 style={chipStyle}

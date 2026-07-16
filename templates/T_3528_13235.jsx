@@ -30,7 +30,7 @@
 
     const Card = ({ k, label }) => (
       <div className="relative h-[294.155px] w-full rounded-[20px] overflow-hidden">
-        <Slot k={k} className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
+        <Slot k={k} className="absolute inset-0 bg-[#9f9f9f]" />
         <div className={"relative p-[14px]" + (window.__EDITOR ? "" : " pointer-events-none")}>
           <div data-swap={String(label).toLowerCase() === "agent opus" ? "label-" + k : undefined} className="inline-flex items-center justify-center px-[15px] py-[13px] rounded-[12px]" style={badgeBg}>
             {String(label).toLowerCase() === "agent opus" && labelText["label-" + k] == null

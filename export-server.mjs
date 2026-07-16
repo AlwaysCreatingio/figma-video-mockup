@@ -36,7 +36,7 @@ const HEAD = `<!doctype html><html><head>
 <style>html,body{margin:0;background:transparent;}#root{display:inline-block;}*{font-family:'Geist',sans-serif;} @property --ao-a { syntax:'<angle>'; initial-value:0deg; inherits:false; } @keyframes ao-rot { to { --ao-a:360deg; } } .ao-glow::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:3px;background:conic-gradient(from var(--ao-a),transparent 50%,rgba(255,255,255,.85) 74%,#fff 82%,transparent 92%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:5;}</style>
 </head><body><div id="root"></div>`;
 
-const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize"];
+const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize","display"];
 
 let LOGOS_JS = "";
 try { LOGOS_JS = fs.readFileSync(path.join(ROOT, "_logos.js"), "utf8"); } catch {}
@@ -60,6 +60,16 @@ function finalize(){
   const base = document.getElementById("root");
   const frame = base && base.firstElementChild;
   if(!frame){ return setTimeout(finalize, 60); }
+  // records predating the always-present ambient placeholder used child indexes without it — shift them
+  { const ph = frame.firstElementChild;
+    if (ph && ph.tagName === "DIV" && ph.className === "hidden" && Object.keys(X.overrides||{}).some(k => /^0\.0(\.|$)/.test(k))) {
+      const out = {};
+      for (const k in X.overrides) {
+        if (k !== "__bgBlur" && /^0\.\d/.test(k)) { const p = k.split("."); p[1] = String(+p[1] + 1); out[p.join(".")] = X.overrides[k]; }
+        else out[k] = X.overrides[k];
+      }
+      X.overrides = out;
+    } }
   // apply text + style overrides
   for(const p in X.overrides){ const el=pathAt(base,p); if(!el)continue; const o=X.overrides[p];
     if(el.tagName==="INPUT"){ if(o.text!=null){ el.value=o.text; el.setAttribute("value",o.text); } }
@@ -207,7 +217,7 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   if (ambient) {
     const sigma = Math.max(8, Math.round((ambient.blur || 60) / 2) * S);
     const op = Math.min(1, Math.max(0, ambient.opacity != null ? ambient.opacity : 0.3));
-    fc.push(`[${ambIdx}:v]scale=${OW}:${OH}:force_original_aspect_ratio=increase,crop=${OW}:${OH},gblur=sigma=${sigma},format=yuva420p,colorchannelmixer=aa=${op.toFixed(2)}[amb]`);
+    fc.push(`[${ambIdx}:v]setpts=PTS-STARTPTS,scale=${OW}:${OH}:force_original_aspect_ratio=increase,crop=${OW}:${OH},gblur=sigma=${sigma},format=yuva420p,colorchannelmixer=aa=${op.toFixed(2)}[amb]`);
     fc.push(`[base][amb]overlay=0:0:eof_action=repeat[bg0]`);
     last = "bg0";
   }
@@ -226,11 +236,11 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
       const sw = Math.max(2, Math.round(bw * zs / 2) * 2), sh = Math.max(2, Math.round(bh * zs / 2) * 2);
       const px = Math.min(Math.max(Math.round((w - sw) / 2 + ox), 0), w - sw);
       const py = Math.min(Math.max(Math.round((h - sh) / 2 + oy), 0), h - sh);
-      fc.push(`[${i}:v]scale=${sw}:${sh}:force_original_aspect_ratio=increase,crop=${sw}:${sh},pad=${w}:${h}:${px}:${py}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${sw}:${sh}:force_original_aspect_ratio=increase,crop=${sw}:${sh},pad=${w}:${h}:${px}:${py}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else if (t && t.fit === "fit") {
       // whole video visible: scale down to fit, pan within the letterbox, pad with the slot bg
       const sw = Math.round(w * zs / 2) * 2, sh = Math.round(h * zs / 2) * 2;
-      fc.push(`[${i}:v]scale=${sw}:${sh}:force_original_aspect_ratio=decrease,` +
+      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${sw}:${sh}:force_original_aspect_ratio=decrease,` +
         `crop=w='min(iw,${w})':h='min(ih,${h})':x='clip((iw-out_w)/2-(${ox}),0,iw-out_w)':y='clip((ih-out_h)/2-(${oy}),0,ih-out_h)',` +
         `pad=${w}:${h}:x='clip((out_w-in_w)/2+(${ox}),0,out_w-in_w)':y='clip((out_h-in_h)/2+(${oy}),0,out_h-in_h)':color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else if (t && t.fit === "contain") {
@@ -238,9 +248,9 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
       const pd = Math.round((t.pad != null ? t.pad : 14) * S);
       const iw = Math.max(2, Math.round((w - 2 * pd) / 2) * 2), ih = Math.max(2, Math.round((h - 2 * pd) / 2) * 2);
       const ziw = Math.round(iw * zs / 2) * 2, zih = Math.round(ih * zs / 2) * 2;
-      fc.push(`[${i}:v]scale=${ziw}:${zih}:force_original_aspect_ratio=increase,crop=${iw}:${ih}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',pad=${w}:${h}:${(w - iw) / 2}:${(h - ih) / 2}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${ziw}:${zih}:force_original_aspect_ratio=increase,crop=${iw}:${ih}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',pad=${w}:${h}:${(w - iw) / 2}:${(h - ih) / 2}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else {
-      fc.push(`[${i}:v]scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
+      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
     }
     fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
     fc.push(`[vc${i}][mk${i}]alphamerge[vr${i}]`);
@@ -253,10 +263,13 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   // two or more get mixed, one maps straight through, zero exports silent
   const audioFlags = await Promise.all(videoFiles.map(hasAudio));
   const audible = rects.map((r, i) => (audioFlags[i] && !((mediaXf || {})[r.slot] || {}).mute) ? i : -1).filter(i => i >= 0);
-  if (audible.length > 1) fc.push(audible.map(i => `[${i}:a]`).join("") + `amix=inputs=${audible.length}:duration=longest[aout]`);
+  if (audible.length) {
+    audible.forEach(i => fc.push(`[${i}:a]asetpts=PTS-STARTPTS[a${i}]`));
+    if (audible.length > 1) fc.push(audible.map(i => `[a${i}]`).join("") + `amix=inputs=${audible.length}:duration=longest[aout]`);
+  }
   args.push("-filter_complex", fc.join(";"), "-map", "[out]");
   if (audible.length > 1) args.push("-map", "[aout]", "-c:a", "aac", "-b:a", "160k");
-  else if (audible.length === 1) args.push("-map", `${audible[0]}:a`, "-c:a", "aac", "-b:a", "160k");
+  else if (audible.length === 1) args.push("-map", `[a${audible[0]}]`, "-c:a", "aac", "-b:a", "160k");
   args.push("-t", DUR.toFixed(2), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
     "-pix_fmt", "yuv420p", "-r", "30", "-movflags", "+faststart");
   if (!audible.length) args.push("-an");
