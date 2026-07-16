@@ -245,6 +245,20 @@ function useDemoOverrides(ref, rec) {
         else if (o.text != null) el.textContent = o.text;
         if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
       }
+      if (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on) {
+        const frame = base.firstElementChild;
+        const media = base.querySelector("[data-vslot] video, [data-vslot] img");
+        if (frame && media && !frame.querySelector(":scope > [data-ambient]")) {
+          const amb = document.createElement(media.tagName === "IMG" ? "img" : "video");
+          amb.setAttribute("data-ambient", "1");
+          amb.className = "absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none";
+          amb.style.zIndex = "-1";
+          if (amb.tagName === "VIDEO") { amb.muted = true; amb.loop = true; amb.autoplay = true; amb.playsInline = true; }
+          amb.setAttribute("src", media.currentSrc || media.src || media.getAttribute("src"));
+          frame.appendChild(amb);
+          if (amb.play) { const q = amb.play(); if (q && q.catch) q.catch(() => {}); }
+        }
+      }
       for (const k in (rec.mediaXf || {})) {
         const m = base.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
         if (m) {
@@ -336,6 +350,7 @@ const routeFromHash = () => {
 const CAMPAIGNS = [
   {
     id: "song-to-video",
+    thumb: "/brand/gradient-1.png",
     title: "Song-to-Video",
     brief: "Turn tracks into finished music videos, visualizers, and canvas loops. Target: artists, producers, and labels who release music with static covers. Positioning: every song deserves a video — one prompt gets you there before the track ends.",
     examples: [
@@ -347,6 +362,7 @@ const CAMPAIGNS = [
   },
   {
     id: "mcp",
+    thumb: "/brand/gradient-2.png",
     title: "Agent Opus MCP",
     brief: "AI video creation inside Claude via MCP — bulk-create ads, build content calendars, and run viral accounts from a single chat. Target: AI builders, agent tinkerers, and operators automating content pipelines.",
     examples: [
@@ -358,6 +374,7 @@ const CAMPAIGNS = [
   },
   {
     id: "product-ads",
+    thumb: "/brand/gradient-3.png",
     title: "Product Ads",
     brief: "UGC-style product ads you actually run on Meta — hooks, variations, and full creatives from a product link. Target: DTC founders, media buyers, and performance marketers burning budget on slow creative pipelines.",
     examples: [
@@ -369,6 +386,7 @@ const CAMPAIGNS = [
   },
   {
     id: "channels",
+    thumb: "/brand/gradient-4.png",
     title: "Monetizable Channels",
     brief: "Faceless theme accounts that earn — long form and short form, generated on a schedule. Target: creators and side-hustlers building theme pages without an editing team.",
     examples: [
@@ -380,6 +398,7 @@ const CAMPAIGNS = [
   },
   {
     id: "explainers",
+    thumb: "/brand/identity.png",
     title: "Explainers",
     brief: "Prompt-to-explainer videos — turn any topic, doc, or idea into a clear, animated explainer. Target: educators, marketers, and founders who need concepts explained visually without a motion designer.",
     examples: [
@@ -867,6 +886,7 @@ function App() {
   const [tplFilter, setTplFilter] = useState("all");  // template gallery aspect filter
   const [tplQuery, setTplQuery] = useState("");       // template gallery search
   const [demoFilter, setDemoFilter] = useState("all"); // demos aspect filter
+  const [openCampaign, setOpenCampaign] = useState(null); // campaign id expanded in the modal
   const [saved, setSaved] = useState(false);
   const [saveCampaign, setSaveCampaign] = useState("");   // campaign tag applied on Save to Demos
   const refreshDemos = async () => { const list = await demoStore.list(); setDemos(list); const m = {}; list.forEach(r => m[r.id] = r); setDemoRecs(m); };
@@ -1500,7 +1520,9 @@ function App() {
       const videoSlots = slots.map(k => ({ slot: k, videoId: idBySrc[rec.vids[k].url] }));
       if (!videoSlots.length) { alert("This demo has no media to render."); return; }
       const logos = Object.entries(rec.logos || {}).map(([slot, v]) => ({ slot, uri: v.uri, fit: (window.__FILL_LOGOS || []).indexOf(v.uri) >= 0 ? "cover" : "contain", bg: v.bg, scale: v.scale }));
-      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient: null, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
+      const ambient = (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on && videoSlots.length)
+        ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
+      const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
       const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
       if (!res.ok) throw new Error(await res.text());
       await demoStore.attachMp4(id, await res.blob());
@@ -1964,9 +1986,9 @@ function App() {
           <span className="whitespace-nowrap">Agent Opus</span>
         </div>
         <nav className="p-3 pt-1 flex flex-col gap-1">
+          {sideBtn("campaigns", "Campaigns", iconCampaigns)}
           {sideBtn("templates", "Templates", iconTemplates)}
           {sideBtn("showcase", "Demos", iconShowcase)}
-          {sideBtn("campaigns", "Campaigns", iconCampaigns)}
           {sideBtn("hooks", "Hooks", iconHooks)}
           {sideBtn("brand", "Brand Guidelines", iconBrand)}
         </nav>
@@ -1976,33 +1998,64 @@ function App() {
       <main className="flex-1 min-w-0">
         <div className="max-w-6xl mx-auto px-8 py-10">
           {page === "campaigns" ? (
-            <div className="space-y-14">
-              {CAMPAIGNS.map(c => {
+            <div>
+              <div className="flex flex-wrap gap-6">
+                {CAMPAIGNS.map(c => {
+                  const count = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId)).length;
+                  return (
+                    <button key={c.id} onClick={() => setOpenCampaign(c.id)} className="text-left group/card w-[340px]">
+                      <div className="relative h-[190px] rounded-[30px] overflow-hidden border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:-translate-y-0.5 transition-all duration-200">
+                        <img src={c.thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/20 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-5">
+                          <div className="text-[19px] font-semibold tracking-tight text-white">{c.title}</div>
+                          <div className="mt-0.5 text-xs font-medium text-zinc-300">{count ? count + " demo" + (count > 1 ? "s" : "") : "No demos yet"}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {(() => {
+                const c = CAMPAIGNS.find(x => x.id === openCampaign);
+                if (!c) return null;
                 const tagged = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId));
                 return (
-                  <section key={c.id}>
-                    <h2 className="text-[22px] font-semibold tracking-tight text-white">{c.title}</h2>
-                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-400">{c.brief}</p>
-                    <div className="hscroll mt-4 flex gap-4 overflow-x-auto snap-x pb-6 pt-1 -mx-2 px-2">
-                      {c.examples.map(h => (
-                        <button key={h} onClick={() => navigator.clipboard.writeText(h).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
-                          className="snap-start shrink-0 w-[300px] text-left p-4 rounded-[30px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition">
-                          <span className="text-[14px] text-zinc-300 leading-relaxed">{h}</span>
-                        </button>
-                      ))}
-                    </div>
-                    {tagged.length
-                      ? <div className="mt-2 flex flex-wrap gap-6">
-                          {tagged.map(d => {
-                            const t = templates.find(x => x.id === d.templateId);
-                            const rec = demoRecs[d.id];
-                            return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
-                          })}
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={() => setOpenCampaign(null)}>
+                    <div className="relative w-[min(980px,94vw)] max-h-[86vh] overflow-y-auto rounded-[30px] bg-[#1f1f1f] border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+                      <div className="relative h-[180px]">
+                        <img src={c.thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#1f1f1f] via-zinc-950/30 to-transparent" />
+                        <button onClick={() => setOpenCampaign(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-zinc-200 hover:bg-black/70 transition">✕</button>
+                        <div className="absolute bottom-4 left-7 text-[26px] font-semibold tracking-tight text-white">{c.title}</div>
+                      </div>
+                      <div className="px-7 pb-8">
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-4 mb-2">Brief</div>
+                        <p className="max-w-3xl text-sm leading-relaxed text-zinc-300">{c.brief}</p>
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-2">Example hooks</div>
+                        <div className="hscroll flex gap-4 overflow-x-auto snap-x pb-4 pt-1 -mx-2 px-2">
+                          {c.examples.map(h => (
+                            <button key={h} onClick={() => navigator.clipboard.writeText(h).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
+                              className="snap-start shrink-0 w-[300px] text-left p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition">
+                              <span className="text-[14px] text-zinc-300 leading-relaxed">{h}</span>
+                            </button>
+                          ))}
                         </div>
-                      : <div className="mt-2 flex min-h-[120px] items-center justify-center rounded-[30px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No demos tagged yet — tag one from the Demos page ⋯ menu.</div>}
-                  </section>
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">Demos</div>
+                        {tagged.length
+                          ? <div className="flex flex-wrap gap-6">
+                              {tagged.map(d => {
+                                const t = templates.find(x => x.id === d.templateId);
+                                const rec = demoRecs[d.id];
+                                return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
+                              })}
+                            </div>
+                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No demos tagged yet — tag one from the Demos page ⋯ menu.</div>}
+                      </div>
+                    </div>
+                  </div>
                 );
-              })}
+              })()}
             </div>
           ) : page === "hooks" ? (
             <HooksPage />
