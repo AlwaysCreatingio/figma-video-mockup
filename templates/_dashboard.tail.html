@@ -1180,7 +1180,11 @@ function App() {
     const bx = (er0.left - cont.left) / sc0, by = (er0.top - cont.top) / sc0;   // element top-left in design px
     let started = !!fromHandle, pushed = false;
     const begin = () => {
-      if (!pushed) { pushed = true; pushHistory(true); ensureBase(rec0.path, el, ["transform"]); setInsp(i => (i ? { ...i, moved: true } : i)); }
+      if (!pushed) {
+        pushed = true;
+        if (rec0.text && el.isContentEditable) { el.contentEditable = "false"; if (window.getSelection) window.getSelection().removeAllRanges(); }
+        pushHistory(true); ensureBase(rec0.path, el, ["transform"]); setInsp(i => (i ? { ...i, moved: true } : i));
+      }
     };
     if (fromHandle) begin();
     const move = (ev) => {
@@ -1203,6 +1207,7 @@ function App() {
     };
     const up = () => {
       setGuides(null);
+      if (started && rec0.text) el.contentEditable = "true";
       if (started && !fromHandle) { suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150); }
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -1219,7 +1224,7 @@ function App() {
     if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = "true"; el.focus(); }
     el.style.outline = "2px solid #2563eb";
     el.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
-    if (!text && el.tagName !== "INPUT") el.style.cursor = "move";
+    if (el.tagName !== "INPUT") el.style.cursor = "move";
     activeRef.current = { el, path, text };
     if (mainRef.current) {
       const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
@@ -1338,7 +1343,7 @@ function App() {
     if (!slot || !containerRef.current.contains(slot)) {
       // not on media: direct-drag the selected element from anywhere on it (text keeps the ✥ handle)
       const a = activeRef.current;
-      if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isText && insp.path !== "" && insp.path !== "0" &&
+      if (a && a.el && insp && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
           (e.target === a.el || a.el.contains(e.target))) startMoveDrag(e, false);
       return;
     }
