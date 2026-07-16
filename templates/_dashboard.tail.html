@@ -192,7 +192,34 @@ const demoStore = {
 
 /* a demo gallery card: renders the real template with its saved media/logos, then applies the saved
    text/style overrides so the thumbnail matches exactly what was saved (not the template defaults). */
-function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
+/* fullscreen preview: plays the rendered MP4 (or shows the saved thumb) with a download action */
+function DemoPreview({ d, rec, onClose, onOpen }) {
+  const mp4 = rec && rec.mp4;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-[min(920px,94vw)] w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-100">
+          <div className="text-sm font-semibold truncate pr-4">{d.name}</div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 transition">✕</button>
+        </div>
+        <div className="bg-zinc-950 flex items-center justify-center">
+          {mp4
+            ? <video src={mp4} controls autoPlay loop playsInline className="max-h-[70vh] w-auto max-w-full" />
+            : (d.thumb
+              ? <img src={d.thumb} className="max-h-[70vh] w-auto max-w-full" />
+              : <div className="py-24 text-sm text-zinc-500">No rendered video yet — open it in the editor to export one.</div>)}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3.5">
+          <button onClick={onOpen} className="px-3.5 py-2 rounded-lg text-sm font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition">Open in editor</button>
+          {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"}
+            className="px-3.5 py-2 rounded-lg text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 transition">Download MP4</a>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoCard({ t, d, rec, pre, onOpen, onPreview, onDelete }) {
   const ref = useRef(null);
   const [menu, setMenu] = useState(false);
   const sc = 200 / t.width;
@@ -233,7 +260,7 @@ function DemoCard({ t, d, rec, pre, onOpen, onDelete }) {
   }, [rec]);
   return (
     <div className="text-left group w-[200px] relative">
-      <button onClick={mp4 ? undefined : onOpen} className="block w-full text-left" style={mp4 ? { cursor: "default" } : null}>
+      <button onClick={onPreview} className="block w-full text-left">
         <div className="rounded-2xl overflow-hidden bg-neutral-900 ring-1 ring-neutral-200 group-hover:ring-neutral-300 shadow-sm group-hover:shadow-xl group-hover:shadow-black/[.07] group-hover:-translate-y-0.5 transition-all duration-200 relative" style={{ width: 200, height: t.height * sc }}>
           {mp4
             ? <video src={mp4} autoPlay loop muted playsInline className="w-full h-full object-cover" />
@@ -265,6 +292,7 @@ const routeFromHash = () => {
   if (parts[0] === "demos") return { sel: null, page: "demos" };
   if (parts[0] === "projects") return { sel: null, page: "showcase" };
   if (parts[0] === "hooks") return { sel: null, page: "hooks" };
+  if (parts[0] === "brand") return { sel: null, page: "brand" };
   return { sel: null, page: "templates" };
 };
 
@@ -328,32 +356,303 @@ const HOOKS = [
   },
 ];
 
-function HooksPage() {
+function HookRow({ sec }) {
+  const rowRef = useRef(null);
   const [copied, setCopied] = useState(null);
   const copy = (text) => {
     navigator.clipboard.writeText(text).then(() => { setCopied(text); setTimeout(() => setCopied(c => c === text ? null : c), 1200); });
   };
+  const nudge = (dir) => { const el = rowRef.current; if (el) el.scrollBy({ left: dir * (el.clientWidth - 120), behavior: "smooth" }); };
   return (
-    <div className="max-w-3xl mx-auto space-y-10">
+    <section>
+      <div className="flex items-end justify-between mb-3">
+        <div>
+          <h2 className="text-[15px] font-semibold">{sec.title}</h2>
+          <p className="text-xs text-neutral-400 mt-0.5">{sec.sub}</p>
+        </div>
+        <div className="flex gap-1.5">
+          <button onClick={() => nudge(-1)} aria-label="Scroll left" className="w-8 h-8 flex items-center justify-center rounded-lg bg-white ring-1 ring-zinc-200 text-zinc-500 hover:text-zinc-900 hover:ring-zinc-400 transition">←</button>
+          <button onClick={() => nudge(1)} aria-label="Scroll right" className="w-8 h-8 flex items-center justify-center rounded-lg bg-white ring-1 ring-zinc-200 text-zinc-500 hover:text-zinc-900 hover:ring-zinc-400 transition">→</button>
+        </div>
+      </div>
+      <div ref={rowRef} className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1" style={{ scrollbarWidth: "thin" }}>
+        {sec.hooks.map(h => (
+          <button key={h} onClick={() => copy(h)}
+            className="snap-start shrink-0 w-[300px] text-left p-4 rounded-xl bg-white ring-1 ring-zinc-200 hover:ring-zinc-400 hover:shadow-sm transition flex flex-col gap-3 group">
+            <span className="flex-1 text-sm text-zinc-800 leading-relaxed">{h}</span>
+            <span className={"text-xs transition " + (copied === h ? "text-zinc-900 font-medium" : "text-zinc-300 group-hover:text-zinc-400")}>{copied === h ? "Copied ✓" : "Click to copy"}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+function HooksPage() {
+  return (
+    <div className="max-w-5xl mx-auto space-y-10">
       <div className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Hooks</h1>
         <p className="mt-1 text-sm text-neutral-500">Positioning lines per use case — click any hook to copy it.</p>
       </div>
-      {HOOKS.map(sec => (
-        <section key={sec.title}>
-          <h2 className="text-[15px] font-semibold">{sec.title}</h2>
-          <p className="text-xs text-neutral-400 mt-0.5 mb-3">{sec.sub}</p>
-          <div className="space-y-1.5">
-            {sec.hooks.map(h => (
-              <button key={h} onClick={() => copy(h)}
-                className="w-full text-left px-4 py-2.5 rounded-xl bg-white ring-1 ring-neutral-200 hover:ring-zinc-400 hover:shadow-sm text-sm text-neutral-800 leading-relaxed transition flex items-start gap-3 group">
-                <span className="flex-1">{h}</span>
-                <span className={"shrink-0 text-xs mt-0.5 transition " + (copied === h ? "text-zinc-900 font-medium" : "text-neutral-300 group-hover:text-neutral-400")}>{copied === h ? "Copied ✓" : "Copy"}</span>
+      {HOOKS.map(sec => <HookRow key={sec.title} sec={sec} />)}
+    </div>
+  );
+}
+
+/* ---------- brand guidelines (from the Agent Opus Figma brand file) ---------- */
+function BrandPage() {
+  const RS = { fontFamily: "'Rethink Sans',sans-serif" };
+  const CREAM = "#f9f5f2";
+  const MUT = { color: "#575757" };
+  const SectionTitle = ({ n, children }) => (
+    <h2 className="text-[44px] font-medium tracking-[-0.6px] leading-[1.1] whitespace-pre" style={RS}>
+      <span className="text-[#f45f00]">{n}</span>{"  " + children}
+    </h2>
+  );
+  const H3 = ({ children }) => <h3 className="text-[22px] font-semibold tracking-[-0.22px]" style={RS}>{children}</h3>;
+  const NAV = [["identity", "Identity", "01"], ["logo", "Logo", "02"], ["color", "Color", "03"], ["type", "Typography", "04"], ["art", "Art Direction", "05"]];
+  const go = (id) => { const el = document.getElementById("brand-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const wrongs = [
+    ["wrong-1", "Do not resize the mark"], ["wrong-2", "Do not rotate the logo"], ["wrong-3", "Do not change the color of the mark alone"],
+    ["wrong-4", "Do not outline the logo"], ["wrong-5", "Do not reverse the lockup"], ["wrong-6", "Do not add gradients to the logo"],
+  ];
+  const swatches = [["Orange", "#FA9819", "#fa9819", false], ["Blue Tint", "#B6C9CF", "#b6c9cf", false], ["White", "#FFFFFF", "#ffffff", true], ["Baby Blue", "#C6EBF7", "#c6ebf7", false]];
+  return (
+    <div className="max-w-6xl mx-auto flex items-start gap-0 bg-white ring-1 ring-zinc-200 rounded-xl overflow-hidden" style={RS}>
+      {/* sidebar */}
+      <nav className="hidden md:flex w-[220px] shrink-0 sticky top-20 flex-col gap-6 py-8">
+        <div className="px-7 pb-6 border-b border-black/10">
+          <img src="/brand/ao-black.svg" alt="Agent Opus" className="h-[18px] object-contain" />
+        </div>
+        <ol className="flex flex-col gap-2.5 px-7 pb-6 border-b border-black/10">
+          {NAV.map(([id, label, n]) => (
+            <li key={id}>
+              <button onClick={() => go(id)} className="flex items-start gap-0.5 text-left hover:opacity-60 transition">
+                <span className="text-[15px] font-medium tracking-[-0.3px] text-black leading-[1.2]">{label}</span>
+                <span className="text-[10px] font-medium text-[#575757] leading-[1.2]">{n}</span>
               </button>
+            </li>
+          ))}
+        </ol>
+        <div className="px-7 text-[15px] font-medium tracking-[-0.3px]" style={MUT}>Brand Kit</div>
+      </nav>
+
+      <div className="flex-1 min-w-0 border-l border-black/10">
+        {/* hero */}
+        <div className="h-[340px] flex items-center justify-center" style={{ background: CREAM }}>
+          <img src="/brand/ao-black.svg" alt="Agent Opus" className="h-[64px] w-auto object-contain" />
+        </div>
+
+        {/* intro */}
+        <section className="px-8 pt-8 pb-24">
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            <h1 className="text-[44px] md:text-[52px] font-medium tracking-[-0.6px] leading-[1.1] md:w-[380px] shrink-0">Brand Guidelines</h1>
+            <div className="text-[15px] leading-[1.4] tracking-[-0.15px] font-medium space-y-4" style={MUT}>
+              <p>At its core, OpusClip is about authenticity and momentum—just like our mission to transform content into quality videos, effortlessly. This guide lays out the essential design standards that bring our brand to life, from our color system and typography to accessibility benchmarks and documentation.</p>
+              <p>From logo to visual language, icons to illustrations, this guideline helps you shape a clear and consistent brand experience.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* 01 identity */}
+        <section id="brand-identity" className="border-t border-black/10 px-8 pt-8 pb-24 space-y-8 scroll-mt-20">
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="md:flex-1"><SectionTitle n="01">Identity</SectionTitle></div>
+            <p className="md:flex-1 text-[15px] leading-[1.4] tracking-[-0.15px] font-medium" style={MUT}>{"OpusClip's voice brings our brand to life through everything we create and communicate. We speak with clarity and confidence—direct enough to cut through noise, warm enough to feel human. Because we believe powerful video shouldn't require expertise, our language strips away complexity and makes the path forward obvious. Authentic, ambitious, and always in motion."}</p>
+          </div>
+          <img src="/brand/identity.png" alt="precise, trustworthy, approachable, reliable" className="w-full rounded-sm" />
+          <div className="flex flex-col md:flex-row gap-8 items-start pt-4">
+            <div className="md:flex-1"><H3>Tone &amp; Voice</H3></div>
+            <div className="md:flex-1 space-y-8 text-[15px] tracking-[-0.15px]">
+              {[["Our Vision: why we exist", "A future where anyone can turn an idea into a great video—instantly."],
+                ["Our Mission: what we do", "Transform content into quality videos, effortlessly."],
+                ["Our Promise: how we help", "Give creators speed and momentum without sacrificing authenticity."]].map(([h, b]) => (
+                <div key={h}>
+                  <p className="font-bold text-black leading-[1.2]">{h}</p>
+                  <p className="font-medium leading-[1.2] mt-1" style={MUT}>{b}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 02 logo */}
+        <section id="brand-logo" className="border-t border-black/10 px-8 pt-8 pb-24 space-y-10 scroll-mt-20">
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="md:flex-1"><SectionTitle n="02">Logo</SectionTitle></div>
+            <p className="md:flex-1 text-[15px] leading-[1.4] tracking-[-0.15px] font-medium" style={MUT}>We feature both OpusClip and Agent Opus.</p>
+          </div>
+          <div className="space-y-2.5">
+            <H3>Primary Lockup</H3>
+            <div className="flex gap-2.5">
+              <div className="flex-1 h-[220px] bg-[#211e1d] flex items-center justify-center"><img src="/brand/ao-white.svg" alt="Agent Opus white" className="h-[38px] object-contain" /></div>
+              <div className="flex-1 h-[220px] flex items-center justify-center" style={{ background: CREAM }}><img src="/brand/ao-black.svg" alt="Agent Opus black" className="h-[38px] object-contain" /></div>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            <H3>Clearspace</H3>
+            <div className="h-[300px] flex items-center justify-center" style={{ background: CREAM }}>
+              <img src="/brand/ao-wordmark.svg" alt="Agent Opus clearspace" className="h-[64px] object-contain" />
+            </div>
+            <p className="text-[13px] font-medium tracking-[-0.13px]" style={MUT}>Keep at least 1/4X of clearspace (X = mark height) on all sides of the lockup.</p>
+          </div>
+          <div className="flex flex-col md:flex-row gap-2.5">
+            <div className="flex-[2] space-y-2.5">
+              <H3>Icons</H3>
+              <div className="flex gap-2.5">
+                <div className="flex-1 h-[240px] bg-[#1b1b1b] flex items-center justify-center"><img src="/brand/mark-w.svg" alt="mark white" className="size-[110px] object-contain" /></div>
+                <div className="flex-1 h-[240px] flex items-center justify-center" style={{ background: CREAM }}><img src="/brand/mark-b.svg" alt="mark black" className="size-[80px] object-contain" /></div>
+              </div>
+            </div>
+            <div className="flex-1 space-y-2.5">
+              <H3>Favicon [Limited Use]</H3>
+              <div className="h-[240px] flex items-center justify-center" style={{ background: CREAM }}><img src="/brand/favicon.svg" alt="favicon" className="size-[96px] object-contain" /></div>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            <H3>Secondary Lockups</H3>
+            <div className="flex gap-2.5">
+              <div className="flex-1 h-[340px] bg-black flex items-center justify-center"><img src="/brand/oc-white-vertical.svg" alt="OpusClip white" className="h-[140px] object-contain" /></div>
+              <div className="flex-1 h-[340px] flex items-center justify-center" style={{ background: CREAM }}><img src="/brand/oc-black-vertical.svg" alt="OpusClip black" className="h-[140px] object-contain" /></div>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <H3>Incorrect Usage</H3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-7">
+              {wrongs.map(([img, label]) => (
+                <div key={img} className="space-y-2.5">
+                  <img src={"/brand/" + img + ".png"} alt={label} className="w-full aspect-[464/240] object-cover" />
+                  <div className="flex items-center gap-1.5">
+                    <img src="/brand/icon-x.svg" alt="" className="size-4" />
+                    <p className="text-[13px] font-medium tracking-[-0.13px] text-black leading-[1.2]">{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            <div className="flex items-start justify-between gap-6">
+              <H3>Partnerships</H3>
+              <p className="text-[15px] font-medium tracking-[-0.15px]" style={MUT}>Important to keep the optical weight balance.</p>
+            </div>
+            <div className="h-[280px] flex items-center justify-center gap-10" style={{ background: CREAM }}>
+              <img src="/brand/ao-black.svg" alt="Agent Opus" className="h-[34px] object-contain" />
+              <img src="/brand/divider.svg" alt="" className="h-[38px] object-contain" />
+              <img src="/brand/partner-logo.png" alt="Partner" className="h-[26px] object-contain" />
+            </div>
+          </div>
+        </section>
+
+        {/* 03 color */}
+        <section id="brand-color" className="border-t border-black/10 px-8 pt-8 pb-24 space-y-10 scroll-mt-20">
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="md:flex-1"><SectionTitle n="03">Color</SectionTitle></div>
+            <div className="md:flex-1 text-[15px] leading-[1.4] tracking-[-0.15px] font-medium space-y-4" style={MUT}>
+              <p>The Agent Opus palette pairs warm cream and deep black with an energetic orange, balanced by soft blue tints — evoking momentum, clarity, and authenticity.</p>
+              <p>Together, these colors create a strong, dependable, and forward-moving identity across every touchpoint.</p>
+            </div>
+          </div>
+          <div className="space-y-8">
+            <H3>Primary Palette</H3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {swatches.map(([name, hex, bg, border]) => (
+                <div key={name} className="space-y-2.5">
+                  <div className={"h-[230px] rounded-full" + (border ? " border border-black" : "")} style={{ background: bg }} />
+                  <p className="text-[13px] font-medium tracking-[-0.13px] leading-[1.2]">{name}<br />Hex: {hex}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-5">
+            <H3>Gradient Palette</H3>
+            <div className="grid grid-cols-2 gap-8">
+              {[1, 2, 3, 4].map(n => (
+                <div key={n} className="space-y-2.5">
+                  <img src={"/brand/gradient-" + n + ".png"} alt={"Gradient " + n} className="w-full aspect-[435/292] object-cover" />
+                  <p className="text-[13px] font-medium tracking-[-0.13px]">Gradient {n}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 04 typography */}
+        <section id="brand-type" className="border-t border-black/10 px-8 pt-8 pb-24 space-y-10 scroll-mt-20">
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="md:flex-1"><SectionTitle n="04">Typography</SectionTitle></div>
+            <p className="md:flex-1 text-[15px] leading-[1.4] tracking-[-0.15px] font-medium" style={MUT}>Our typography balances clarity and personality with a modern type pairing — versatile sans for everything, expressive serif for the rare highlight.</p>
+          </div>
+          <div className="flex flex-col md:flex-row gap-10">
+            <div className="flex-1 space-y-5">
+              <p className="text-[15px] font-medium tracking-[-0.15px]" style={MUT}>Primary Sans-Serif</p>
+              <div className="h-[240px] flex items-center justify-center" style={{ background: CREAM }}>
+                <p className="text-[84px] tracking-[-1px] text-black" style={{ fontFamily: "Geist,sans-serif" }}>Geist</p>
+              </div>
+              <p className="text-[15px] font-medium leading-[1.4] tracking-[-0.15px]" style={MUT}>
+                Geist is a versatile typeface with multiple weights, suitable for a wide range of uses.<br /><br />
+                <span className="text-[#419517]">Use</span> Geist as the primary brand typeface across all applications — from interfaces to marketing, headers to body text.
+              </p>
+            </div>
+            <div className="flex-1 space-y-5">
+              <p className="text-[15px] font-medium tracking-[-0.15px]" style={MUT}>Secondary Serif</p>
+              <div className="h-[240px] flex items-center justify-center" style={{ background: CREAM }}>
+                <p className="text-[44px] leading-[1.1] italic text-black text-center" style={{ fontFamily: "'DM Serif Display',serif" }}>DM Serif<br />Display Italic</p>
+              </div>
+              <p className="text-[15px] font-medium leading-[1.4] tracking-[-0.15px]" style={MUT}>
+                DM Serif Display Italic is a high-contrast typeface designed for large sizes.<br /><br />
+                <span className="text-[#419517]">Use</span> it sparingly to highlight one or two words.<br /><br />
+                <span className="text-[#f63535]">Do not use</span> it in paragraphs, buttons, or CTAs. Limit it to titles and display settings.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            <H3>Type Example</H3>
+            <img src="/brand/type-example.png" alt="Type example" className="w-full aspect-[464/240] object-cover" />
+          </div>
+          <div>
+            <H3>Sizing</H3>
+            <div className="mt-4 divide-y divide-black/10">
+              {[["Turn any idea into video.", 48, "Type Sizes > 72pt/px", "100% Leading", "-2% Tracking"],
+                ["One prompt becomes a finished video — hooks, captions, and cuts included.", 30, "Type Sizes 55–72pt/px", "110% Leading", "-2% Tracking"],
+                ["Agent Opus works while you create — clipping, captioning, and reformatting every piece of content for each platform.", 20, "Type Sizes 24–55pt/px", "120% Leading", "-1% Tracking"],
+                ["Creating video shouldn't slow you down. Whether it's a product ad, a theme-page post, or a music visualizer, Agent Opus takes one prompt and returns a finished, platform-ready video — quickly and without hassle.", 14, "Type Sizes 0–24pt/px", "130% Leading", "0% Tracking"]].map(([txt, size, a, b2, c]) => (
+                <div key={a} className="py-8 space-y-6">
+                  <p className="text-black max-w-[660px]" style={{ fontSize: size, lineHeight: 1.15, letterSpacing: "-0.02em" }}>{txt}</p>
+                  <div className="flex items-center justify-between text-[13px] font-medium tracking-[-0.13px]" style={MUT}>
+                    <span>{a}</span><span>{b2}</span><span>{c}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 05 art direction */}
+        <section id="brand-art" className="border-t border-black/10 px-8 pt-8 pb-16 space-y-10 scroll-mt-20">
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="md:flex-1"><SectionTitle n="05">Art Direction</SectionTitle></div>
+            <p className="md:flex-1 text-[15px] leading-[1.4] tracking-[-0.15px] font-medium" style={MUT}>Our photography reinforces the brand's core values — authenticity, momentum, and creative confidence — with visuals that feel real, modern, and in motion.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
+            {[["art-1", "Clean & Casual", "Modern, well-lit creative spaces with a clean and organized feel. The focus stays on clarity — no clutter or overly dramatic compositions."],
+              ["art-2", "Subtle Technology Integration", "Screens showing edits in progress, dashboards, and hands interacting with creative tools — highlighting the tech-driven approach without making it sterile."],
+              ["art-3", "Creator Storytelling", "Real-world creator scenarios — filming, reviewing cuts, planning content. This reinforces Agent Opus's role in the day-to-day of making videos."],
+              ["art-4", "People with Confidence & Focus", "Subjects look capable and in flow. Natural light, honest expressions, and a sense of forward motion."]].map(([img, h, b]) => (
+              <div key={img} className="space-y-2.5">
+                <img src={"/brand/" + img + ".jpg"} alt={h} className="w-full aspect-[467/295] object-cover" />
+                <p className="text-[13px] font-medium tracking-[-0.13px] text-black">{h}</p>
+                <p className="text-[13px] font-medium tracking-[-0.13px] leading-[1.35]" style={MUT}>{b}</p>
+              </div>
             ))}
           </div>
         </section>
-      ))}
+
+        {/* footer */}
+        <footer className="border-t border-black/10 px-8 py-8 flex items-center justify-between">
+          <img src="/brand/ao-black.svg" alt="Agent Opus" className="h-[26px] object-contain" />
+          <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="text-[15px] font-medium tracking-[-0.3px] text-black hover:opacity-60 transition">Back to the top</button>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -369,6 +668,7 @@ function App() {
   const [soundOn, setSoundOn] = useState(false);
   const [demos, setDemos] = useState([]);
   const [demoRecs, setDemoRecs] = useState({});
+  const [preview, setPreview] = useState(null);   // demo id shown in the preview modal
   const [saved, setSaved] = useState(false);
   const refreshDemos = async () => { const list = await demoStore.list(); setDemos(list); const m = {}; list.forEach(r => m[r.id] = r); setDemoRecs(m); };
   useEffect(() => { refreshDemos(); }, []);
@@ -386,6 +686,7 @@ function App() {
   const [, force] = useState(0);
 
   const [handle, setHandle] = useState(null);   // move-handle position (main-relative) for the selected element
+  const [snapGrid, setSnapGrid] = useState(false); // show the grid overlay while a snapped drag is active
   const mainRef = useRef(null);
   const overrides = useRef({});
   const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
@@ -416,6 +717,7 @@ function App() {
       else if (parts[0] === "demos") { setSel(null); setPage("demos"); }
       else if (parts[0] === "projects") { setSel(null); setPage("showcase"); }
       else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
+      else if (parts[0] === "brand") { setSel(null); setPage("brand"); }
       else { setSel(null); setPage("templates"); }
     };
     apply();
@@ -423,7 +725,7 @@ function App() {
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   useEffect(() => {
-    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : page === "hooks" ? "#/hooks" : "#/templates");
+    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : page === "hooks" ? "#/hooks" : page === "brand" ? "#/brand" : "#/templates");
     if (location.hash !== want) location.hash = want;
   }, [sel, page]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
@@ -473,7 +775,9 @@ function App() {
     setHandle(null);
   }
   // drag the floating ✥ handle to move the selected element; offset is stored as a composed
-  // transform override so it survives demos and exports
+  // transform override so it survives demos and exports. Positions snap to an 8px design-px
+  // grid (element top-left lands on grid lines) — hold Alt for free movement.
+  const GRID = 8;
   function startMoveDrag(e) {
     e.preventDefault(); e.stopPropagation();
     const rec0 = activeRef.current; if (!rec0 || !insp) return;
@@ -484,17 +788,26 @@ function App() {
     const base = cs.transform === "none" ? "" : cs.transform + " ";
     const startX = e.clientX, startY = e.clientY;
     const h0 = handle;
+    const sc0 = editorScaleRef.current || 1;
+    const cont = containerRef.current.getBoundingClientRect();
+    const er0 = el.getBoundingClientRect();
+    const bx = (er0.left - cont.left) / sc0, by = (er0.top - cont.top) / sc0;   // element top-left in design px
     setInsp(i => (i ? { ...i, moved: true } : i));
+    setSnapGrid(true);
     const move = (ev) => {
       const sc = editorScaleRef.current || 1;
-      const dx = (ev.clientX - startX) / sc, dy = (ev.clientY - startY) / sc;
+      let dx = (ev.clientX - startX) / sc, dy = (ev.clientY - startY) / sc;
+      if (!ev.altKey) {
+        dx = Math.round((bx + dx) / GRID) * GRID - bx;
+        dy = Math.round((by + dy) / GRID) * GRID - by;
+      }
       const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
       el.style.transform = t;
       const rec = ovFor(sel)[rec0.path] = ovFor(sel)[rec0.path] || {};
       rec.style = rec.style || {}; rec.style.transform = t;
       if (h0) setHandle({ x: h0.x + dx * sc, y: h0.y + dy * sc });
     };
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    const up = () => { setSnapGrid(false); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }
@@ -618,15 +931,18 @@ function App() {
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     const d = { k, media, startX: e.clientX, startY: e.clientY, baseX: t.x || 0, baseY: t.y || 0, moved: false };
     dragRef.current = d;
+    setSnapGrid(true);
     const move = (ev) => {
       const sc = editorScaleRef.current || 1;
       const dx = (ev.clientX - d.startX) / sc, dy = (ev.clientY - d.startY) / sc;
       if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
       t.x = d.baseX + dx; t.y = d.baseY + dy;
+      if (!ev.altKey) { t.x = Math.round(t.x / GRID) * GRID; t.y = Math.round(t.y / GRID) * GRID; }
       d.media.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.s || 1})`;
       d.media.style.transformOrigin = "center";
     };
     const up = () => {
+      setSnapGrid(false);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       dragRef.current = null;
@@ -969,7 +1285,7 @@ function App() {
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">Each video can be muted individually — keep both, one, or neither audio track in the final MP4.</p>
                 </div>}
                 <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position & zoom</button>
-                <p className="text-xs text-neutral-400 leading-relaxed">Drag the video on the canvas to reposition it inside its frame.</p>
+                <p className="text-xs text-neutral-400 leading-relaxed">Drag the video on the canvas to reposition it inside its frame — snaps to an 8px grid (hold Alt for free movement).</p>
               </section>
             </div>}
 
@@ -1056,7 +1372,7 @@ function App() {
                   <input type="number" min="0" value={insp.radius} onChange={e => setStyle("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
                 </div>
                 {insp.moved && <button onClick={() => setStyle("transform", "", { moved: false })} className="w-full px-3 py-2 rounded-xl text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition">Reset position</button>}
-                <p className="text-xs text-neutral-400 leading-relaxed">Drag the ✥ handle on the canvas to move this element anywhere.</p>
+                <p className="text-xs text-neutral-400 leading-relaxed">Drag the ✥ handle on the canvas to move this element — it snaps to an 8px grid (hold Alt for free movement).</p>
               </section>
 
               {insp.isText && <section className="space-y-3">
@@ -1123,11 +1439,15 @@ function App() {
             {exporting ? "Exporting…" : "Export MP4"}</button>
         </header>
         <main ref={mainRef} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
-          <div style={{ width: t.width * s, height: t.height * s }} className="overflow-hidden rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
+          <div style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,.25)] shrink-0">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <t.Component />
             </div>
+            {snapGrid && <div className="absolute inset-0 pointer-events-none z-30" style={{
+              backgroundImage: "linear-gradient(to right, rgba(37,99,235,.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(37,99,235,.18) 1px, transparent 1px)",
+              backgroundSize: `${GRID * s}px ${GRID * s}px`,
+            }} />}
           </div>
           {handle && insp && !insp.isMedia && !insp.isLogo && (
             <button onPointerDown={startMoveDrag} title="Drag to move"
@@ -1165,7 +1485,7 @@ function App() {
         const t = templates.find(x => x.id === d.templateId);
         if (!t) return null;
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} onOpen={() => openDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
       })}
     </div>
   ) : (
@@ -1176,10 +1496,15 @@ function App() {
     </div>
   );
   // standalone, nav-less demos page at #/demos
+  const previewDemo = preview && demos.find(x => x.id === preview);
+  const previewModal = previewDemo
+    ? <DemoPreview d={previewDemo} rec={demoRecs[preview]} onClose={() => setPreview(null)} onOpen={() => { setPreview(null); openDemo(preview); }} />
+    : null;
   if (page === "demos") {
     return (
       <div className="min-h-screen text-neutral-900">
         <div className="max-w-6xl mx-auto px-8 py-10">{demosView}</div>
+        {previewModal}
         {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
       </div>
     );
@@ -1190,10 +1515,13 @@ function App() {
         {navBtn("templates", "Templates")}
         {navBtn("showcase", "Demos")}
         {navBtn("hooks", "Hooks")}
+        {navBtn("brand", "Brand")}
       </nav>
       <div className="max-w-6xl mx-auto px-8 py-10">
         {page === "hooks" ? (
           <HooksPage />
+        ) : page === "brand" ? (
+          <BrandPage />
         ) : page === "templates" ? (
           <div className="flex flex-wrap justify-center gap-6">
             {templates.map(t => {
@@ -1211,6 +1539,7 @@ function App() {
           demosView
         )}
       </div>
+      {previewModal}
       {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
     </div>
   );

@@ -5,7 +5,7 @@
 
     const [vids, setVids] = useState(() => (props && props.preload && props.preload.vids) || {});
     React.useEffect(() => { window.__slotAPI = { setVids }; return () => { window.__slotAPI = null; }; }, []);
-    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || {});
+    const [labelText, setLabelText] = useState(() => (props && props.preload && props.preload.labelText) || { label1: "BEFORE" });
     React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.setLabelText = setLabelText; }, []);
     React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.labelText = labelText; }, [labelText]);
     const pick = k => {
@@ -53,12 +53,8 @@
         {/* Centered content */}
         <div
           className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[32px] items-start w-[900px]"
-          style={{ left: '50%', top: '50%' }}
+          style={{ left: '50%', top: 'calc(50% - 28px)' }}
         >
-          <p className="font-medium h-[56px] leading-none text-[48px] text-center text-white tracking-[-0.24px] w-full font-[Geist,sans-serif]">
-            AI for Product ads
-          </p>
-
           <div className="flex flex-col gap-[20px] items-start w-full">
             {/* Card 1 */}
             <div className="relative h-[420px] w-full">
@@ -81,12 +77,15 @@
                 style={chipStyle}
               >
                 <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.72px] uppercase whitespace-nowrap font-[Geist,sans-serif]">
-                  original
+                  AFTER
                 </p>
               </div>
             </div>
           </div>
         </div>
+
+        {/* brand logo at the bottom of the canvas */}
+        <img src={window.__AO_LOGO} alt="Agent Opus" className="invert absolute left-1/2 -translate-x-1/2 bottom-[42px] h-[36px] object-contain" />
       </div>
     );
   }
