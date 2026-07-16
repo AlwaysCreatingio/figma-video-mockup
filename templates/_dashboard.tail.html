@@ -233,7 +233,7 @@ function DemoPreview({ d, t, rec, pre, onClose, onOpen, onRender }) {
                 </div>
               : (d.thumb
                 ? <img src={d.thumb} className="max-h-[70vh] w-auto max-w-full" />
-                : <div className="py-24 text-sm text-zinc-500">No rendered video yet — open it in the editor to export one.</div>)}
+                : <div className="py-24 text-sm text-zinc-500">No rendered video yet. Open it in the editor to export one.</div>)}
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-3.5">
           <button onClick={onOpen} className="px-3.5 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Open in editor</button>
@@ -923,6 +923,7 @@ function App() {
   const [preview, setPreview] = useState(null);   // demo id shown in the preview modal
   const [toast, setToast] = useState(null);       // transient success toast
   const [navCollapsed, setNavCollapsed] = useState(false); // icon-only sidebar
+  const [mobileNav, setMobileNav] = useState(false);       // hamburger drawer on small screens
   useEffect(() => {
     window.__toast = (m, opts) => {
       setToast(m); clearTimeout(window.__toastT);
@@ -1601,7 +1602,7 @@ function App() {
     try {
       await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
       await refreshDemos();
-      setSaved(true); if (window.__toast) window.__toast("Saved to Demos"); setTimeout(() => setSaved(false), 1800);
+      setSaved(true); if (window.__toast) window.__toast("Saved to Creatives"); setTimeout(() => setSaved(false), 1800);
       // render the real output in the background so the demo card can play the final MP4;
       // silently skipped if the export server isn't reachable (card falls back to a live preview)
       (async () => {
@@ -1612,7 +1613,7 @@ function App() {
           if (!res.ok) throw new Error(await res.text());
           await demoStore.attachMp4(id, await res.blob());
           await refreshDemos();
-          if (window.__toast) window.__toast("Demo video rendered");
+          if (window.__toast) window.__toast("Creative rendered");
         } catch (e) { console.warn("demo mp4 render skipped:", e.message || e); }
       })();
     } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
@@ -1666,7 +1667,7 @@ function App() {
         a.download = (rec.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4";
         a.click();
       }
-      if (window.__toast) window.__toast(dl ? "Downloading MP4" : "Demo video rendered");
+      if (window.__toast) window.__toast(dl ? "Downloading MP4" : "Creative rendered");
     } catch (e) {
       if (window.__toastClear) window.__toastClear();
       alert("Render failed: " + (e.message || e) + "\n\nThe render server may be waking up. Try again in a minute.");
@@ -2053,7 +2054,7 @@ function App() {
             </select>
             <button onClick={saveDemo}
               className="w-full text-sm px-3 py-2.5 rounded-[30px] bg-white/10 hover:bg-white/15 text-zinc-100 font-medium transition">
-              {saved === "saving" ? "Saving…" : saved ? "Saved to Demos ✓" : "Save to Demos"}</button>
+              {saved === "saving" ? "Saving…" : saved ? "Saved to Creatives ✓" : "Save to Creatives"}</button>
           </div>}
         </aside>
 
@@ -2142,7 +2143,7 @@ function App() {
       <div className="flex items-center justify-end gap-2 mb-8">
         {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "Horizontal", demoFilter, setDemoFilter)}{chipBtn("9:16", "Vertical", demoFilter, setDemoFilter)}{chipBtn("1:1", "Square", demoFilter, setDemoFilter)}
       </div>
-      <div className="flex flex-wrap gap-6">
+      <div className="flex flex-wrap gap-6 justify-center md:justify-start">
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
@@ -2153,8 +2154,8 @@ function App() {
   ) : (
     <div className="text-center py-28 text-neutral-400">
       <div className="w-14 h-14 mx-auto rounded-[30px] bg-white/10 flex items-center justify-center text-neutral-300">{iconShowcase}</div>
-      <div className="mt-4 text-lg font-medium text-zinc-300">No demos yet</div>
-      <p className="mt-1 text-sm">Open a template, add your videos, then hit <span className="font-medium text-zinc-300">Save to Demos</span>.</p>
+      <div className="mt-4 text-lg font-medium text-zinc-300">No creatives yet</div>
+      <p className="mt-1 text-sm">Open a template, add your videos, then hit <span className="font-medium text-zinc-300">Save to Creatives</span>.</p>
     </div>
   );
   // standalone, nav-less demos page at #/demos
@@ -2185,7 +2186,7 @@ function App() {
         <nav className="p-3 pt-1 flex flex-col gap-1">
           {sideBtn("campaigns", "Campaigns", iconCampaigns)}
           {sideBtn("templates", "Templates", iconTemplates)}
-          {sideBtn("showcase", "Demos", iconShowcase)}
+          {sideBtn("showcase", "Creatives", iconShowcase)}
           {sideBtn("hooks", "Hooks", iconHooks)}
           {sideBtn("tutorials", "Tutorials", iconTutorials)}
           {sideBtn("brand", "Brand Guidelines", iconBrand)}
@@ -2200,14 +2201,28 @@ function App() {
 
       {/* content */}
       <main className="flex-1 min-w-0">
-        <nav className="md:hidden hscroll sticky top-0 z-30 flex gap-1.5 items-center overflow-x-auto px-4 py-3 bg-[#1A1A1A]/90 backdrop-blur border-b border-white/10">
-          {sideBtn("campaigns", "Campaigns", null)}
-          {sideBtn("templates", "Templates", null)}
-          {sideBtn("showcase", "Demos", null)}
-          {sideBtn("hooks", "Hooks", null)}
-          {sideBtn("tutorials", "Tutorials", null)}
-          {sideBtn("brand", "Brand", null)}
-        </nav>
+        <div className="md:hidden sticky top-0 z-40 bg-[#1A1A1A]/95 backdrop-blur border-b border-white/10">
+          <div className="flex items-center justify-between px-4 py-3">
+            <button onClick={() => { setPage("campaigns"); setMobileNav(false); }} className="flex items-center gap-2 text-[17px] font-bold text-white">
+              <svg aria-label="opus agent logo" fill="currentColor" viewBox="0 0 24 24" width="24" height="24"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
+              Agent Opus
+            </button>
+            <button onClick={() => setMobileNav(o => !o)} aria-label="Menu"
+              className="w-10 h-10 flex items-center justify-center rounded-[30px] text-zinc-200 hover:bg-white/10 transition">
+              {mobileNav
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>}
+            </button>
+          </div>
+          {mobileNav && <nav className="px-3 pb-3 flex flex-col gap-1 border-t border-white/10 pt-3">
+            {[["campaigns", "Campaigns", iconCampaigns], ["templates", "Templates", iconTemplates], ["showcase", "Creatives", iconShowcase], ["hooks", "Hooks", iconHooks], ["tutorials", "Tutorials", iconTutorials], ["brand", "Brand Guidelines", iconBrand]].map(([id, label, icon]) => (
+              <button key={id} onClick={() => { setPage(id); setMobileNav(false); }}
+                className={"w-full flex items-center gap-3 px-4 py-3 rounded-[30px] text-[15px] font-medium transition " + (page === id ? "bg-[#2F2F2F] text-white" : "text-zinc-400 hover:bg-white/10 hover:text-white")}>
+                {icon}{label}
+              </button>
+            ))}
+          </nav>}
+        </div>
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
           {page === "campaigns" ? (
             <div>
@@ -2218,10 +2233,10 @@ function App() {
                 <div className="absolute inset-0 bg-zinc-950/45" />
                 <div className="relative px-8 md:px-12 max-w-2xl mx-auto text-center">
                   <h1 className="text-[40px] md:text-[46px] font-semibold tracking-tight text-white leading-none">Campaigns</h1>
-                  <p className="mt-4 text-[16px] leading-relaxed text-zinc-200">Every active campaign with its brief, hooks, and ready-to-post demo videos. Pick one, grab the assets, and start creating.</p>
+                  <p className="mt-4 text-[16px] leading-relaxed text-zinc-200">Every active campaign with its brief, hooks, and ready-to-post creatives. Pick one, grab the assets, and start creating.</p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-6">
+              <div className="flex flex-wrap gap-6 justify-center md:justify-start">
                 {CAMPAIGNS.map(c => {
                   const count = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId)).length;
                   return (
@@ -2231,7 +2246,7 @@ function App() {
                         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/20 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-5">
                           <div className="text-[19px] font-semibold tracking-tight text-white">{c.title}</div>
-                          <div className="mt-0.5 text-xs font-medium text-zinc-300">{count ? count + " demo" + (count > 1 ? "s" : "") : "No demos yet"}</div>
+                          <div className="mt-0.5 text-xs font-medium text-zinc-300">{count ? count + " demo" + (count > 1 ? "s" : "") : "No creatives yet"}</div>
                         </div>
                       </div>
                     </button>
@@ -2311,16 +2326,16 @@ function App() {
                             </button>
                           ))}
                         </div>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">Demos</div>
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">Creatives</div>
                         {tagged.length
-                          ? <div className="flex flex-wrap gap-6">
+                          ? <div className="flex flex-wrap gap-6 justify-center md:justify-start">
                               {tagged.map(d => {
                                 const t = templates.find(x => x.id === d.templateId);
                                 const rec = demoRecs[d.id];
                                 return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
                               })}
                             </div>
-                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No demos tagged yet. Tag one from the Demos page ⋯ menu.</div>}
+                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No creatives tagged yet. Tag one from the Creatives page ⋯ menu.</div>}
                         </React.Fragment>
                         )}
                       </div>
@@ -2341,7 +2356,7 @@ function App() {
                     {chipBtn("all", "All", tutFilter, setTutFilter)}
                     {withVids.map(c => chipBtn(c.id, c.title, tutFilter, setTutFilter))}
                   </div>
-                  <div className="flex flex-wrap gap-5">
+                  <div className="flex flex-wrap gap-5 justify-center md:justify-start">
                     {shown.map(v => (
                       <a key={v.url + v.campaign.id} href={v.url} target="_blank" rel="noreferrer"
                         className="w-[336px] rounded-[30px] overflow-hidden bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col">
@@ -2369,7 +2384,7 @@ function App() {
                   {chip("all", "All")}{chip("16:9", "Horizontal")}{chip("9:16", "Vertical")}{chip("1:1", "Square")}
                 </div>
               </header>
-              <div className="flex flex-wrap gap-6">
+              <div className="flex flex-wrap gap-6 justify-center md:justify-start">
                 {shownTemplates.map(t => {
                   const CW = (tplFilter === "16:9" || tplFilter === "1:1") ? 336 : 248;
                   const uniform = tplFilter === "all";
