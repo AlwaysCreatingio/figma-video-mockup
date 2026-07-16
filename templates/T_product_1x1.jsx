@@ -46,12 +46,12 @@
 
         {/* Centered content */}
         <div
-          className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[32px] items-start w-[900px]"
+          className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[32px] items-start w-[840px]"
           style={{ left: '50%', top: 'calc(50% - 28px)' }}
         >
-          <div className="flex flex-col gap-[20px] items-start w-full">
+          <div className="flex flex-col gap-[16px] items-start w-full">
             {/* Card 1 */}
-            <div className="relative h-[420px] w-full">
+            <div className="relative h-[472px] w-full">
               <Slot k="slot1" className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
               <div data-pin data-swap="label1"
                 className={"absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px]" + (window.__EDITOR ? "" : " pointer-events-none")}
@@ -64,7 +64,7 @@
             </div>
 
             {/* Card 2 */}
-            <div className="relative h-[420px] w-full">
+            <div className="relative h-[472px] w-full">
               <Slot k="slot2" className="absolute inset-0 bg-[rgba(255,255,255,0.6)]" />
               <div
                 className="absolute top-[14px] left-[14px] flex items-center justify-center px-[16px] py-[9px] rounded-[12px] pointer-events-none"

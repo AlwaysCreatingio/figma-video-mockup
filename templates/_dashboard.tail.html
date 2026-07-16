@@ -70,7 +70,7 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "backgroundSize"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize"];
 function parseColor(str) {
   const m = (str || "").match(/[\d.]+/g);
   if (!m) return { hex: "#ffffff", a: 1 };
@@ -146,7 +146,7 @@ const demoStore = {
     const db = await idbOpen();
     return new Promise(res => { const g = db.transaction("demos", "readonly").objectStore("demos").getAll(); g.onsuccess = () => res((g.result || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))); g.onerror = () => res([]); });
   },
-  async save(rec) {
+  async save(rec, opts) {
     if (SB) {
       const vids = {};
       for (const k in rec.vids) {
@@ -155,13 +155,29 @@ const demoStore = {
         if (up.error) console.warn("[supabase] upload:", up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } });
+      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
+      if (opts && opts.createdAt) row.created_at = opts.createdAt;
+      const { error } = await SB.from("demos").insert(row);
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
       return;
     }
     const vids = {};
     for (const k in rec.vids) vids[k] = { url: await toDataURL(rec.vids[k].blob), img: rec.vids[k].img };
-    return idbPut({ ...rec, vids, createdAt: Date.now() });
+    return idbPut({ ...rec, vids, createdAt: (opts && opts.createdAt) || Date.now() });
+  },
+  // overwrite an existing record in place (same id, created_at preserved)
+  async replace(rec) {
+    let createdAt = null;
+    if (SB) {
+      const { data } = await SB.from("demos").select("created_at").eq("id", rec.id).maybeSingle();
+      createdAt = data && data.created_at;
+      await SB.from("demos").delete().eq("id", rec.id);
+    } else {
+      const old = await idbGet(rec.id);
+      createdAt = old && old.createdAt;
+      await idbDel(rec.id);
+    }
+    return this.save(rec, { createdAt: createdAt || undefined });
   },
   async remove(id) {
     if (SB) {
@@ -246,6 +262,12 @@ function DemoPreview({ d, t, rec, pre, onClose, onOpen, onRender }) {
   );
 }
 
+function TplPreview({ t, d }) {
+  const ref = useRef(null);
+  useDemoOverrides(ref, d ? { overrides: d.overrides, mediaXf: d.mediaXf } : null);
+  return <div ref={ref} className="pointer-events-none w-full h-full"><t.Component preload={d && d.labelText ? { labelText: d.labelText } : undefined} /></div>;
+}
+
 function useDemoOverrides(ref, rec) {
   useEffect(() => {
     if (!rec || !rec.overrides) return;
@@ -319,7 +341,7 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
       </button>
       {/* ⋯ actions menu (hover, over the preview) */}
       <div className="absolute bottom-3 right-3 z-20">
-        <button onClick={(e) => { e.stopPropagation(); setMenu(m => !m); }} title="Actions"
+        <button onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new Event("click")); setMenu(m => !m); }} title="Actions"
           className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover/card:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
@@ -330,6 +352,7 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download</button>}
           <button onClick={() => { setMenu(false); onOpen(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Open in editor</button>
+          {IS_LOCAL && <React.Fragment>
           <div className="border-t border-white/10 my-1" />
           <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Campaign</div>
           {CAMPAIGNS.map(c => (
@@ -338,6 +361,7 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
               {c.title}{rec && rec.campaign === c.id && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
             </button>
           ))}
+          </React.Fragment>}
           {IS_LOCAL && onDelete && <React.Fragment>
             <div className="border-t border-white/10 my-1" />
             <button onClick={(e) => { setMenu(false); onDelete(e); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10 transition">
@@ -616,7 +640,7 @@ function AssetCard({ file, label, bg, onPreview }) {
       </button>
       <div className="p-3.5 flex items-center justify-between gap-2 relative">
         <span className="text-xs font-medium text-zinc-300 truncate">{label}</span>
-        <button onClick={(e) => { e.stopPropagation(); setMenu(m => !m); }} title="Download"
+        <button onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new Event("click")); setMenu(m => !m); }} title="Download"
           className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white/10 text-zinc-300 hover:bg-white/20 hover:text-white transition">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
         </button>
@@ -659,16 +683,26 @@ function BrandPage() {
     <div className="max-w-6xl mx-auto space-y-8">
     {/* downloadable brand files */}
     <section>
-      <h2 className="text-lg font-semibold text-white mb-4">Media Assets</h2>
+      <div className="flex items-end justify-between mb-4">
+        <h2 className="text-lg font-semibold text-white">Media Assets</h2>
+        <div className="flex gap-1.5">
+          <button onClick={(e) => { const r = e.currentTarget.closest("section").querySelector(".hscroll"); const c = r.querySelector(".snap-start"); r.scrollBy({ left: -((c ? c.getBoundingClientRect().width : 200) + 16), behavior: "smooth" }); }} aria-label="Scroll left" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">←</button>
+          <button onClick={(e) => { const r = e.currentTarget.closest("section").querySelector(".hscroll"); const c = r.querySelector(".snap-start"); r.scrollBy({ left: (c ? c.getBoundingClientRect().width : 200) + 16, behavior: "smooth" }); }} aria-label="Scroll right" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">→</button>
+        </div>
+      </div>
       <div className="hscroll flex gap-4 overflow-x-auto snap-x pb-6 pt-1 -mx-2 px-2">
         {/* brand colors — click a swatch to copy its hex */}
         <div className="snap-start shrink-0 w-[248px] rounded-[30px] bg-white/[0.03] border border-white/10 overflow-hidden">
           <div className="h-[120px] grid grid-cols-3 gap-2 p-4 place-items-center">
             {[["#FA9819", "Orange"], ["#B6C9CF", "Blue Tint"], ["#C6EBF7", "Baby Blue"], ["#F9F5F2", "Cream"], ["#1A1A1A", "Black"], ["#FFFFFF", "White"]].map(([hex, name]) => (
-              <button key={hex} title={name + " · " + hex + " — click to copy"}
+              <button key={hex} title={name + " · " + hex}
                 onClick={() => navigator.clipboard.writeText(hex).then(() => { if (window.__toast) window.__toast(hex + " copied"); })}
-                className="w-9 h-9 rounded-full ring-1 ring-white/20 hover:ring-white/60 hover:scale-110 transition"
-                style={{ background: hex }} />
+                className="relative w-9 h-9 rounded-full ring-1 ring-white/20 hover:ring-white/60 hover:scale-110 transition group/sw flex items-center justify-center"
+                style={{ background: hex }}>
+                <span className="opacity-0 group-hover/sw:opacity-100 transition">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={["#F9F5F2", "#FFFFFF", "#C6EBF7", "#B6C9CF"].includes(hex) ? "#18181b" : "#ffffff"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                </span>
+              </button>
             ))}
           </div>
           <div className="p-3.5 flex items-center justify-between gap-2">
@@ -941,6 +975,10 @@ function App() {
   const [demos, setDemos] = useState([]);
   const [demoRecs, setDemoRecs] = useState({});
   const [preview, setPreview] = useState(null);   // demo id shown in the preview modal
+  const [renderProg, setRenderProg] = useState(null); // { pct, label } while a demo render runs
+  const exportAbortRef = useRef(null);
+  const mediaTimeRef = useRef({});            // slot -> last playback time, restored across remounts
+  const editingDemoRef = useRef(null);        // demo id currently open in the editor (update-in-place)
   const [toast, setToast] = useState(null);       // transient success toast
   const [navCollapsed, setNavCollapsed] = useState(false); // icon-only sidebar
   const [mobileNav, setMobileNav] = useState(false);       // hamburger drawer on small screens
@@ -952,7 +990,17 @@ function App() {
     window.__toastClear = () => { clearTimeout(window.__toastT); setToast(null); };
     return () => { delete window.__toast; };
   }, []);
-  const toastEl = toast ? <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-[#242424] border border-white/10 text-zinc-100 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div> : null;
+  const toastEl = <React.Fragment>
+    {toast && !renderProg && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-[#242424] border border-white/10 text-zinc-100 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div>}
+    {renderProg && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] w-[min(360px,90vw)] rounded-[30px] bg-[#242424] border border-white/10 shadow-2xl px-5 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-zinc-100">{renderProg.label}</span>
+        <span className="text-sm font-semibold text-white">{renderProg.pct}%</span>
+      </div>
+      <div className="mt-2.5 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-white transition-all duration-300" style={{ width: renderProg.pct + "%" }} /></div>
+      {renderProg.pct < 100 && <button onClick={() => { if (exportAbortRef.current) exportAbortRef.current.abort(); }} className="mt-3 w-full py-1.5 rounded-[30px] text-xs font-medium text-zinc-300 bg-white/10 hover:bg-white/15 transition">Cancel</button>}
+    </div>}
+  </React.Fragment>;
   const [tplFilter, setTplFilter] = useState(() => (routeFromHash().page === "templates" && routeFromHash().filter) || "all");  // template gallery aspect filter
   const [tplQuery, setTplQuery] = useState("");       // template gallery search
   const [demoFilter, setDemoFilter] = useState(() => (routeFromHash().page === "showcase" && routeFromHash().filter) || "all"); // demos aspect filter
@@ -963,7 +1011,15 @@ function App() {
   const [saveCampaign, setSaveCampaign] = useState("");   // campaign tag applied on Save to Demos
   const [openSec, setOpenSec] = useState("Appearance");   // one inspector section open at a time
   const toggleSec = (t) => setOpenSec(cur => (cur === t ? null : t));
-  const refreshDemos = async () => { const list = await demoStore.list(); setDemos(list); const m = {}; list.forEach(r => m[r.id] = r); setDemoRecs(m); };
+  const [tplDefaults, setTplDefaults] = useState({});
+  const refreshDemos = async () => {
+    const list = await demoStore.list();
+    const tpl = {};
+    const normal = list.filter(r => { if (String(r.id).startsWith("tpl:")) { tpl[String(r.id).slice(4)] = r; return false; } return true; });
+    setTplDefaults(tpl);
+    setDemos(normal);
+    const m = {}; normal.forEach(r => m[r.id] = r); setDemoRecs(m);
+  };
   useEffect(() => { refreshDemos(); }, []);
   const demoPreload = (rec) => rec ? {
     vids: rec.vids || {},
@@ -1158,6 +1214,18 @@ function App() {
     applyXf(root, sel);
     solidifyEmptySlots(root);
     syncAmbient();
+    // slot videos remount whenever the template re-renders — resume where they were
+    root.querySelectorAll("[data-vslot] video").forEach(v => {
+      if (v.__timeTracked) return;
+      v.__timeTracked = true;
+      const slotK = v.closest("[data-vslot]").getAttribute("data-vslot");
+      const restore = () => {
+        const t0 = mediaTimeRef.current[slotK];
+        if (t0 && Math.abs((v.currentTime || 0) - t0) > 0.3) { try { v.currentTime = t0; } catch (e) {} }
+      };
+      if (v.readyState >= 1) restore(); else v.addEventListener("loadedmetadata", restore, { once: true });
+      v.addEventListener("timeupdate", () => { mediaTimeRef.current[slotK] = v.currentTime; });
+    });
     // templates remount their DOM on re-render (inline components) — re-bind the selection
     const a = activeRef.current;
     if (a && (!a.el || !a.el.isConnected)) {
@@ -1185,6 +1253,32 @@ function App() {
     if (activeRef.current) { const { el } = activeRef.current; if (el) { el.contentEditable = "false"; el.style.outline = ""; el.style.outlineOffset = ""; el.style.cursor = ""; } activeRef.current = null; }
     setHandle(null);
   }
+  function startResizeDrag(e) {
+    e.preventDefault(); e.stopPropagation();
+    const rec0 = activeRef.current; if (!rec0 || !insp) return;
+    let el = rec0.el;
+    if (!el || !el.isConnected) el = nodeAt(containerRef.current, rec0.path);
+    if (!el) return;
+    const sc0 = editorScaleRef.current || 1;
+    const er0 = el.getBoundingClientRect();
+    const startX = e.clientX;
+    const cs = getComputedStyle(el);
+    const mode = insp.isText && el.tagName !== "INPUT" ? "font" : el.tagName === "IMG" ? "img" : "box";
+    const f0 = parseFloat(cs.fontSize) || 16, h0 = er0.height / sc0, w0 = er0.width / sc0;
+    const hs0 = handle;
+    pushHistory(true);
+    ensureBase(rec0.path, el, mode === "font" ? ["fontSize"] : mode === "img" ? ["height"] : ["width", "height"]);
+    const move = (ev) => {
+      const k = Math.max(0.15, 1 + (ev.clientX - startX) / Math.max(40, er0.width));
+      if (mode === "font") setStyle("fontSize", Math.max(6, Math.round(f0 * k)) + "px", { size: Math.max(6, Math.round(f0 * k)) });
+      else if (mode === "img") setStyle("height", Math.max(8, Math.round(h0 * k)) + "px", { imgH: Math.max(8, Math.round(h0 * k)) });
+      else { setStyle("width", Math.max(8, Math.round(w0 * k)) + "px"); setStyle("height", Math.max(8, Math.round(h0 * k)) + "px"); }
+      if (hs0) setHandle({ ...hs0, w: er0.width * k, h: er0.height * k });
+    };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
   // drag the floating ✥ handle to move the selected element; offset is stored as a composed
   // transform override so it survives demos and exports. Positions snap to an 8px design-px
   // grid (element top-left lands on grid lines) — hold Alt for free movement.
@@ -1203,6 +1297,8 @@ function App() {
     const cont = containerRef.current.getBoundingClientRect();
     const er0 = el.getBoundingClientRect();
     const bx = (er0.left - cont.left) / sc0, by = (er0.top - cont.top) / sc0;   // element top-left in design px
+    const ew = er0.width / sc0, eh = er0.height / sc0;                          // element size in design px
+    const CVW = containerRef.current.offsetWidth, CVH = containerRef.current.offsetHeight;
     let started = !!fromHandle, pushed = false;
     const begin = () => {
       if (!pushed) {
@@ -1219,11 +1315,16 @@ function App() {
         if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return;
         started = true; begin();
       }
+      let cSnapX = false, cSnapY = false;
       if (!ev.altKey) {
         dx = Math.round((bx + dx) / GRID) * GRID - bx;
         dy = Math.round((by + dy) / GRID) * GRID - by;
+        // canvas-center snapping takes priority over the grid
+        const cx = bx + dx + ew / 2, cy = by + dy + eh / 2;
+        if (Math.abs(cx - CVW / 2) < 8) { dx += CVW / 2 - cx; cSnapX = true; }
+        if (Math.abs(cy - CVH / 2) < 8) { dy += CVH / 2 - cy; cSnapY = true; }
       }
-      setGuides({ x: bx + dx, y: by + dy });
+      setGuides({ x: bx + dx + ew / 2, y: by + dy + eh / 2, cx: cSnapX, cy: cSnapY });
       const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
       el.style.transform = t;
       const rec = ovFor(sel)[rec0.path] = ovFor(sel)[rec0.path] || {};
@@ -1253,7 +1354,7 @@ function App() {
     activeRef.current = { el, path, text };
     if (mainRef.current) {
       const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
-      setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop });
+      setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
     }
     const cs = getComputedStyle(el);
     const ovs = (ovFor(sel)[path] || {}).style || {};
@@ -1274,6 +1375,7 @@ function App() {
     setInsp({
       path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
       pinPath, pin, swapKey, swapOn, moved: !!ovs.transform,
+      textValue: (text && el.tagName !== "INPUT" && el.children.length === 0) ? el.textContent : null,
       pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[path] || {}).styleMeta || {}).kind || ((cs.backgroundImage && cs.backgroundImage !== "none") ? "custom" : undefined)),
       styleMeta: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? ovFor(sel).__bgBlur : (ovFor(sel)[path] || {}).styleMeta || null,
       imgH: el.tagName === "IMG" ? (parseInt(ovs.height) || Math.round(parseFloat(cs.height)) || 24) : null,
@@ -1566,6 +1668,24 @@ function App() {
   }, [soundOn, sel]);
 
   // after a demo opens and its template mounts, push the saved media/logos into the template via __slotAPI
+  // seed shared template defaults (overrides + label text) when opening a template with no local edits
+  useEffect(() => {
+    if (!sel || window.__demoPending) return;
+    const d = tplDefaults[sel];
+    if (!d || Object.keys(ovFor(sel)).length) return;
+    overrides.current[sel] = JSON.parse(JSON.stringify(d.overrides || {}));
+    mediaXf.current[sel] = JSON.parse(JSON.stringify(d.mediaXf || {}));
+    applyAll();
+    if (d.labelText && Object.keys(d.labelText).length) {
+      let tries = 0;
+      const inject = () => {
+        const api = window.__slotAPI;
+        if (!api || !api.setLabelText) { if (tries++ < 30) setTimeout(inject, 100); return; }
+        api.setLabelText(d.labelText);
+      };
+      setTimeout(inject, 150);
+    }
+  }, [sel, tplDefaults]);
   useEffect(() => {
     if (!sel) return;
     const rec = window.__demoPending; if (!rec || rec.templateId !== sel) return;
@@ -1592,15 +1712,15 @@ function App() {
     return () => clearTimeout(tid);
   }, [sel]);
 
-  async function saveDemo() {
-    const root = containerRef.current; const t = templates.find(x => x.id === sel); if (!root || !t) return;
+  async function collectDemoRecord(t, id) {
+    const root = containerRef.current;
     const vids = {};
     for (const el of root.querySelectorAll("[data-vslot] video, [data-vslot] img")) {
       const slot = el.closest("[data-vslot]").getAttribute("data-vslot");
       const blob = await fetch(el.currentSrc || el.src).then(r => r.blob());
       vids[slot] = { blob, img: el.tagName === "IMG", type: blob.type };
     }
-    if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as a demo."); return; }
+    if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as a demo."); return null; }
     const logos = {};
     for (const img of root.querySelectorAll("[data-lslot] img")) {
       const tile = img.closest("[data-lslot]"); const slot = tile.getAttribute("data-lslot");
@@ -1622,12 +1742,19 @@ function App() {
         const c = document.createElement("canvas"); c.width = 240; c.height = Math.round(240 * vh / vw);
         c.getContext("2d").drawImage(m, 0, 0, c.width, c.height); thumb = c.toDataURL("image/jpeg", 0.7); }
     } catch (e) {}
-    const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("d_" + Date.now());
+    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
+  }
+  async function saveDemo() {
+    const t = templates.find(x => x.id === sel); if (!containerRef.current || !t) return;
+    const updating = editingDemoRef.current && demoRecs[editingDemoRef.current];
+    const id = updating ? editingDemoRef.current : ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("d_" + Date.now()));
     setSaved("saving");
     try {
-      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
+      const rec = await collectDemoRecord(t, id);
+      if (!rec) { setSaved(false); return; }
+      if (updating) await demoStore.replace(rec); else await demoStore.save(rec);
       await refreshDemos();
-      setSaved(true); if (window.__toast) window.__toast("Saved to Creatives"); setTimeout(() => setSaved(false), 1800);
+      setSaved(true); if (window.__toast) window.__toast(updating ? "Creative updated" : "Saved to Creatives"); setTimeout(() => setSaved(false), 1800);
       // render the real output in the background so the demo card can play the final MP4;
       // silently skipped if the export server isn't reachable (card falls back to a live preview)
       (async () => {
@@ -1643,8 +1770,23 @@ function App() {
       })();
     } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
   }
+  // template defaults: styling everyone sees on this template (stored as a tpl: row, local-only UI)
+  async function saveTemplateDefaults() {
+    const t = templates.find(x => x.id === sel); if (!t) return;
+    try {
+      await demoStore.replace({
+        id: "tpl:" + sel, name: "__template__", templateId: sel, vids: {}, logos: {}, boxText: {},
+        labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, campaign: null,
+        showPlus: true, hiddenLogos: {}, logosHidden: false,
+        mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: JSON.parse(JSON.stringify(ovFor(sel))), thumb: null,
+      });
+      await refreshDemos();
+      if (window.__toast) window.__toast("Template default saved for everyone");
+    } catch (e) { alert("Couldn't save template default: " + (e.message || e)); }
+  }
   async function openDemo(id) {
     const rec = demoRecs[id]; if (!rec) return;
+    editingDemoRef.current = id;
     overrides.current[rec.templateId] = rec.overrides || {};
     mediaXf.current[rec.templateId] = JSON.parse(JSON.stringify(rec.mediaXf || {}));
     window.__demoPending = rec;
@@ -1655,12 +1797,15 @@ function App() {
   async function renderDemoMp4(id, dl) {
     const rec = demoRecs[id]; const t = rec && templates.find(x => x.id === rec.templateId);
     if (!rec || !t) return;
-    if (window.__toast) window.__toast("Rendering video… this takes about a minute", { sticky: true });
+    exportAbortRef.current = new AbortController();
+    const signal = exportAbortRef.current.signal;
+    let creep = null;
+    setRenderProg({ pct: 5, label: "Uploading media…" });
     try {
       const up = async (url) => {
         const blob = await blobFrom(url);
         const ext = ((blob.type.split("/")[1] || "mp4").split(";")[0]);
-        const r = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob });
+        const r = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob, signal });
         if (!r.ok) throw new Error("upload failed");
         return (await r.json()).id;
       };
@@ -1673,16 +1818,21 @@ function App() {
       const ambient = (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on && videoSlots.length)
         ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
       const spec = { templateId: t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
-      const doExport = () => fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+      let pct = 45;
+      setRenderProg({ pct, label: "Rendering video…" });
+      creep = setInterval(() => { pct = Math.min(93, pct + 4); setRenderProg({ pct: Math.round(pct), label: "Rendering video…" }); }, 700);
+      const doExport = () => fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec), signal });
       let res;
       try { res = await doExport(); }
       catch (e) {
-        // export server may be waking from idle: give it a moment and retry once
-        if (window.__toast) window.__toast("Waking the render server…", { sticky: true });
+        if (e && e.name === "AbortError") throw e;
+        setRenderProg({ pct: Math.round(pct), label: "Waking the render server…" });
         await new Promise(r => setTimeout(r, 8000));
         res = await doExport();
       }
+      clearInterval(creep); creep = null;
       if (!res.ok) throw new Error(await res.text());
+      setRenderProg({ pct: 97, label: "Saving…" });
       const blob = await res.blob();
       await demoStore.attachMp4(id, blob);
       await refreshDemos();
@@ -1692,11 +1842,13 @@ function App() {
         a.download = (rec.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4";
         a.click();
       }
+      setRenderProg({ pct: 100, label: "Done" });
       if (window.__toast) window.__toast(dl ? "Downloading MP4" : "Creative rendered");
     } catch (e) {
-      if (window.__toastClear) window.__toastClear();
-      alert("Render failed: " + (e.message || e) + "\n\nThe render server may be waking up. Try again in a minute.");
+      if (e && e.name === "AbortError") { if (window.__toast) window.__toast("Render canceled"); }
+      else alert("Render failed: " + (e.message || e) + "\n\nThe render server may be waking up. Try again in a minute.");
     }
+    finally { if (creep) clearInterval(creep); setTimeout(() => setRenderProg(null), 800); }
   }
   async function tagDemo(id, campaign) {
     await demoStore.patch(id, { campaign });
@@ -1716,7 +1868,7 @@ function App() {
   const blobToDataURL = (blob) => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
   // reads the live editor DOM, uploads all media to the export server, and returns the export
   // spec — shared by the Export button and the demo-save background render
-  async function buildExportSpec(t, onUpload) {
+  async function buildExportSpec(t, onUpload, signal) {
     const root = containerRef.current;
     const slotMediaEls = [...root.querySelectorAll("[data-vslot] video, [data-vslot] img")];
     const ambientEls = [...root.querySelectorAll("video, img")].filter(el => /blur-\[/.test(el.className || "") && !el.closest("[data-vslot]") && !el.closest("[data-lslot]"));
@@ -1726,7 +1878,7 @@ function App() {
     const uploadBlob = async (url) => {
       const blob = await blobFrom(url);
       const ext = ((blob.type.split("/")[1] || "mp4").split(";")[0]);
-      const up = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob });
+      const up = await fetch(EXPORT_BASE + "/upload", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ext }, body: blob, signal });
       if (!up.ok) throw new Error("upload failed");
       uploadsDone++;
       if (onUpload) onUpload(uploadsDone, totalUploads);
@@ -1771,15 +1923,27 @@ function App() {
     const t = templates.find(x => x.id === sel);
     deselect();
     setExporting(true);
+    exportAbortRef.current = new AbortController();
+    const signal = exportAbortRef.current.signal;
+    // freeze the preview while exporting: pause + mute every video
+    const pausedVids = [...containerRef.current.querySelectorAll("video")];
+    pausedVids.forEach(v => { try { v.pause(); v.muted = true; } catch (e) {} });
+    const resumeVids = () => pausedVids.forEach(v => {
+      if (!v.isConnected) return;
+      const slotEl = v.closest("[data-vslot]");
+      const slotMute = slotEl ? !!((xfFor(sel)[slotEl.getAttribute("data-vslot")] || {}).mute) : false;
+      v.muted = v.hasAttribute("data-ambient") || /blur-\[/.test(v.className || "") ? true : (!soundOn || slotMute);
+      const q = v.play(); if (q && q.catch) q.catch(() => {});
+    });
     let creep = null;
     setExportProg({ pct: 4, label: "Preparing…" });
     try {
-      const spec = await buildExportSpec(t, (done, total) => setExportProg({ pct: 5 + Math.round(45 * done / Math.max(1, total)), label: `Uploading media ${done}/${total}` }));
-      if (!spec) { alert("Add a video or image to a slot first — click a slot to upload."); setExporting(false); setExportProg(null); return; }
+      const spec = await buildExportSpec(t, (done, total) => setExportProg({ pct: 5 + Math.round(45 * done / Math.max(1, total)), label: `Uploading media ${done}/${total}` }), signal);
+      if (!spec) { alert("Add a video or image to a slot first — click a slot to upload."); setExporting(false); setExportProg(null); resumeVids(); return; }
       let pct = 55;
       setExportProg({ pct, label: "Rendering design…" });
       creep = setInterval(() => { pct = Math.min(93, pct + 1.5); setExportProg({ pct: Math.round(pct), label: pct > 72 ? "Compositing video…" : "Rendering design…" }); }, 600);
-      const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec) });
+      const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec), signal });
       clearInterval(creep); creep = null;
       if (!res.ok) throw new Error(await res.text());
       setExportProg({ pct: 97, label: "Downloading…" });
@@ -1792,11 +1956,14 @@ function App() {
       if (window.__toast) window.__toast("MP4 exported");
       setTimeout(() => setExportProg(null), 1600);
     } catch (e) {
+      if (e && e.name === "AbortError") { if (window.__toast) window.__toast("Export canceled"); }
+      else alert("Export failed: " + (e.message || e) + "\n\nMake sure the export server is running:\n  node export-server.mjs");
+    } finally {
       if (creep) clearInterval(creep);
       setExportProg(null);
-      alert("Export failed: " + (e.message || e) + "\n\nMake sure the export server is running:\n  node export-server.mjs");
+      resumeVids();
+      setExporting(false);
     }
-    setExporting(false);
   }
 
   // cmd/ctrl+z undo, shift+cmd/ctrl+z redo (native text undo still applies while typing)
@@ -2067,6 +2234,21 @@ function App() {
               </Sec>
 
               {insp.isText && <Sec open={openSec === "Text"} onToggle={toggleSec} title="Text">
+                {insp.textValue != null && <div>
+                  <label className={LBL}>Content</label>
+                  <textarea value={insp.textValue} rows={2}
+                    onChange={e => {
+                      let el = activeRef.current && activeRef.current.el;
+                      if (el && !el.isConnected) el = nodeAt(containerRef.current, insp.path);
+                      if (!el) return;
+                      pushHistory();
+                      el.textContent = e.target.value;
+                      const rec = ovFor(sel)[insp.path] = ovFor(sel)[insp.path] || {};
+                      rec.text = e.target.value; delete rec.html;
+                      setInsp({ ...insp, textValue: e.target.value });
+                    }}
+                    className={FIELD + " resize-none"} />
+                </div>}
                 <div>
                   <label className={LBL}>Font</label>
                   <select value={insp.font} onChange={e => setStyle("fontFamily", e.target.value + ",sans-serif", { font: e.target.value })} className={FIELD} style={SELECT_STYLE}>
@@ -2098,7 +2280,7 @@ function App() {
                   <label className={LBL}>Alignment & style</label>
                   <div className="flex gap-2">
                     <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5">
-                      {["left", "center", "right"].map(a => <button key={a} onClick={() => setStyle("textAlign", a, { align: a })} className={insp.align === a ? SEG_ON : SEG}>{a[0].toUpperCase()}</button>)}
+                      {[["left", <svg key="l" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h12M3 18h15"/></svg>], ["center", <svg key="c" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M6 12h12M4.5 18h15"/></svg>], ["right", <svg key="r" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M9 12h12M6 18h15"/></svg>]].map(([a, ic]) => <button key={a} onClick={() => setStyle("textAlign", a, { align: a })} className={(insp.align === a ? SEG_ON : SEG) + " flex items-center"}>{ic}</button>)}
                     </div>
                     <button onClick={() => setStyle("fontStyle", insp.italic ? "normal" : "italic", { italic: !insp.italic })} className={"px-3 py-1.5 rounded-[30px] italic text-sm border border-white/10 " + (insp.italic ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>I</button>
                     <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-[30px] underline text-sm border border-white/10 " + (insp.underline ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>U</button>
@@ -2115,18 +2297,17 @@ function App() {
             </select>
             <button onClick={saveDemo}
               className="w-full text-sm px-3 py-2.5 rounded-[30px] bg-white/10 hover:bg-white/15 text-zinc-100 font-medium transition">
-              {saved === "saving" ? "Saving…" : saved ? "Saved to Creatives ✓" : "Save to Creatives"}</button>
+              {saved === "saving" ? "Saving…" : saved ? "Saved ✓" : (editingDemoRef.current && demoRecs[editingDemoRef.current] ? "Save changes" : "Save to Creatives")}</button>
+            {editingDemoRef.current && demoRecs[editingDemoRef.current] && <button onClick={() => { editingDemoRef.current = null; saveDemo(); }}
+              className="w-full text-xs px-3 py-2 rounded-[30px] text-zinc-400 hover:text-white hover:bg-white/10 transition">Save as new copy</button>}
+            <button onClick={saveTemplateDefaults}
+              className="w-full text-xs px-3 py-2 rounded-[30px] text-zinc-400 hover:text-white hover:bg-white/10 transition">Set as template default</button>
           </div>}
         </aside>
 
         <div className="flex-1 h-screen flex flex-col">
         <header className="h-14 shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-b border-white/10 flex items-center justify-end gap-3 px-4">
-          {exportProg && <div className="flex items-center gap-2 w-72">
-            <div className="flex-1 h-1.5 rounded-full bg-white/15 overflow-hidden">
-              <div className="h-full bg-white transition-all duration-300" style={{ width: exportProg.pct + "%" }} />
-            </div>
-            <span className="text-xs text-zinc-400 whitespace-nowrap">{exportProg.label}</span>
-          </div>}
+
           <button onClick={undoEdit} disabled={!histFor(sel).length} title="Undo (⌘Z)"
             className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
@@ -2139,23 +2320,21 @@ function App() {
             className="text-sm px-4 py-2 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
             {exporting ? "Exporting…" : "Export"}</button>
         </header>
-        <main ref={mainRef} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
-          <div style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0">
+        <main ref={mainRef} onClick={(e) => { if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
+          <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <t.Component />
             </div>
             {guides && <div className="absolute inset-0 pointer-events-none z-30">
-              <div className="absolute top-0 bottom-0 w-px bg-[#2563eb]/80" style={{ left: guides.x * s }} />
-              <div className="absolute left-0 right-0 h-px bg-[#2563eb]/80" style={{ top: guides.y * s }} />
+              <div className="absolute top-0 bottom-0 w-px" style={{ left: guides.x * s, background: guides.cx ? "#f45f00" : "rgba(37,99,235,.8)" }} />
+              <div className="absolute left-0 right-0 h-px" style={{ top: guides.y * s, background: guides.cy ? "#f45f00" : "rgba(37,99,235,.8)" }} />
             </div>}
           </div>
-          {handle && insp && insp.isText && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" && (
-            <button onPointerDown={(e) => startMoveDrag(e, true)} title="Drag to move"
-              style={{ left: handle.x - 2, top: handle.y - 34 }}
-              className="absolute z-40 w-7 h-7 flex items-center justify-center rounded-[30px] bg-white text-zinc-900 shadow-lg cursor-move select-none">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/><path d="M9 5l3-3 3 3"/><path d="M9 19l3 3 3-3"/><path d="M5 9l-3 3 3 3"/><path d="M19 9l3 3-3 3"/></svg>
-            </button>
+          {handle && insp && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" && (
+            <button onPointerDown={startResizeDrag} title="Drag to resize"
+              style={{ left: handle.x + handle.w - 7, top: handle.y + handle.h - 7 }}
+              className="absolute z-40 w-3.5 h-3.5 rounded-[4px] bg-white ring-2 ring-[#2563eb] cursor-nwse-resize select-none" />
           )}
           <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
             className={"absolute bottom-6 right-6 w-11 h-11 flex items-center justify-center rounded-full shadow-lg transition " + (soundOn ? "bg-white text-zinc-900" : "bg-[#242424] text-zinc-300 hover:bg-white/10 ring-1 ring-white/10")}>
@@ -2166,6 +2345,20 @@ function App() {
         </main>
         </div>
 
+        {exporting && exportProg && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm">
+          <div className="w-[min(420px,90vw)] rounded-[30px] bg-[#212121] border border-white/10 shadow-2xl p-7 text-center">
+            <div className="text-[17px] font-medium text-white">Exporting video</div>
+            <div className="mt-1 text-sm text-zinc-400">{exportProg.label}</div>
+            <div className="mt-5 flex items-center gap-3">
+              <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-white transition-all duration-300" style={{ width: exportProg.pct + "%" }} />
+              </div>
+              <span className="text-sm font-semibold text-white w-11 text-right">{exportProg.pct}%</span>
+            </div>
+            <button onClick={() => { if (exportAbortRef.current) exportAbortRef.current.abort(); }}
+              className="mt-6 px-4 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Cancel export</button>
+          </div>
+        </div>}
         {toastEl}
         {picker && <LogoPicker onPick={(uri) => { picker.cb(uri); setPicker(null); }} onClose={() => setPicker(null)} />}
       </div>
@@ -2308,10 +2501,9 @@ function App() {
                     <button key={c.id} onClick={() => { setOpenCampaign(c.id); setCampTab("overview"); }} className="text-left group/card w-[340px]">
                       <div className="relative h-[190px] rounded-[30px] overflow-hidden border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:-translate-y-0.5 transition-all duration-200">
                         <div className="absolute inset-0" style={{ background: c.grad }} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/20 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-5">
-                          <div className="text-[19px] font-medium tracking-tight text-white">{c.title}</div>
-                          <div className="mt-1 text-xs font-medium text-zinc-300 leading-relaxed line-clamp-2">{c.brief}</div>
+                        <div className="absolute inset-0 bg-zinc-950/35 group-hover/card:bg-zinc-950/25 transition" />
+                        <div className="absolute inset-0 flex items-center justify-center p-5">
+                          <div className="text-[22px] font-medium tracking-tight text-white text-center">{c.title}</div>
                         </div>
                       </div>
                     </button>
@@ -2400,7 +2592,7 @@ function App() {
                                 return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
                               })}
                             </div>
-                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No creatives tagged yet. Tag one from the Creatives page ⋯ menu.</div>}
+                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">{IS_LOCAL ? "No creatives tagged yet. Tag one from the Creatives page ⋯ menu." : "No creatives yet. Check back soon."}</div>}
                         </React.Fragment>
                         )}
                       </div>
@@ -2459,9 +2651,9 @@ function App() {
                   const sc = uniform ? Math.min(CW / t.width, CH / t.height) : CW / t.width;
                   const ox = (CW - t.width * sc) / 2, oy = (CH - t.height * sc) / 2;
                   return (
-                    <button key={t.id} onClick={() => setSel(t.id)} className="text-left group/card" style={{ width: CW }}>
+                    <button key={t.id} onClick={() => { editingDemoRef.current = null; setSel(t.id); }} className="text-left group/card" style={{ width: CW }}>
                       <div className="relative overflow-hidden rounded-[30px] bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200" style={{ width: CW, height: CH }}>
-                        <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><t.Component /></div>
+                        <div className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><TplPreview t={t} d={tplDefaults[t.id]} /></div>
                         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/0 group-hover/card:bg-zinc-950/30 opacity-0 group-hover/card:opacity-100 transition duration-200">
                           <span className="px-3.5 py-1.5 rounded-[30px] bg-white text-zinc-900 text-sm font-medium shadow-lg">Use template</span>
                         </div>
