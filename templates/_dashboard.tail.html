@@ -1093,6 +1093,7 @@ function App() {
   const editorScaleRef = useRef(1);
   const containerRef = useRef(null);
   const applyingRef = useRef(false);
+  const reapplyRef = useRef(false);
   const activeRef = useRef(null);
   const suppressRef = useRef(false);
   const templates = (window.TEMPLATES || []).slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -1269,8 +1270,8 @@ function App() {
       const el = nodeAt(root, path); if (!el) continue;
       const o = ov[path];
       const active = activeRef.current && activeRef.current.el;
-      if (o.html != null && el.tagName !== "INPUT" && el !== active) el.innerHTML = o.html;
-      else if (o.text != null && el.tagName !== "INPUT" && el !== active) el.textContent = o.text;
+      if (o.html != null && el.tagName !== "INPUT" && el !== active) { if (el.__aoHtml !== o.html) { el.innerHTML = o.html; el.__aoHtml = o.html; } }
+      else if (o.text != null && el.tagName !== "INPUT" && el !== active) { if (el.textContent !== o.text) el.textContent = o.text; }
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
     }
     applyXf(root, sel);
@@ -1322,7 +1323,15 @@ function App() {
     if (!sel) return;
     const root = containerRef.current; if (!root) return;
     applyAll();
-    const mo = new MutationObserver(() => { if (applyingRef.current) return; applyAll(); });
+    const mo = new MutationObserver(() => {
+      if (applyingRef.current) {
+        if (reapplyRef.current) return;
+        reapplyRef.current = true;
+        requestAnimationFrame(() => requestAnimationFrame(() => { reapplyRef.current = false; applyAll(); }));
+        return;
+      }
+      applyAll();
+    });
     mo.observe(root, { childList: true, subtree: true, characterData: true });
     return () => mo.disconnect();
   }, [sel]);
@@ -1363,21 +1372,39 @@ function App() {
     const cs = getComputedStyle(el);
     const mode = insp.isText && el.tagName !== "INPUT" ? "font" : el.tagName === "IMG" ? "img" : "box";
     const f0 = parseFloat(cs.fontSize) || 16, h0 = er0.height / sc0, w0 = er0.width / sc0;
+    // a video and its same-size wrapper act as one box: resize the wrapper so layout follows
+    let tEl = el, tPath = rec0.path;
+    if (insp.isMedia && el.parentElement) {
+      const pr = el.parentElement.getBoundingClientRect();
+      if (Math.abs(pr.left - er0.left) < 3 && Math.abs(pr.top - er0.top) < 3 && Math.abs(pr.width - er0.width) < 3 && Math.abs(pr.height - er0.height) < 3) {
+        tEl = el.parentElement; tPath = pathOf(tEl, containerRef.current);
+      }
+    }
     const hs0 = handle;
     // anchor at the corner opposite the grip being dragged
     const ax = corner.includes("w") ? er0.right : er0.left;
     const ay = corner.includes("n") ? er0.bottom : er0.top;
     const d0 = Math.max(20, Math.hypot(e.clientX - ax, e.clientY - ay));
     pushHistory(true);
-    ensureBase(rec0.path, el, mode === "font" ? ["fontSize"] : mode === "img" ? ["height"] : ["width", "height"]);
+    ensureBase(tPath, tEl, mode === "font" ? ["fontSize"] : mode === "img" ? ["height"] : ["width", "height"]);
     const move = (ev) => {
       const k = Math.max(0.15, Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0);
       if (mode === "font") setStyle("fontSize", Math.max(6, Math.round(f0 * k)) + "px", { size: Math.max(6, Math.round(f0 * k)) });
       else if (mode === "img") setStyle("height", Math.max(8, Math.round(h0 * k)) + "px", { imgH: Math.max(8, Math.round(h0 * k)) });
+      else if (insp.isMedia) {
+        const w1 = Math.max(8, Math.round(w0 * k)), h1 = Math.max(8, Math.round(h0 * k));
+        const live = tEl.isConnected ? tEl : nodeAt(containerRef.current, tPath);
+        if (live) { live.style.width = w1 + "px"; live.style.height = h1 + "px"; }
+        const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {}; rec.style = rec.style || {};
+        rec.style.width = w1 + "px"; rec.style.height = h1 + "px";
+      }
       else { setStyle("width", Math.max(8, Math.round(w0 * k)) + "px"); setStyle("height", Math.max(8, Math.round(h0 * k)) + "px"); }
       if (hs0) setHandle({ ...hs0, w: er0.width * k, h: er0.height * k });
     };
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    const up = () => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+      suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150);
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }
@@ -2634,7 +2661,7 @@ function App() {
             className="text-sm px-4 py-2 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
             {exporting ? "Exporting…" : "Export"}</button>
         </header>
-        <main ref={mainRef} onClick={(e) => { if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
+        <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
@@ -2651,7 +2678,7 @@ function App() {
               : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
           </button>
           </div>
-          {handle && insp && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
+          {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
             [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1]].map(([c, fx, fy]) => (
               <button key={c} onPointerDown={(e) => startResizeDrag(e, c)} title="Drag to resize"
                 style={{ left: handle.x + fx * handle.w - 7, top: handle.y + fy * handle.h - 7, cursor: (c === "nw" || c === "se") ? "nwse-resize" : "nesw-resize" }}
