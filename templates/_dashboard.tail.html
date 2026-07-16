@@ -1773,6 +1773,7 @@ function App() {
   useEffect(() => {
     const root = containerRef.current; if (!root || !sel) return;
     const sync = () => { root.querySelectorAll("video").forEach(v => {
+      if (exporting) { v.muted = true; try { v.pause(); } catch (e) {} return; }
       if (v.hasAttribute("data-ambient") || /blur-\[/.test(v.className || "")) { v.muted = true; return; }
       const slotEl = v.closest("[data-vslot]");
       const slotMute = slotEl ? !!((xfFor(sel)[slotEl.getAttribute("data-vslot")] || {}).mute) : false;
@@ -1783,7 +1784,7 @@ function App() {
     const mo = new MutationObserver(sync);
     mo.observe(root, { childList: true, subtree: true });
     return () => mo.disconnect();
-  }, [soundOn, sel]);
+  }, [soundOn, sel, exporting]);
 
   // after a demo opens and its template mounts, push the saved media/logos into the template via __slotAPI
   // seed shared template defaults (overrides + label text) when opening a template with no local edits
@@ -2485,6 +2486,12 @@ function App() {
                 </div>
               </Sec>}
             </div>}
+            <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
+            className={"absolute bottom-3 right-3 z-40 w-10 h-10 flex items-center justify-center rounded-full shadow-lg opacity-0 group-hover/canvas:opacity-100 transition " + (soundOn ? "bg-white text-zinc-900" : "bg-black/60 text-zinc-200 hover:bg-black/80")}>
+            {soundOn
+              ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
+              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
+          </button>
           </div>
         </div>}
 
@@ -2504,7 +2511,7 @@ function App() {
             {exporting ? "Exporting…" : "Export"}</button>
         </header>
         <main ref={mainRef} onClick={(e) => { if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
-          <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0">
+          <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <t.Component />
@@ -2520,12 +2527,7 @@ function App() {
                 style={{ left: handle.x + fx * handle.w - 7, top: handle.y + fy * handle.h - 7, cursor: (c === "nw" || c === "se") ? "nwse-resize" : "nesw-resize" }}
                 className="absolute z-40 w-3.5 h-3.5 rounded-[4px] bg-white ring-2 ring-[#2563eb] select-none" />
             ))}
-          <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
-            className={"absolute bottom-6 right-6 w-11 h-11 flex items-center justify-center rounded-full shadow-lg transition " + (soundOn ? "bg-white text-zinc-900" : "bg-[#242424] text-zinc-300 hover:bg-white/10 ring-1 ring-white/10")}>
-            {soundOn
-              ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
-              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
-          </button>
+
         </main>
         </div>
 
