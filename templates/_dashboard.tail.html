@@ -1518,7 +1518,7 @@ function App() {
   useEffect(() => {
     const root = containerRef.current; if (!root || !sel) return;
     const sync = () => { root.querySelectorAll("video").forEach(v => {
-      if (v.hasAttribute("data-ambient")) { v.muted = true; return; }
+      if (v.hasAttribute("data-ambient") || /blur-\[/.test(v.className || "")) { v.muted = true; return; }
       const slotEl = v.closest("[data-vslot]");
       const slotMute = slotEl ? !!((xfFor(sel)[slotEl.getAttribute("data-vslot")] || {}).mute) : false;
       v.muted = !soundOn || slotMute;

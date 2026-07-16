@@ -51,7 +51,7 @@
 
           {/* vertical 9:16 video with Agent Opus label */}
           <div className="relative w-[281px] h-[500px] shrink-0">
-            <Slot k="slot1" className="absolute inset-0 bg-[#a7aaab]" />
+            <Slot k="slot1" className="absolute inset-0 rounded-[20px] bg-[#a7aaab]" />
             <div data-pin data-swap="label1" className={"absolute top-[12px] left-[12px] flex items-center justify-center p-[9px] rounded-[8px]" + (window.__EDITOR ? "" : " pointer-events-none")} style={pillBg}>
               {labelText.label1 == null
                 ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[20px] object-contain" />
