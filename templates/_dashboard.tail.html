@@ -111,7 +111,7 @@ const ACCENT = "#18181b";
 const FIELD = "w-full bg-[#242424] border border-white/10 rounded-[30px] px-3 py-2 text-sm text-zinc-100 shadow-sm outline-none focus:border-white/30 focus:ring-2 focus:ring-white/10 transition";
 const LBL = "block text-xs font-medium text-zinc-400 mb-1.5";
 const SEG = "px-2.5 py-1.5 text-sm text-zinc-400 hover:bg-white/10 transition";
-const SEG_ON = "px-2.5 py-1.5 text-sm text-white bg-[#2F2F2F]";
+const SEG_ON = "px-2.5 py-1.5 text-sm font-medium text-zinc-900 bg-white";
 
 /* ---------- demos persistence (IndexedDB holds the media-heavy records; localStorage holds a light index) ---------- */
 function idbOpen() {
@@ -154,7 +154,7 @@ const demoStore = {
         if (up.error) console.warn("[supabase] upload:", up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } });
+      const { error } = await SB.from("demos").insert({ id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } });
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
       return;
     }
@@ -171,20 +171,27 @@ const demoStore = {
     }
     return idbDel(id);
   },
+  // patch fields into a demo's payload. RLS grants select/insert/delete but not update,
+  // so the cloud path replaces the row (created_at preserved).
+  async patch(id, fields) {
+    if (SB) {
+      const { data } = await SB.from("demos").select("*").eq("id", id).single();
+      if (!data) return;
+      await SB.from("demos").delete().eq("id", id);
+      const { error } = await SB.from("demos").insert({ ...data, payload: { ...(data.payload || {}), ...fields } });
+      if (error) console.warn("[supabase] patch:", error.message);
+      return;
+    }
+    const rec = await idbGet(id); if (!rec) return;
+    return idbPut({ ...rec, ...fields });
+  },
   // attach the rendered MP4 to an existing demo (the demo card then plays the real output)
   async attachMp4(id, blob) {
     if (SB) {
       const p = id + "/out.mp4";
       const up = await SB.storage.from(SB_BUCKET).upload(p, blob, { upsert: true, contentType: "video/mp4" });
       if (up.error) { console.warn("[supabase] mp4 upload:", up.error.message); return; }
-      const url = SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl;
-      // RLS only grants select/insert/delete (no update) — replace the row instead
-      const { data } = await SB.from("demos").select("*").eq("id", id).single();
-      if (!data) return;
-      await SB.from("demos").delete().eq("id", id);
-      const { error } = await SB.from("demos").insert({ ...data, payload: { ...(data.payload || {}), mp4: url } });
-      if (error) console.warn("[supabase] mp4 attach:", error.message);
-      return;
+      return this.patch(id, { mp4: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl });
     }
     const rec = await idbGet(id); if (!rec) return;
     rec.mp4 = await toDataURL(blob);
@@ -256,7 +263,7 @@ function useDemoOverrides(ref, rec) {
   }, [rec]);
 }
 
-function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onRender, onDelete }) {
+function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onRender, onTag, onDelete }) {
   const ref = useRef(null);
   const [menu, setMenu] = useState(false);
   const CW = 248;
@@ -288,11 +295,26 @@ function DemoCard({ t, d, rec, pre, uniform, onOpen, onPreview, onRender, onDele
           className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover/card:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
-        {menu && <div className="absolute right-0 top-9 z-40 w-44 rounded-[22px] overflow-hidden bg-[#242424] shadow-xl border border-white/10 py-1.5" onClick={e => e.stopPropagation()}>
-          {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="block w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Download MP4</a>}
-          {!mp4 && onRender && <button onClick={() => { setMenu(false); onRender(); }} className="w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Render MP4</button>}
-          <button onClick={() => { setMenu(false); onOpen(); }} className="w-full text-left px-3.5 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Open in editor</button>
-          {IS_LOCAL && onDelete && <button onClick={(e) => { setMenu(false); onDelete(e); }} className="w-full text-left px-3.5 py-2 text-sm text-red-400 hover:bg-red-500/10 transition">Delete</button>}
+        {menu && <div className="absolute right-0 top-9 z-40 w-[224px] rounded-[16px] bg-[#2b2b2b]/85 backdrop-blur-2xl shadow-2xl border border-white/10 p-1.5" onClick={e => e.stopPropagation()}>
+          {mp4 && <a href={mp4} download={(d.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4"} onClick={() => setMenu(false)} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download</a>}
+          {!mp4 && onRender && <button onClick={() => { setMenu(false); onRender(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Render MP4</button>}
+          <button onClick={() => { setMenu(false); onOpen(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Open in editor</button>
+          <div className="border-t border-white/10 my-1" />
+          <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Campaign</div>
+          {CAMPAIGNS.map(c => (
+            <button key={c.id} onClick={() => { setMenu(false); onTag(rec && rec.campaign === c.id ? null : c.id); }}
+              className="flex w-full items-center justify-between gap-2 h-[32px] rounded-[10px] px-2.5 text-[13px] font-medium text-zinc-200 hover:bg-white/10 transition">
+              {c.title}{rec && rec.campaign === c.id && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+            </button>
+          ))}
+          {IS_LOCAL && onDelete && <React.Fragment>
+            <div className="border-t border-white/10 my-1" />
+            <button onClick={(e) => { setMenu(false); onDelete(e); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10 transition">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete</button>
+          </React.Fragment>}
         </div>}
       </div>
     </div>
@@ -306,8 +328,68 @@ const routeFromHash = () => {
   if (parts[0] === "projects") return { sel: null, page: "showcase" };
   if (parts[0] === "hooks") return { sel: null, page: "hooks" };
   if (parts[0] === "brand") return { sel: null, page: "brand" };
+  if (parts[0] === "campaigns") return { sel: null, page: "campaigns" };
   return { sel: null, page: "templates" };
 };
+
+/* ---------- campaigns (demos tagged with a campaign id appear on the Campaigns page) ---------- */
+const CAMPAIGNS = [
+  {
+    id: "song-to-video",
+    title: "Song-to-Video",
+    brief: "Turn tracks into finished music videos, visualizers, and canvas loops. Target: artists, producers, and labels who release music with static covers. Positioning: every song deserves a video — one prompt gets you there before the track ends.",
+    examples: [
+      "I turned a raw track into a finished music video before the song ended.",
+      "Label-quality visualizers used to cost thousands. Now they cost a prompt.",
+      "Stop releasing songs with a static cover. Every track deserves a video now.",
+      "If you're dropping an album without visualizers for every track, you're doing it wrong.",
+    ],
+  },
+  {
+    id: "mcp",
+    title: "Agent Opus MCP",
+    brief: "AI video creation inside Claude via MCP — bulk-create ads, build content calendars, and run viral accounts from a single chat. Target: AI builders, agent tinkerers, and operators automating content pipelines.",
+    examples: [
+      "You can now make AI videos by just… asking Claude.",
+      "I connected Claude to Agent Opus and it built my entire content calendar overnight.",
+      "Claude just got a lot more powerful..",
+      "If you're not bulk-creating ads through MCP, you're doing it wrong. One conversation, thirty ready-to-post videos.",
+    ],
+  },
+  {
+    id: "product-ads",
+    title: "Product Ads",
+    brief: "UGC-style product ads you actually run on Meta — hooks, variations, and full creatives from a product link. Target: DTC founders, media buyers, and performance marketers burning budget on slow creative pipelines.",
+    examples: [
+      "10 ad tools became completely useless overnight. One AI agent replaced them all.",
+      "Stop paying $500 per UGC ad. Your entire ad pipeline now runs on one prompt.",
+      "Every media buyer not using this right now is falling behind. This is not an opinion. This is a fact.",
+      "One product link in. A week of ad creatives out.",
+    ],
+  },
+  {
+    id: "channels",
+    title: "Monetizable Channels",
+    brief: "Faceless theme accounts that earn — long form and short form, generated on a schedule. Target: creators and side-hustlers building theme pages without an editing team.",
+    examples: [
+      "Building a theme account used to take a team. Now it takes a prompt.",
+      "Stop spending weekends editing. A month of posts for your theme page can be generated in one sitting.",
+      "I've run theme pages for years. Nothing ever made me feel like a full studio. Until now.",
+      "Long form. Short form. One agent.",
+    ],
+  },
+  {
+    id: "explainers",
+    title: "Explainers",
+    brief: "Prompt-to-explainer videos — turn any topic, doc, or idea into a clear, animated explainer. Target: educators, marketers, and founders who need concepts explained visually without a motion designer.",
+    examples: [
+      "I typed one sentence and got a full explainer video back.",
+      "Whiteboard explainers used to take an agency two weeks. This took one prompt.",
+      "Every complex idea you're explaining in text should be a 60-second video.",
+      "If you're still briefing motion designers for simple explainers, you're doing it wrong.",
+    ],
+  },
+];
 
 /* ---------- hook copy library (positioning lines per use case) ---------- */
 const HOOKS = [
@@ -752,13 +834,10 @@ function BrandPage() {
     </div>
     {assetPreview && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={() => setAssetPreview(null)}>
-        <div className="rounded-[30px] overflow-hidden shadow-2xl max-w-[min(860px,92vw)] w-full" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-5 py-3.5 bg-[#212121] border-b border-white/10">
-            <div className="text-sm font-semibold text-zinc-100">{assetPreview.label}</div>
-            <button onClick={() => setAssetPreview(null)} className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 transition">✕</button>
-          </div>
-          <div className="h-[420px] flex items-center justify-center p-12" style={{ background: assetPreview.bg }}>
-            <img src={"/brand/" + assetPreview.file} alt={assetPreview.label} className="max-h-full max-w-full object-contain" />
+        <div className="relative rounded-[30px] overflow-hidden shadow-2xl max-w-[92vw]" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setAssetPreview(null)} className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/40 text-zinc-200 hover:bg-black/60 transition">✕</button>
+          <div className="flex items-center justify-center p-16" style={{ background: assetPreview.bg }}>
+            <img src={"/brand/" + assetPreview.file} alt={assetPreview.label} className="max-h-[60vh] max-w-[70vw] object-contain" />
           </div>
         </div>
       </div>
@@ -789,6 +868,7 @@ function App() {
   const [tplQuery, setTplQuery] = useState("");       // template gallery search
   const [demoFilter, setDemoFilter] = useState("all"); // demos aspect filter
   const [saved, setSaved] = useState(false);
+  const [saveCampaign, setSaveCampaign] = useState("");   // campaign tag applied on Save to Demos
   const refreshDemos = async () => { const list = await demoStore.list(); setDemos(list); const m = {}; list.forEach(r => m[r.id] = r); setDemoRecs(m); };
   useEffect(() => { refreshDemos(); }, []);
   const demoPreload = (rec) => rec ? {
@@ -809,6 +889,11 @@ function App() {
   const mainRef = useRef(null);
   const overrides = useRef({});
   const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
+  const histRef = useRef({});          // undo stacks per template
+  const redoRef = useRef({});
+  const baseRef = useRef({});          // pristine text/style per touched path (for clean restores)
+  const lastPushRef = useRef(0);
+  const [, bumpHist] = useState(0);
   const dragRef = useRef(null);
   const editorScaleRef = useRef(1);
   const containerRef = useRef(null);
@@ -837,6 +922,7 @@ function App() {
       else if (parts[0] === "projects") { setSel(null); setPage("showcase"); }
       else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
       else if (parts[0] === "brand") { setSel(null); setPage("brand"); }
+      else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); }
       else { setSel(null); setPage("templates"); }
     };
     apply();
@@ -844,10 +930,56 @@ function App() {
     return () => window.removeEventListener("hashchange", apply);
   }, []);
   useEffect(() => {
-    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : page === "hooks" ? "#/hooks" : page === "brand" ? "#/brand" : "#/templates");
+    const want = sel ? "#/template/" + sel : (page === "demos" ? "#/demos" : page === "showcase" ? "#/projects" : page === "hooks" ? "#/hooks" : page === "brand" ? "#/brand" : page === "campaigns" ? "#/campaigns" : "#/templates");
     if (location.hash !== want) location.hash = want;
   }, [sel, page]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
+  const histFor = (id) => (histRef.current[id] = histRef.current[id] || []);
+  const redoFor = (id) => (redoRef.current[id] = redoRef.current[id] || []);
+  const baseFor = (id) => (baseRef.current[id] = baseRef.current[id] || {});
+  const histSnap = () => JSON.parse(JSON.stringify({ o: ovFor(sel), x: xfFor(sel) }));
+  // record an element's pristine text/inline styles the first time we touch it, so undo can reset it
+  function ensureBase(path, el, props, withText) {
+    if (!sel || path == null) return;
+    const b = baseFor(sel)[path] = baseFor(sel)[path] || { style: {} };
+    if (withText && b.html == null && el && el.tagName !== "INPUT") b.html = el.innerHTML;
+    if (el && props) for (const pr of props) if (!(pr in b.style)) b.style[pr] = el.style[pr] || "";
+  }
+  // snapshot BEFORE a mutation; throttled so slider scrubs count as one step
+  function pushHistory(force) {
+    if (!sel) return;
+    const now = Date.now();
+    if (!force && now - lastPushRef.current < 500) return;
+    lastPushRef.current = now;
+    const h = histFor(sel);
+    h.push(histSnap());
+    if (h.length > 60) h.shift();
+    redoFor(sel).length = 0;
+    bumpHist(n => n + 1);
+  }
+  function histRestore(state) {
+    const root = containerRef.current; if (!root) return;
+    const cur = ovFor(sel), base = baseFor(sel);
+    for (const path of new Set([...Object.keys(cur), ...Object.keys(state.o)])) {
+      const el = nodeAt(root, path); if (!el) continue;
+      const b = base[path] || { style: {} };
+      for (const pr in b.style) el.style[pr] = b.style[pr];
+      const next = state.o[path];
+      if (b.html != null && el.tagName !== "INPUT" && (!next || (next.html == null && next.text == null))) el.innerHTML = b.html;
+    }
+    const curX = xfFor(sel);
+    for (const k in curX) if (!state.x[k]) {
+      const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
+      if (m) { m.style.transform = ""; m.style.width = ""; m.style.height = ""; }
+    }
+    overrides.current[sel] = state.o;
+    mediaXf.current[sel] = state.x;
+    clearActive(); setInsp(null);
+    applyAll();
+    bumpHist(n => n + 1);
+  }
+  function undoEdit() { const h = histFor(sel); if (!h.length) return; redoFor(sel).push(histSnap()); histRestore(h.pop()); }
+  function redoEdit() { const r = redoFor(sel); if (!r.length) return; histFor(sel).push(histSnap()); histRestore(r.pop()); }
   const xfFor = (id) => (mediaXf.current[id] = mediaXf.current[id] || {});
   const applyXf = (root, id) => {
     const xf = xfFor(id);
@@ -883,11 +1015,34 @@ function App() {
       el.dataset.opq = "1";
     });
   }
+  // "Blur" background style: keep an ambient blurred copy of the first slot media behind the
+  // design (z:-1 behind the transparent root bg). The export detects it like template ambients.
+  function syncAmbient() {
+    const root = containerRef.current; if (!root || !sel) return;
+    const frame = root.firstElementChild; if (!frame) return;
+    const flag = ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on;
+    let amb = frame.querySelector(":scope > [data-ambient]");
+    const media = root.querySelector("[data-vslot] video, [data-vslot] img");
+    if (!flag || !media) { if (amb) amb.remove(); return; }
+    const want = media.tagName === "IMG" ? "IMG" : "VIDEO";
+    if (amb && amb.tagName !== want) { amb.remove(); amb = null; }
+    if (!amb) {
+      amb = document.createElement(want.toLowerCase());
+      amb.setAttribute("data-ambient", "1");
+      amb.className = "absolute inset-0 w-full h-full object-cover blur-[60px] opacity-30 scale-110 pointer-events-none";
+      amb.style.zIndex = "-1";
+      if (want === "VIDEO") { amb.muted = true; amb.loop = true; amb.autoplay = true; amb.playsInline = true; }
+      frame.appendChild(amb);
+    }
+    const src = media.currentSrc || media.src || media.getAttribute("src");
+    if (amb.getAttribute("src") !== src) { amb.setAttribute("src", src); if (amb.play) { const q = amb.play(); if (q && q.catch) q.catch(() => {}); } }
+  }
   function applyAll() {
     const root = containerRef.current; if (!root || !sel) return;
     applyingRef.current = true;
     const ov = ovFor(sel);
     for (const path in ov) {
+      if (path === "__bgBlur") continue;
       const el = nodeAt(root, path); if (!el) continue;
       const o = ov[path];
       const active = activeRef.current && activeRef.current.el;
@@ -897,6 +1052,7 @@ function App() {
     }
     applyXf(root, sel);
     solidifyEmptySlots(root);
+    syncAmbient();
     requestAnimationFrame(() => { applyingRef.current = false; });
   }
   useEffect(() => {
@@ -909,15 +1065,15 @@ function App() {
   }, [sel]);
 
   function clearActive() {
-    if (activeRef.current) { const { el } = activeRef.current; if (el) { el.contentEditable = "false"; el.style.outline = ""; el.style.outlineOffset = ""; } activeRef.current = null; }
+    if (activeRef.current) { const { el } = activeRef.current; if (el) { el.contentEditable = "false"; el.style.outline = ""; el.style.outlineOffset = ""; el.style.cursor = ""; } activeRef.current = null; }
     setHandle(null);
   }
   // drag the floating ✥ handle to move the selected element; offset is stored as a composed
   // transform override so it survives demos and exports. Positions snap to an 8px design-px
   // grid (element top-left lands on grid lines) — hold Alt for free movement.
   const GRID = 8;
-  function startMoveDrag(e) {
-    e.preventDefault(); e.stopPropagation();
+  function startMoveDrag(e, fromHandle) {
+    if (fromHandle) { e.preventDefault(); e.stopPropagation(); }
     const rec0 = activeRef.current; if (!rec0 || !insp) return;
     let el = rec0.el;
     if (!el || !el.isConnected) el = nodeAt(containerRef.current, rec0.path);
@@ -930,10 +1086,18 @@ function App() {
     const cont = containerRef.current.getBoundingClientRect();
     const er0 = el.getBoundingClientRect();
     const bx = (er0.left - cont.left) / sc0, by = (er0.top - cont.top) / sc0;   // element top-left in design px
-    setInsp(i => (i ? { ...i, moved: true } : i));
+    let started = !!fromHandle, pushed = false;
+    const begin = () => {
+      if (!pushed) { pushed = true; pushHistory(true); ensureBase(rec0.path, el, ["transform"]); setInsp(i => (i ? { ...i, moved: true } : i)); }
+    };
+    if (fromHandle) begin();
     const move = (ev) => {
       const sc = editorScaleRef.current || 1;
       let dx = (ev.clientX - startX) / sc, dy = (ev.clientY - startY) / sc;
+      if (!started) {
+        if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return;
+        started = true; begin();
+      }
       if (!ev.altKey) {
         dx = Math.round((bx + dx) / GRID) * GRID - bx;
         dy = Math.round((by + dy) / GRID) * GRID - by;
@@ -945,7 +1109,12 @@ function App() {
       rec.style = rec.style || {}; rec.style.transform = t;
       if (h0) setHandle({ x: h0.x + dx * sc, y: h0.y + dy * sc });
     };
-    const up = () => { setGuides(null); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    const up = () => {
+      setGuides(null);
+      if (started && !fromHandle) { suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150); }
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }
@@ -955,8 +1124,10 @@ function App() {
     const path = pathOf(el, root);
     const text = forceText || isTextLeaf(el);
     const slotEl = el.closest(".cursor-pointer");
-    if (text && el.tagName !== "INPUT") { el.contentEditable = "true"; el.focus(); }
-    el.style.outline = "2px solid #2563eb"; el.style.outlineOffset = "1px";
+    if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = "true"; el.focus(); }
+    el.style.outline = "2px solid #2563eb";
+    el.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
+    if (!text && el.tagName !== "INPUT") el.style.cursor = "move";
     activeRef.current = { el, path };
     if (mainRef.current) {
       const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
@@ -980,6 +1151,7 @@ function App() {
     setInsp({
       path, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
       pinPath, pin, swapKey, swapOn, moved: !!ovs.transform,
+      pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : undefined,
       imgH: el.tagName === "IMG" ? (parseInt(ovs.height) || Math.round(parseFloat(cs.height)) || 24) : null,
       bgHex: bg.hex, bgTransparent: bg.a === 0,
       opacity: Math.round(parseFloat(ovs.opacity != null ? ovs.opacity : cs.opacity) * 100),
@@ -997,6 +1169,8 @@ function App() {
     let el = activeRef.current && activeRef.current.el; if (!el || !insp) return;
     if (!el.isConnected) el = nodeAt(containerRef.current, insp.path);
     if (!el) return;
+    pushHistory();
+    ensureBase(insp.path, el, prop === "backgroundColor" ? [prop, "backgroundImage"] : [prop]);
     const rec = ovFor(sel)[insp.path] = ovFor(sel)[insp.path] || {};
     rec.style = rec.style || {};
     rec.style[prop] = val; el.style[prop] = val;
@@ -1007,6 +1181,7 @@ function App() {
     if (!activeRef.current) return;
     const el = activeRef.current.el;
     if (!el || el.tagName === "INPUT") return;
+    pushHistory();
     const rec = ovFor(sel)[activeRef.current.path] = ovFor(sel)[activeRef.current.path] || {};
     if (el.children.length) rec.html = el.innerHTML; else rec.text = el.textContent;
   }
@@ -1021,6 +1196,8 @@ function App() {
       e.preventDefault(); e.stopPropagation();
       if (mslot.hasAttribute("data-vslot") && mslot.querySelector("video, img")) {
         clearActive();
+        mslot.style.outline = "2px solid #2563eb"; mslot.style.outlineOffset = "1px";
+        activeRef.current = { el: mslot, path: pathOf(mslot, containerRef.current) };
         const k = mslot.getAttribute("data-vslot");
         const t = xfFor(sel)[k] || {};
         setInsp({ isMedia: true, slot: k, mediaScale: t.s || 1, mediaFit: t.fit || "cover", mediaPad: t.pad != null ? t.pad : 14, mediaRadius: parseInt(getComputedStyle(mslot).borderTopLeftRadius) || 0, mediaMute: !!t.mute, isVideo: !!mslot.querySelector("video") });
@@ -1063,13 +1240,20 @@ function App() {
   function onMediaDragStart(e) {
     if (!editMode) return;
     const slot = e.target.closest && e.target.closest("[data-vslot]");
-    if (!slot || !containerRef.current.contains(slot)) return;
+    if (!slot || !containerRef.current.contains(slot)) {
+      // not on media: direct-drag the selected element from anywhere on it (text keeps the ✥ handle)
+      const a = activeRef.current;
+      if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isText && insp.path !== "" && insp.path !== "0" &&
+          (e.target === a.el || a.el.contains(e.target))) startMoveDrag(e, false);
+      return;
+    }
     const media = slot.querySelector("video, img");
     if (!media) return;
     e.preventDefault();
     const k = slot.getAttribute("data-vslot");
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     const d = { k, media, startX: e.clientX, startY: e.clientY, baseX: t.x || 0, baseY: t.y || 0, moved: false };
+    pushHistory(true);
     dragRef.current = d;
     const move = (ev) => {
       const sc = editorScaleRef.current || 1;
@@ -1090,12 +1274,14 @@ function App() {
     window.addEventListener("pointerup", up);
   }
   function setMediaScale(k, s) {
+    pushHistory();
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     t.s = s;
     applyXf(containerRef.current, sel);
     setInsp(i => ({ ...i, mediaScale: s }));
   }
   function setMediaFit(k, fit) {
+    pushHistory(true);
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     t.fit = fit;
     if (fit === "contain" && t.pad == null) t.pad = 14;
@@ -1103,6 +1289,7 @@ function App() {
     setInsp(i => ({ ...i, mediaFit: fit, mediaPad: t.pad != null ? t.pad : 14 }));
   }
   function setMediaPad(k, pad) {
+    pushHistory();
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     t.pad = pad;
     applyXf(containerRef.current, sel);
@@ -1110,6 +1297,7 @@ function App() {
   }
   // per-slot audio: mute flag lives in mediaXf so it flows into demos + the export spec
   function setMediaMute(k, mute) {
+    pushHistory(true);
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     t.mute = mute;
     const m = containerRef.current.querySelector('[data-vslot="' + k + '"] video');
@@ -1120,6 +1308,8 @@ function App() {
   function setMediaRadius(k, px) {
     const root = containerRef.current;
     const el = root.querySelector('[data-vslot="' + k + '"]'); if (!el) return;
+    pushHistory();
+    ensureBase(pathOf(el, root), el, ["borderRadius"]);
     const rec = ovFor(sel)[pathOf(el, root)] = ovFor(sel)[pathOf(el, root)] || {};
     rec.style = rec.style || {}; rec.style.borderRadius = px + "px";
     el.style.borderRadius = px + "px";
@@ -1128,11 +1318,29 @@ function App() {
   // subtle background patterns drawn with CSS gradients; line color adapts to the bg luminance
   function setPattern(kind) {
     if (!insp) return;
+    pushHistory(true);
+    { let el = activeRef.current && activeRef.current.el; if (el && !el.isConnected) el = nodeAt(containerRef.current, insp.path); ensureBase(insp.path, el, ["backgroundImage", "backgroundSize", "backgroundColor"]); }
+    if (kind === "blur") {
+      ovFor(sel).__bgBlur = { on: true };
+      setStyle("backgroundImage", "none");
+      setStyle("backgroundColor", "transparent", { bgTransparent: true, pattern: "blur" });
+      syncAmbient();
+      return;
+    }
+    if (ovFor(sel).__bgBlur) {
+      delete ovFor(sel).__bgBlur;
+      setStyle("backgroundColor", "", { bgTransparent: false });
+      syncAmbient();
+    }
     const m = (insp.bgHex || "#ffffff").match(/[0-9a-f]{2}/gi) || ["ff", "ff", "ff"];
     const lum = 0.299 * parseInt(m[0], 16) + 0.587 * parseInt(m[1], 16) + 0.114 * parseInt(m[2], 16);
     const c = insp.bgTransparent || lum < 140 ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
+    const hx = (insp.bgHex || "#181818").match(/[0-9a-f]{2}/gi) || ["18", "18", "18"];
+    const ch = hx.map(v => parseInt(v, 16));
+    const mixc = (arr, t, w) => "rgb(" + arr.map(v => Math.round(v * (1 - w) + t * w)).join(",") + ")";
     const P = {
       none: { backgroundImage: "none", backgroundSize: "auto" },
+      gradient: { backgroundImage: `linear-gradient(180deg, ${mixc(ch, 255, 0.14)} 0%, rgb(${ch.join(",")}) 55%, ${mixc(ch, 0, 0.35)} 100%)`, backgroundSize: "auto" },
       grid: { backgroundImage: `linear-gradient(${c} 1px, transparent 1px), linear-gradient(90deg, ${c} 1px, transparent 1px)`, backgroundSize: "48px 48px" },
       dots: { backgroundImage: `radial-gradient(${c} 1.5px, transparent 1.5px)`, backgroundSize: "26px 26px" },
       lines: { backgroundImage: `repeating-linear-gradient(45deg, ${c} 0 1px, transparent 1px 16px)`, backgroundSize: "auto" },
@@ -1144,6 +1352,8 @@ function App() {
   function setPin(corner) {
     const root = containerRef.current; if (!insp || insp.pinPath == null) return;
     const el = nodeAt(root, insp.pinPath); if (!el) return;
+    pushHistory(true);
+    ensureBase(insp.pinPath, el, ["top", "right", "bottom", "left"]);
     const inset = "12px";
     const v = {
       tl: { top: inset, left: inset, right: "auto", bottom: "auto" },
@@ -1173,6 +1383,7 @@ function App() {
   useEffect(() => {
     const root = containerRef.current; if (!root || !sel) return;
     const sync = () => { root.querySelectorAll("video").forEach(v => {
+      if (v.hasAttribute("data-ambient")) { v.muted = true; return; }
       const slotEl = v.closest("[data-vslot]");
       const slotMute = slotEl ? !!((xfFor(sel)[slotEl.getAttribute("data-vslot")] || {}).mute) : false;
       v.muted = !soundOn || slotMute;
@@ -1244,7 +1455,7 @@ function App() {
     const id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("d_" + Date.now());
     setSaved("saving");
     try {
-      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
+      await demoStore.save({ id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb });
       await refreshDemos();
       setSaved(true); if (window.__toast) window.__toast("Saved to Demos"); setTimeout(() => setSaved(false), 1800);
       // render the real output in the background so the demo card can play the final MP4;
@@ -1296,6 +1507,12 @@ function App() {
       await refreshDemos();
       if (window.__toast) window.__toast("Demo video rendered");
     } catch (e) { alert("Render failed: " + (e.message || e)); }
+  }
+  async function tagDemo(id, campaign) {
+    await demoStore.patch(id, { campaign });
+    await refreshDemos();
+    const c = CAMPAIGNS.find(x => x.id === campaign);
+    if (window.__toast) window.__toast(c ? "Tagged: " + c.title : "Campaign tag removed");
   }
   async function deleteDemo(id, e) {
     if (e) e.stopPropagation();
@@ -1391,6 +1608,20 @@ function App() {
     }
     setExporting(false);
   }
+
+  // cmd/ctrl+z undo, shift+cmd/ctrl+z redo (native text undo still applies while typing)
+  useEffect(() => {
+    if (!sel) return;
+    const h = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.isContentEditable)) return;
+      e.preventDefault();
+      if (e.shiftKey) redoEdit(); else undoEdit();
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [sel]);
 
   // warn before leaving the editor when there are edits in progress
   const editorDirty = () => {
@@ -1540,9 +1771,9 @@ function App() {
                   <input type="number" min="0" value={insp.radius} onChange={e => setStyle("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
                 </div>
                 <div>
-                  <label className={LBL}>Pattern</label>
+                  <label className={LBL}>Style</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
-                    {[["none", "Color"], ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
+                    {[["none", "Color"], ["gradient", "Gradient"], ...(insp.path === "0" ? [["blur", "Blur"]] : []), ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
                       <button key={k} onClick={() => setPattern(k)} className={(insp.pattern || "none") === k ? SEG_ON : SEG}>{label}</button>
                     ))}
                   </div>
@@ -1599,7 +1830,11 @@ function App() {
             </div>}
           </div>
 
-          {IS_LOCAL && <div className="px-5 py-4 border-t border-white/10">
+          {IS_LOCAL && <div className="px-5 py-4 border-t border-white/10 space-y-2.5">
+            <select value={saveCampaign} onChange={e => setSaveCampaign(e.target.value)} className={FIELD}>
+              <option value="">No campaign</option>
+              {CAMPAIGNS.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
             <button onClick={saveDemo}
               className="w-full text-sm px-3 py-2.5 rounded-[30px] bg-white/10 hover:bg-white/15 text-zinc-100 font-medium transition">
               {saved === "saving" ? "Saving…" : saved ? "Saved to Demos ✓" : "Save to Demos"}</button>
@@ -1614,6 +1849,14 @@ function App() {
             </div>
             <span className="text-xs text-zinc-400 whitespace-nowrap">{exportProg.label}</span>
           </div>}
+          <button onClick={undoEdit} disabled={!histFor(sel).length} title="Undo (⌘Z)"
+            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
+          </button>
+          <button onClick={redoEdit} disabled={!redoFor(sel).length} title="Redo (⇧⌘Z)"
+            className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>
+          </button>
           <button onClick={exportMp4} disabled={exporting}
             className="text-sm px-4 py-2 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 font-medium transition disabled:opacity-60 disabled:cursor-wait">
             {exporting ? "Exporting…" : "Export"}</button>
@@ -1629,8 +1872,8 @@ function App() {
               <div className="absolute left-0 right-0 h-px bg-[#2563eb]/80" style={{ top: guides.y * s }} />
             </div>}
           </div>
-          {handle && insp && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" && (
-            <button onPointerDown={startMoveDrag} title="Drag to move"
+          {handle && insp && insp.isText && !insp.isMedia && !insp.isLogo && insp.path !== "" && insp.path !== "0" && (
+            <button onPointerDown={(e) => startMoveDrag(e, true)} title="Drag to move"
               style={{ left: handle.x - 2, top: handle.y - 34 }}
               className="absolute z-40 w-7 h-7 flex items-center justify-center rounded-[30px] bg-white text-zinc-900 shadow-lg cursor-move select-none">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/><path d="M9 5l3-3 3 3"/><path d="M9 19l3 3 3-3"/><path d="M5 9l-3 3 3 3"/><path d="M19 9l3 3-3 3"/></svg>
@@ -1655,6 +1898,7 @@ function App() {
   const iconTemplates = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16"/><path d="M17 4v16"/><path d="M2 9h5"/><path d="M2 15h5"/><path d="M17 9h5"/><path d="M17 15h5"/></svg>;
   const iconShowcase = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5"/><path d="M12 12v9"/><path d="M12 12L4 7.5"/></svg>;
   const iconHooks = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M18.4 5.6l-2.1 2.1M21 12h-3M5.6 5.6l2.1 2.1M3 12h3M12 21a6 6 0 006-6c0-2-1-3.5-2.5-5L12 6.5 8.5 10C7 11.5 6 13 6 15a6 6 0 006 6z"/></svg>;
+  const iconCampaigns = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/></svg>;
   const iconBrand = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>;
   const sideBtn = (id, label, icon) => (
     <button onClick={() => setPage(id)} title={label} aria-label={label}
@@ -1685,7 +1929,7 @@ function App() {
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
       })}
       </div>
     </div>
@@ -1722,6 +1966,7 @@ function App() {
         <nav className="p-3 pt-1 flex flex-col gap-1">
           {sideBtn("templates", "Templates", iconTemplates)}
           {sideBtn("showcase", "Demos", iconShowcase)}
+          {sideBtn("campaigns", "Campaigns", iconCampaigns)}
           {sideBtn("hooks", "Hooks", iconHooks)}
           {sideBtn("brand", "Brand Guidelines", iconBrand)}
         </nav>
@@ -1730,7 +1975,36 @@ function App() {
       {/* content */}
       <main className="flex-1 min-w-0">
         <div className="max-w-6xl mx-auto px-8 py-10">
-          {page === "hooks" ? (
+          {page === "campaigns" ? (
+            <div className="space-y-14">
+              {CAMPAIGNS.map(c => {
+                const tagged = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId));
+                return (
+                  <section key={c.id}>
+                    <h2 className="text-[22px] font-semibold tracking-tight text-white">{c.title}</h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-400">{c.brief}</p>
+                    <div className="hscroll mt-4 flex gap-4 overflow-x-auto snap-x pb-6 pt-1 -mx-2 px-2">
+                      {c.examples.map(h => (
+                        <button key={h} onClick={() => navigator.clipboard.writeText(h).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
+                          className="snap-start shrink-0 w-[300px] text-left p-4 rounded-[30px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition">
+                          <span className="text-[14px] text-zinc-300 leading-relaxed">{h}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {tagged.length
+                      ? <div className="mt-2 flex flex-wrap gap-6">
+                          {tagged.map(d => {
+                            const t = templates.find(x => x.id === d.templateId);
+                            const rec = demoRecs[d.id];
+                            return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id)} onTag={(camp) => tagDemo(d.id, camp)} onDelete={(e) => deleteDemo(d.id, e)} />;
+                          })}
+                        </div>
+                      : <div className="mt-2 flex min-h-[120px] items-center justify-center rounded-[30px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No demos tagged yet — tag one from the Demos page ⋯ menu.</div>}
+                  </section>
+                );
+              })}
+            </div>
+          ) : page === "hooks" ? (
             <HooksPage />
           ) : page === "brand" ? (
             <BrandPage />
