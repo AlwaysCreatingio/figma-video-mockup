@@ -3364,8 +3364,8 @@ function App() {
           ) : page === "templates" ? (
             <div>
               <FilterFab options={[["all", "All"], ["16:9", "Horizontal"], ["9:16", "Vertical"], ["1:1", "Square"]]} value={tplFilter} onChange={setTplFilter} />
-              <header className="hidden md:flex flex-wrap items-center justify-end gap-4 mb-8">
-                <div className="flex items-center gap-2">
+              <header className="hidden md:flex flex-wrap items-center gap-4 mb-8">
+                <div className="flex items-center gap-2 flex-1">
                   {chip("all", "All")}{chip("16:9", "Horizontal")}{chip("9:16", "Vertical")}{chip("1:1", "Square")}
                   <div className="ml-auto"><SortMenu value={tplSort} onChange={setTplSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most popular"]]} /></div>
                 </div>
