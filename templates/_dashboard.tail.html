@@ -141,7 +141,7 @@ const demoStore = {
     if (SB) {
       const { data, error } = await SB.from("demos").select("*").order("created_at", { ascending: false });
       if (error) { console.warn("[supabase] list:", error.message); return []; }
-      return (data || []).map(r => ({ id: r.id, name: r.name, templateId: r.template_id, thumb: r.thumb, ...(r.payload || {}) }));
+      return (data || []).map(r => ({ id: r.id, name: r.name, templateId: r.template_id, thumb: r.thumb, createdAt: r.created_at, ...(r.payload || {}) }));
     }
     const db = await idbOpen();
     return new Promise(res => { const g = db.transaction("demos", "readonly").objectStore("demos").getAll(); g.onsuccess = () => res((g.result || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))); g.onerror = () => res([]); });
@@ -1329,18 +1329,29 @@ function App() {
     const base = (window.TEMPLATES || []).slice().filter(t => hiddenTplIds.indexOf(t.id) < 0);
     const virt = virtTpls.map(v => {
       const b = base.find(x => x.id === v.templateId);
-      return b ? { ...b, id: v.id, name: v.name || ("Copy of " + b.name), baseId: b.id, virtual: true } : null;
+      return b ? { ...b, id: v.id, name: v.name || ("Copy of " + b.name), baseId: b.id, virtual: true, createdAt: v.createdAt } : null;
     }).filter(Boolean);
     return [...base, ...virt].sort((a, b) => a.name.localeCompare(b.name));
   }, [virtTpls, hiddenTplIds]);
-  // chronological order templates were added (append new ids here; unknown ids count as newest)
+  // when each template was added (append new ids here with today's date; unknown ids count as newest)
   const TPL_CHRONO = [
-    "3528-13182", "3528-13213", "3528-13235", "3532-13307", "3532-13332", "3532-13358", "3532-14362",
-    "3534-14446", "3534-14453", "3534-14502", "3534-14520", "3534-14597", "3534-14617", "3534-14698", "3534-14709",
-    "prompt-16x9", "prompt-9x16", "product-1x1", "raw-1x1", "prompt-1x1", "ref-compare", "duel-16x9",
+    ["3528-13182", "2026-07-13"], ["3528-13213", "2026-07-13"], ["3528-13235", "2026-07-13"],
+    ["3532-13307", "2026-07-13"], ["3532-13332", "2026-07-13"], ["3532-13358", "2026-07-13"], ["3532-14362", "2026-07-13"],
+    ["3534-14446", "2026-07-14"], ["3534-14453", "2026-07-14"], ["3534-14502", "2026-07-14"], ["3534-14520", "2026-07-14"],
+    ["3534-14597", "2026-07-14"], ["3534-14617", "2026-07-14"], ["3534-14698", "2026-07-14"], ["3534-14709", "2026-07-14"],
+    ["prompt-16x9", "2026-07-15"], ["prompt-9x16", "2026-07-15"], ["product-1x1", "2026-07-15"],
+    ["raw-1x1", "2026-07-16"], ["prompt-1x1", "2026-07-16"], ["ref-compare", "2026-07-16"],
+    ["duel-16x9", "2026-07-17"],
   ];
-  const tplOrderIdx = {}; TPL_CHRONO.forEach((id, i) => { tplOrderIdx[id] = i; });
-  const tplAge = (t) => (tplOrderIdx[t.id] != null ? tplOrderIdx[t.id] : 1e6);   // copies and new arrivals count as newest
+  const CHRONO_DATE = {}; const tplOrderIdx = {};
+  TPL_CHRONO.forEach(([id, d], i) => { CHRONO_DATE[id] = d; tplOrderIdx[id] = i; });
+  const tplAge = (t) => (tplOrderIdx[t.id] != null ? tplOrderIdx[t.id] : 1e6);
+  const tplAdded = (t) => {
+    if (!t.virtual) return CHRONO_DATE[t.id] || "9999";
+    const c = t.createdAt;
+    if (!c) return "9999";
+    return (typeof c === "number" ? new Date(c).toISOString() : String(c)).slice(0, 19);
+  };
   const selTplObj = sel ? templates.find(x => x.id === sel) : null;
   const TplMemo = React.useMemo(() => (selTplObj ? React.memo(selTplObj.Component) : null), [selTplObj && selTplObj.id]);
   useEffect(() => { const f = () => force(x => x + 1); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -3261,8 +3272,8 @@ function App() {
     (tplFilter === "all" || aspectOf(t) === tplFilter) &&
     (!tplQuery || (t.name + " " + (t.desc || "")).toLowerCase().includes(tplQuery.toLowerCase())))
     .sort((a, b) => tplSort === "pop" ? ((tplStats[b.id] || 0) - (tplStats[a.id] || 0))
-      : tplSort === "new" ? (tplAge(b) - tplAge(a))
-      : tplSort === "old" ? (tplAge(a) - tplAge(b))
+      : tplSort === "new" ? (tplAdded(b).localeCompare(tplAdded(a)) || (tplAge(b) - tplAge(a)))
+      : tplSort === "old" ? (tplAdded(a).localeCompare(tplAdded(b)) || (tplAge(a) - tplAge(b)))
       : a.name.localeCompare(b.name));
   const chipBtn = (id, label, cur, set) => (
     <button key={id} onClick={() => set(id)}
