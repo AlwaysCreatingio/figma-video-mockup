@@ -715,7 +715,11 @@ function SeekBar({ rootRef }) {
       const vids = [...root.querySelectorAll("[data-vslot] video")].filter(v => v.duration);
       if (!vids.length) { setSt(s2 => (s2.d ? { t: 0, d: 0 } : s2)); return; }
       const v = vids.reduce((a, b) => ((b.duration || 0) > (a.duration || 0) ? b : a));
-      setSt({ t: v.currentTime || 0, d: v.duration || 0 });
+      const cap = window.__EXPORT_DUR > 0 ? window.__EXPORT_DUR : 0;
+      // preview mirrors the output: chosen duration trims (loop at the mark) or extends (loops fill)
+      if (cap) vids.forEach(v2 => { if (v2.currentTime > cap) { try { v2.currentTime = 0; } catch (e) {} } });
+      const d = cap || v.duration || 0;
+      setSt({ t: Math.min(v.currentTime || 0, d), d });
     }, 250);
     return () => clearInterval(id);
   }, []);
