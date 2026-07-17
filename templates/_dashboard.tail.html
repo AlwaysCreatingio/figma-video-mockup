@@ -1981,9 +1981,16 @@ function App() {
       if (mode === "font") setStyle("fontSize", Math.max(6, Math.round(f0 * k)) + "px", { size: Math.max(6, Math.round(f0 * k)) });
       else if (mode === "img") setStyle("height", Math.max(8, Math.round(h0 * k)) + "px", { imgH: Math.max(8, Math.round(h0 * k)) });
       else {
-        const kx = horiz ? Math.max(0.05, Math.abs(ev.clientX - ax) / dx0) : 1;
-        const ky = vert ? Math.max(0.05, Math.abs(ev.clientY - ay) / dy0) : 1;
-        const w1 = Math.max(8, Math.round(w0 * kx)), h1 = Math.max(8, Math.round(h0 * ky));
+        let w1, h1;
+        if (ev.shiftKey && horiz && vert) {
+          // shift + corner: scale uniformly, keeping the aspect ratio
+          const k = Math.max(0.05, Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0);
+          w1 = Math.max(8, Math.round(w0 * k)); h1 = Math.max(8, Math.round(h0 * k));
+        } else {
+          const kx = horiz ? Math.max(0.05, Math.abs(ev.clientX - ax) / dx0) : 1;
+          const ky = vert ? Math.max(0.05, Math.abs(ev.clientY - ay) / dy0) : 1;
+          w1 = Math.max(8, Math.round(w0 * kx)); h1 = Math.max(8, Math.round(h0 * ky));
+        }
         const live = tEl.isConnected ? tEl : nodeAt(containerRef.current, tPath);
         if (live) { live.style.width = w1 + "px"; live.style.height = h1 + "px"; }
         const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {}; rec.style = rec.style || {};

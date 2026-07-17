@@ -12,12 +12,12 @@
     const Slot = ({ k, className, style }) => (
       <div data-vslot={k} onClick={() => pick(k)} className={'overflow-hidden cursor-pointer group flex items-center justify-center ' + (className || '')} style={style}>
         {vids[k] ? (vids[k].img ? <img src={vids[k].url} className="w-full h-full object-cover" /> : <video src={vids[k].url} autoPlay loop muted playsInline className="w-full h-full object-cover" />)
-        : <span className="text-[13px] font-medium text-neutral-400 group-hover:text-neutral-600">{k === "slot2" ? "idea" : "upload"}</span>}
+        : null}
       </div>
     );
 
-    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { l1: window.__AGENT_OPUS_MARK, l2: window.__AGENT_OPUS_MARK, lw: window.__AGENT_OPUS_MARK });
-    const [logoBgs, setLogoBgs] = useState(() => (props && props.preload && props.preload.logoBgs) || { l1: "#d77655", l2: "#111111", lw: "#111111" });
+    const [logos, setLogos] = useState(() => (props && props.preload && props.preload.logos) || { l1: window.__AGENT_OPUS_MARK, l2: window.__AGENT_OPUS_MARK });
+    const [logoBgs, setLogoBgs] = useState(() => (props && props.preload && props.preload.logoBgs) || { l1: "#d77655", l2: "#111111" });
     const [logoScales, setLogoScales] = useState(() => (props && props.preload && props.preload.logoScales) || {});
     const [logoBorders, setLogoBorders] = useState(() => (props && props.preload && props.preload.logoBorders) || {});
     const __logoBorder = (k) => (logoBorders[k] !== undefined ? logoBorders[k] : null);
@@ -45,8 +45,12 @@
         <div className="hidden" />
         {/* right: the result video fills the right side */}
         <Slot k="slot1" className="absolute top-0 right-0 h-full bg-[#2a2a2e]" style={{ width: 600 }} />
-        {/* watermark logo, top-right over the video */}
-        <LogoSlot k="lw" className="absolute rounded-[12px] size-[84px]" style={{ top: 34, right: 34 }} />
+        {/* watermark: Agent Opus logomark, top-right over the video */}
+        <div data-swap="mark" className="absolute flex items-center justify-center rounded-[16px] size-[84px] bg-[#111111]" style={{ top: 34, right: 34 }}>
+          {(labelText.mark == null || labelText.mark === "@logo")
+            ? <svg aria-label="agent opus logo" fill="#f3ede2" viewBox="0 0 24 24" width="48" height="48"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
+            : <p className="font-bold leading-none text-[30px] text-[#f3ede2] font-[Geist,sans-serif]">{labelText.mark}</p>}
+        </div>
 
         {/* left column: brand + idea + partner, stacked with plus signs */}
         <div className="absolute left-0 top-0 flex flex-col items-center justify-center gap-[16px]" style={{ width: 300, height: 1080, paddingLeft: 40 }}>
@@ -63,5 +67,5 @@
   }
 
   window.TEMPLATES = window.TEMPLATES || [];
-  window.TEMPLATES.push({ id: "recipe-1x1", name: "Idea Recipe 1:1", width: 1080, height: 1080, slots: 2, logoSlots: 3, desc: "Square split: brand + an uploadable idea image + partner logos joined by plus signs and converging arrows on white, feeding the result video on the right with a corner watermark.", Component });
+  window.TEMPLATES.push({ id: "recipe-1x1", name: "Idea Recipe 1:1", width: 1080, height: 1080, slots: 2, logoSlots: 2, desc: "Square split: brand + an uploadable idea image + partner logos joined by plus signs on white, feeding the result video on the right with the Agent Opus logomark in the corner.", Component });
 })();
