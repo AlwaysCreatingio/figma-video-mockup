@@ -275,18 +275,47 @@ function Sec({ title, open, onToggle, children }) {
 }
 
 /* fullscreen preview: plays the rendered MP4 (or shows the saved thumb) with a download action */
-function DemoPreview({ d, t, rec, pre, onClose, onOpen, onRender }) {
+function DemoPreview({ d, t, rec, pre, onClose, onOpen, onRender, renderProg, onCancelRender }) {
   const mp4 = rec && rec.mp4;
   const ref = useRef(null);
+  const vidRef = useRef(null);
+  const [muted, setMuted] = useState(false);
   useDemoOverrides(ref, mp4 ? null : rec);
+  useEffect(() => {
+    const v = vidRef.current; if (!v) return;
+    v.muted = false;
+    const q = v.play();
+    if (q && q.catch) q.catch(() => { v.muted = true; setMuted(true); const q2 = v.play(); if (q2 && q2.catch) q2.catch(() => {}); });
+  }, [mp4]);
   const ps = t ? Math.min(860 / t.width, 560 / t.height) : 1;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={onClose}>
       <div className="relative bg-[#212121] rounded-[30px] shadow-2xl max-w-[min(920px,94vw)] w-full overflow-hidden" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-zinc-300 hover:bg-black/70 hover:text-white transition">✕</button>
-        <div className="bg-zinc-950 flex items-center justify-center">
+        <div className="relative bg-zinc-950 flex items-center justify-center">
+          {renderProg && <div className="absolute inset-0 z-20 flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm">
+            <div className="w-[min(320px,80%)] px-6 py-5 rounded-[22px] bg-[#212121] border border-white/10 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-zinc-100">{renderProg.label}</span>
+                <span className="text-sm font-semibold text-white">{renderProg.pct}%</span>
+              </div>
+              <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-white transition-all duration-300" style={{ width: renderProg.pct + "%" }} /></div>
+              {renderProg.pct < 100 && onCancelRender && <button onClick={onCancelRender} className="mt-4 w-full py-2 rounded-[30px] text-xs font-medium text-zinc-300 bg-white/10 hover:bg-white/15 transition">Cancel</button>}
+            </div>
+          </div>}
           {mp4
-            ? <video src={mp4} controls autoPlay loop muted playsInline className="max-h-[70vh] w-auto max-w-full" />
+            ? <React.Fragment>
+                <video ref={vidRef} src={mp4} controls autoPlay loop playsInline muted={muted}
+                  onVolumeChange={() => { const v = vidRef.current; if (v) setMuted(v.muted); }}
+                  className="max-h-[70vh] w-auto max-w-full" />
+                <button onClick={() => { const v = vidRef.current; if (!v) return; v.muted = !v.muted; setMuted(v.muted); }}
+                  title={muted ? "Unmute" : "Mute"}
+                  className="absolute top-3 left-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-zinc-200 hover:bg-black/70 hover:text-white transition">
+                  {muted
+                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>
+                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>}
+                </button>
+              </React.Fragment>
             : pre && t
               ? <div className="overflow-hidden" style={{ width: t.width * ps, height: t.height * ps }}>
                   <div ref={ref} className="pointer-events-none" style={{ width: t.width, height: t.height, transform: `scale(${ps})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
@@ -1148,7 +1177,7 @@ function App() {
   }, []);
   const toastEl = <React.Fragment>
     {toast && !renderProg && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-[#242424] border border-white/10 text-zinc-100 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div>}
-    {renderProg && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] w-[min(360px,90vw)] rounded-[30px] bg-[#242424] border border-white/10 shadow-2xl px-5 py-4">
+    {renderProg && !(preview && renderProg.id === preview) && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] w-[min(360px,90vw)] rounded-[30px] bg-[#242424] border border-white/10 shadow-2xl px-5 py-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium text-zinc-100">{renderProg.label}</span>
         <span className="text-sm font-semibold text-white">{renderProg.pct}%</span>
@@ -1281,7 +1310,12 @@ function App() {
         if (editingDemoRef.current !== id && !(openDemoRef.current && openDemoRef.current(id))) pendingCreativeRef.current = id;
       }
       else if (parts[0] === "demos") { setSel(null); setPage("demos"); }
-      else if (parts[0] === "creatives" || parts[0] === "projects") { setSel(null); setPage("showcase"); setDemoFilter(SLUG_ASPECT[parts[1]] || "all"); }
+      else if (parts[0] === "creatives" || parts[0] === "projects") {
+        setSel(null); setPage("showcase");
+        const p1 = parts[1] ? decodeURIComponent(parts[1]) : null;
+        if (p1 && !SLUG_ASPECT[p1]) setPreview(p1);
+        else { setDemoFilter(SLUG_ASPECT[p1] || "all"); setPreview(null); }
+      }
       else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
       else if (parts[0] === "tutorials") { setSel(null); setPage("tutorials"); setTutFilter(parts[1] ? decodeURIComponent(parts[1]) : "all"); }
       else if (parts[0] === "brand") { setSel(null); setPage("brand"); }
@@ -1295,14 +1329,14 @@ function App() {
   useEffect(() => {
     const want = sel ? (editingDemoRef.current && demoRecs[editingDemoRef.current] ? "#/creative/" + editingDemoRef.current : "#/template/" + sel)
       : page === "demos" ? "#/demos"
-      : page === "showcase" ? "#/creatives" + (demoFilter !== "all" ? "/" + ASPECT_SLUG[demoFilter] : "")
+      : page === "showcase" ? (preview ? "#/creatives/" + encodeURIComponent(preview) : "#/creatives" + (demoFilter !== "all" ? "/" + ASPECT_SLUG[demoFilter] : ""))
       : page === "hooks" ? "#/hooks"
       : page === "tutorials" ? "#/tutorials" + (tutFilter !== "all" ? "/" + tutFilter : "")
       : page === "brand" ? "#/brand"
       : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign + (campTab === "resources" ? "/resources" : "") : "#/campaigns")
       : "#/templates" + (tplFilter !== "all" ? "/" + ASPECT_SLUG[tplFilter] : "");
     if (location.hash !== want) location.hash = want;
-  }, [sel, page, openCampaign, tplFilter, demoFilter, tutFilter, campTab]);
+  }, [sel, page, openCampaign, tplFilter, demoFilter, tutFilter, campTab, preview]);
   const ovFor = (id) => (overrides.current[id] = overrides.current[id] || {});
   // opening a template from the gallery starts a clean session (in-memory edits don't leak back in)
   const resetTemplateSession = (id) => {
@@ -1453,6 +1487,21 @@ function App() {
         const all = [...root.querySelectorAll("[data-vslot] video")];
         if (all.length && all.every(x => x.ended || x.paused)) setPlaying(false);
       });
+    });
+    // media whose file can't load (deleted/broken storage object) says so instead of sitting grey
+    root.querySelectorAll("[data-vslot] video, [data-vslot] img").forEach(m => {
+      if (m.__deadTracked) return;
+      m.__deadTracked = true;
+      m.addEventListener("error", () => {
+        const slot2 = m.closest("[data-vslot]");
+        if (!slot2 || slot2.querySelector("[data-deadmedia]")) return;
+        const b = document.createElement("div");
+        b.setAttribute("data-deadmedia", "1");
+        b.setAttribute("data-ctl", "1");
+        b.className = "absolute inset-0 z-10 flex items-center justify-center pointer-events-none";
+        b.innerHTML = '<span class="px-3 py-1.5 rounded-full bg-black/60 text-white text-xs font-medium">Media file missing. Click to re-upload.</span>';
+        slot2.appendChild(b);
+      }, { once: true });
     });
     // templates remount their DOM on re-render (inline components) — re-bind the selection
     const a = activeRef.current;
@@ -2289,10 +2338,12 @@ function App() {
   async function renderDemoMp4(id, dl) {
     const rec = demoRecs[id]; const t = rec && templates.find(x => x.id === rec.templateId);
     if (!rec || !t) return;
+    const setRenderProgBase = setRenderProg;
+    const setProg = (o) => setRenderProgBase(o && typeof o === "object" ? { ...o, id } : o);
     exportAbortRef.current = new AbortController();
     const signal = exportAbortRef.current.signal;
     let creep = null;
-    setRenderProg({ pct: 5, label: "Uploading media…" });
+    setProg({ pct: 5, label: "Uploading media…" });
     try {
       const up = async (url) => {
         const blob = await blobFrom(url);
@@ -2311,20 +2362,20 @@ function App() {
         ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
       const spec = { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
       let pct = 45;
-      setRenderProg({ pct, label: "Rendering video…" });
-      creep = setInterval(() => { pct = Math.min(93, pct + 4); setRenderProg({ pct: Math.round(pct), label: "Rendering video…" }); }, 700);
+      setProg({ pct, label: "Rendering video…" });
+      creep = setInterval(() => { pct = Math.min(93, pct + 4); setProg({ pct: Math.round(pct), label: "Rendering video…" }); }, 700);
       const doExport = () => fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec), signal });
       let res;
       try { res = await doExport(); }
       catch (e) {
         if (e && e.name === "AbortError") throw e;
-        setRenderProg({ pct: Math.round(pct), label: "Waking the render server…" });
+        setProg({ pct: Math.round(pct), label: "Waking the render server…" });
         await new Promise(r => setTimeout(r, 8000));
         res = await doExport();
       }
       clearInterval(creep); creep = null;
       if (!res.ok) throw new Error(await res.text());
-      setRenderProg({ pct: 97, label: "Saving…" });
+      setProg({ pct: 97, label: "Saving…" });
       const blob = await res.blob();
       await demoStore.attachMp4(id, blob);
       await refreshDemos();
@@ -2335,13 +2386,13 @@ function App() {
         a.download = (rec.name || "demo").replace(/[^\w]+/g, "-").toLowerCase() + ".mp4";
         a.click();
       }
-      setRenderProg({ pct: 100, label: "Done" });
+      setProg({ pct: 100, label: "Done" });
       if (window.__toast) window.__toast(dl ? "Downloading MP4" : "Creative rendered");
     } catch (e) {
       if (e && e.name === "AbortError") { if (window.__toast) window.__toast("Render canceled"); }
       else alert("Render failed: " + (e.message || e) + "\n\nThe render server may be waking up. Try again in a minute.");
     }
-    finally { if (creep) clearInterval(creep); setTimeout(() => setRenderProg(null), 800); }
+    finally { if (creep) clearInterval(creep); setTimeout(() => setProg(null), 800); }
   }
   async function tagDemo(id, campaign) {
     await demoStore.patch(id, { campaign });
@@ -3152,7 +3203,8 @@ function App() {
   // standalone, nav-less demos page at #/demos
   const previewDemo = preview && demos.find(x => x.id === preview);
   const previewModal = previewDemo
-    ? <DemoPreview d={previewDemo} t={templates.find(x => x.id === previewDemo.templateId)} rec={demoRecs[preview]} pre={demoPreload(demoRecs[preview])} onClose={() => setPreview(null)} onOpen={() => { setPreview(null); openDemo(preview); }} onRender={() => renderDemoMp4(preview, true)} />
+    ? <DemoPreview d={previewDemo} t={templates.find(x => x.id === previewDemo.templateId)} rec={demoRecs[preview]} pre={demoPreload(demoRecs[preview])} onClose={() => setPreview(null)} onOpen={() => { setPreview(null); openDemo(preview); }} onRender={() => renderDemoMp4(preview, true)}
+        renderProg={renderProg && renderProg.id === preview ? renderProg : null} onCancelRender={() => { if (exportAbortRef.current) exportAbortRef.current.abort(); }} />
     : null;
   if (page === "demos") {
     return (

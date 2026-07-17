@@ -152,9 +152,16 @@ function run(cmd, args) {
 }
 function probeDur(file) {
   return new Promise((res) => {
-    const p = spawn("ffprobe", ["-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1", file]);
+    const p = spawn("ffprobe", ["-v","error","-show_entries","format=duration,format_name","-of","json", file]);
     let out = ""; p.stdout.on("data", d => out += d);
-    p.on("close", () => res(parseFloat(out) || 0));
+    p.on("close", () => {
+      try {
+        const f = (JSON.parse(out).format) || {};
+        // stills (or images with stray duration metadata) must not drive the clip length
+        if (/image2|_pipe|jpeg|png|webp/.test(f.format_name || "")) return res(0);
+        res(parseFloat(f.duration) || 0);
+      } catch (e) { res(0); }
+    });
   });
 }
 function hasAudio(file) {
