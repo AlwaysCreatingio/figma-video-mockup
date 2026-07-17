@@ -76,9 +76,10 @@ function finalize(){
     wrap.setAttribute("data-custom", "1");
     wrap.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:15";
     X.customLayers.forEach(function (cl) {
-      const el = document.createElement("p");
+      const el = document.createElement(cl.img ? "img" : "p");
       el.setAttribute("data-cl", cl.id || "");
-      el.textContent = cl.text || "";
+      if (cl.img) { el.setAttribute("src", cl.img); }
+      else { el.textContent = cl.text || ""; }
       el.style.position = "absolute"; el.style.margin = "0";
       for (const k in (cl.style || {})) el.style[k] = cl.style[k];
       wrap.appendChild(el);
