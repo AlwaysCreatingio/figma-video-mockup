@@ -73,7 +73,7 @@ const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold",
 const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "filter", "lineHeight"];
 // Seconds needed to scroll a prompt at a comfortable reading pace (~70 design px/sec), so a long
 // prompt over a short clip doesn't rush. 0 when nothing overflows. Shared by the editor + export.
-const SCROLL_READ_PXPS = 70;
+const SCROLL_READ_PXPS = 34;
 function scrollReadSeconds(root) {
   let sec = 0;
   root.querySelectorAll("[data-scrolltext]").forEach(st => {
