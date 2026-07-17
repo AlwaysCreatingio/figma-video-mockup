@@ -8,9 +8,10 @@ window.__FILL_LOGOS=[window.__CLAUDE_LOGO, window.__CHANNELS_LOGO, window.__SUNO
 // the AO mark PNG has heavy padding around the P — zoom it by default in logo tiles
 window.__LOGO_SCALE_DEFAULTS={};
 window.__LOGO_SCALE_DEFAULTS[window.__AGENT_OPUS_MARK]=2;
+window.__LOGO_SCALE_DEFAULTS[window.__CLAUDE_LOGO]=0.85;
 window.__LOGO_BG={};
 window.__LOGO_BG[window.__AO_LOGO]="#000000";
-window.__LOGO_BG[window.__CLAUDE_LOGO]="#d67554";
+window.__LOGO_BG[window.__CLAUDE_LOGO]="#d77655";
 window.__LOGO_BG[window.__CHANNELS_LOGO]="#000000";
 window.__LOGO_BG[window.__GEMINI_LOGO]="#3286fc";
 window.__LOGO_BG[window.__SUNO_LOGO]="#ff4a28";
