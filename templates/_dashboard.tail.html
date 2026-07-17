@@ -2380,7 +2380,7 @@ function App() {
   const MAX_UPLOAD = 45 * 1024 * 1024;   // Supabase per-object cap is 50 MB — compress anything near it
   async function maybeCompress(blob, label) {
     if (!(blob.type || "").startsWith("video/") || blob.size <= MAX_UPLOAD) return blob;
-    if (window.__toast) window.__toast("Compressing " + label + " (" + Math.round(blob.size / 1048576) + " MB)…", { sticky: true });
+    if (window.__toast) window.__toast("Optimizing video…", { sticky: true });
     const r = await fetch(EXPORT_BASE + "/compress", { method: "POST", headers: { "Content-Type": blob.type || "video/mp4", "X-Ext": ((blob.type || "video/mp4").split("/")[1] || "mp4").split(";")[0] }, body: blob }).catch(() => null);
     if (!r || !r.ok) throw new Error("The video in " + label + " is " + Math.round(blob.size / 1048576) + " MB (over the 50 MB storage limit) and compressing it failed — is the export server running?");
     const out = await r.blob();
