@@ -40,7 +40,7 @@
           const inner = box.firstElementChild;
           if (inner) {
             const over = inner.scrollHeight - box.clientHeight;
-            if (over > 0) { const prog = window.__scrollProg ? window.__scrollProg(v) : (v && v.duration ? Math.min(1, (v.currentTime || 0) / v.duration) : 0); inner.style.transform = "translateY(-" + (prog * over).toFixed(2) + "px)"; }
+            if (over > 0) { const prog = window.__scrollProg ? window.__scrollProg(v) : (v && v.duration ? Math.min(1, (v.currentTime || 0) / v.duration) : 0); if (!inner.style.willChange) inner.style.willChange = "transform"; inner.style.transform = "translate3d(0,-" + (prog * over).toFixed(2) + "px,0)"; }
             else inner.style.transform = "";
           }
         }
