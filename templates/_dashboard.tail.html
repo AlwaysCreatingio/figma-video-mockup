@@ -685,10 +685,10 @@ function SeekBar({ rootRef }) {
   };
   return (
     <div className="flex items-center gap-2 mt-1.5">
-      <div onClick={seek} className="w-[240px] h-[4px] rounded-full bg-white/15 cursor-pointer">
+      <div onClick={seek} className="w-[240px] h-[6px] rounded-full bg-white/15 cursor-pointer">
         <div className="h-full rounded-full bg-white pointer-events-none" style={{ width: (st.t / st.d * 100) + "%" }} />
       </div>
-      <span className="text-[11px] text-zinc-500 font-medium tabular-nums">{fmt(st.t)} / {fmt(st.d)}</span>
+      <span className="text-[13px] text-zinc-400 font-medium tabular-nums">{fmt(st.t)} / {fmt(st.d)}</span>
     </div>
   );
 }
