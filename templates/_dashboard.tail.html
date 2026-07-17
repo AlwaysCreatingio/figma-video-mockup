@@ -1459,16 +1459,20 @@ function App() {
       const el = nodeAt(root, a.path);
       if (el) {
         a.el = el;
-        el.style.outline = "2px solid #2563eb";
-        el.style.outlineOffset = (a.path === "0" || a.path === "") ? "-2px" : "1px";
+        if (a.outPath != null) a.outEl = nodeAt(root, a.outPath);
+        const oe = a.outEl || el;
+        if (oe) { oe.style.outline = "2px solid #2563eb"; oe.style.outlineOffset = (a.path === "0" || a.path === "") ? "-2px" : "1px"; }
         if (a.text) el.contentEditable = "true";
         else if (el.tagName !== "INPUT" && !el.hasAttribute("data-vslot")) el.style.cursor = "move";
         if (el.tagName === "IMG") el.draggable = false;
       }
     }
-    if (a && a.el && a.el.isConnected && !a.el.style.outline) {
-      a.el.style.outline = "2px solid #2563eb";
-      a.el.style.outlineOffset = (a.path === "0" || a.path === "") ? "-2px" : "1px";
+    if (a && a.el && a.el.isConnected) {
+      const oe2 = (a.outEl && a.outEl.isConnected) ? a.outEl : a.el;
+      if (!oe2.style.outline) {
+        oe2.style.outline = "2px solid #2563eb";
+        oe2.style.outlineOffset = (a.path === "0" || a.path === "") ? "-2px" : "1px";
+      }
     }
     multiRef.current.forEach(m => {
       if (!m.el || !m.el.isConnected) { const el2 = nodeAt(root, m.path); if (el2) m.el = el2; }
@@ -1521,7 +1525,12 @@ function App() {
     force(x => x + 1);
   }
   function clearActive() {
-    if (activeRef.current) { const { el } = activeRef.current; if (el) { el.contentEditable = "false"; el.style.outline = ""; el.style.outlineOffset = ""; el.style.cursor = ""; } activeRef.current = null; }
+    if (activeRef.current) {
+      const { el, outEl } = activeRef.current;
+      if (el) { el.contentEditable = "false"; el.style.outline = ""; el.style.outlineOffset = ""; el.style.cursor = ""; }
+      if (outEl && outEl.isConnected) { outEl.style.outline = ""; outEl.style.outlineOffset = ""; }
+      activeRef.current = null;
+    }
     clearMulti();
     setHandle(null);
   }
@@ -1666,11 +1675,12 @@ function App() {
     const text = forceText || isTextLeaf(el);
     const slotEl = el.closest(".cursor-pointer");
     if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = "true"; el.focus(); }
-    el.style.outline = "2px solid #2563eb";
-    el.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
+    const outEl = (el.closest && el.closest("[data-scrolltext]")) || el;
+    outEl.style.outline = "2px solid #2563eb";
+    outEl.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
     if (el.tagName !== "INPUT" && !el.hasAttribute("data-vslot") && !el.closest("[data-vslot]")) el.style.cursor = "move";
     if (el.tagName === "IMG") el.draggable = false;
-    activeRef.current = { el, path, text };
+    activeRef.current = { el, path, text, outEl: outEl === el ? null : outEl, outPath: outEl === el ? null : pathOf(outEl, root) };
     if (mainRef.current) {
       const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
       setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
