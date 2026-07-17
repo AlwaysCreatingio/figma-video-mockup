@@ -1,4 +1,4 @@
-/* Template prompt-vs-9x16 — Prompt vs Agent Opus (prompt card behind, result phone card on top) */
+/* Template prompt-vs-1x1 — Prompt vs Agent Opus 1:1 (prompt card left, result phone card right, square) */
 (function () {
   function Component(props) {
     const { useState } = React;
@@ -48,28 +48,28 @@
     const pillBg = { backgroundImage: "linear-gradient(rgba(0,0,0,0.6),rgba(0,0,0,0.6))" };
 
     return (
-      <div data-promptvs className="relative overflow-hidden bg-[#181818]" style={{ width: 594, height: 1056 }}>
+      <div data-promptvs className="relative overflow-hidden bg-[#181818]" style={{ width: 1080, height: 1080 }}>
         <div className="hidden" />
 
-        {/* Prompt card (dark, behind) */}
-        <div className="absolute rounded-[20px] bg-[#232327]" style={{ left: 40, top: 321.53, width: 232.276, height: 412.94 }}>
-          <div data-pin data-swap="label1" className="absolute flex items-center justify-center px-[11.845px] py-[7px] rounded-[9.476px]" style={{ left: 11.055, top: 11.055, ...pillBg }}>
+        {/* Prompt card (dark, left) */}
+        <div className="absolute rounded-[24px] bg-[#232327]" style={{ left: 100, top: 160, width: 400, height: 760 }}>
+          <div data-pin data-swap="label1" className="absolute flex items-center justify-center px-[16px] py-[9px] rounded-[13px]" style={{ left: 18, top: 18, ...pillBg }}>
             {labelText.label1 === "@logo"
-              ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
-              : <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label1 && labelText.label1 !== "@logo") ? labelText.label1 : "prompt"}</p>}
+              ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[34px] object-contain" />
+              : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.7px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.label1 && labelText.label1 !== "@logo") ? labelText.label1 : "prompt"}</p>}
           </div>
-          <div ref={boxRef} data-scrolltext className="absolute overflow-hidden" style={{ left: 16, right: 16, top: 62, bottom: 18 }}>
-            <p className="text-[#c8c8ce] text-[15px] leading-[1.55] font-normal font-[Geist,sans-serif]">{PROMPT_TEXT}</p>
+          <div ref={boxRef} data-scrolltext className="absolute overflow-hidden" style={{ left: 26, right: 26, top: 84, bottom: 28 }}>
+            <p className="text-[#c8c8ce] text-[22px] leading-[1.55] font-normal font-[Geist,sans-serif]">{PROMPT_TEXT}</p>
           </div>
         </div>
 
-        {/* Agent opus card (white, on top) */}
-        <div className="absolute rounded-[20px]" style={{ left: 250, top: 266.53, width: 294.15, height: 522.94 }}>
-          <Slot k="slot1" className="absolute inset-0 bg-white " />
-          <div data-pin data-swap="label2" className="absolute flex items-center justify-center px-[15px] py-[9px] rounded-[12px]" style={{ left: 14, top: 14, ...pillBg }}>
+        {/* Agent opus card (video, right) */}
+        <div className="absolute rounded-[24px]" style={{ left: 552, top: 160, width: 428, height: 760 }}>
+          <Slot k="slot1" className="absolute inset-0 rounded-[24px] bg-white" />
+          <div data-pin data-swap="label2" className="absolute flex items-center justify-center px-[18px] py-[10px] rounded-[14px]" style={{ left: 18, top: 18, ...pillBg }}>
             {(labelText.label2 === "@logo" || labelText.label2 == null)
-              ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[30px] object-contain" />
-              : <p className="font-medium leading-none text-[18.952px] text-center text-white tracking-[0.5685px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2 || "AGENT OPUS"}</p>}
+              ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[34px] object-contain" />
+              : <p className="font-medium leading-none text-[24px] text-center text-white tracking-[0.7px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{labelText.label2 || "AGENT OPUS"}</p>}
           </div>
         </div>
       </div>
@@ -77,5 +77,5 @@
   }
 
   window.TEMPLATES = window.TEMPLATES || [];
-  window.TEMPLATES.push({ id: "prompt-vs-9x16", name: "Prompt vs Agent Opus", width: 594, height: 1056, slots: 1, desc: "9:16 dual phone-card layout: the prompt on the left card, the Agent Opus result on the right. The prompt scrolls with playback.", Component });
+  window.TEMPLATES.push({ id: "prompt-vs-1x1", name: "Prompt vs Agent Opus 1:1", width: 1080, height: 1080, slots: 1, desc: "Square dual-card layout: the prompt on the left card, the Agent Opus result on the right. The prompt scrolls with playback.", Component });
 })();
