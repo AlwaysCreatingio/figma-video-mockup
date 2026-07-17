@@ -1,4 +1,4 @@
-/* Template raw-1x1 — Raw vs Agent Opus 1:1 (light canvas, logo pair + badge, small raw clip vs big result) */
+/* Template prompt-1x1 — Prompt vs Agent Opus 1:1 (raw-1x1 variant: prompt card on the left; long prompts scroll with the video) */
 (function () {
   function Component(props) {
     const { useState } = React;
@@ -47,11 +47,33 @@
       </div>
     );
 
+    // long prompts scroll in sync with the result video's playback
+    const boxRef = React.useRef(null);
+    React.useEffect(() => {
+      let raf;
+      const tick = () => {
+        const box = boxRef.current;
+        if (box) {
+          const frame = box.closest("[data-prompt1x1]");
+          const v = frame && frame.querySelector('[data-vslot="slot2"] video');
+          const inner = box.firstElementChild;
+          if (inner) {
+            const over = inner.scrollHeight - box.clientHeight;
+            if (v && v.duration && over > 0) inner.style.transform = "translateY(-" + (Math.min(1, (v.currentTime || 0) / v.duration) * over).toFixed(1) + "px)";
+            else inner.style.transform = "";
+          }
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }, []);
+
     return (
-      <div className="relative overflow-hidden bg-[#FCFCFC]" style={{ width: 1080, height: 1080 }}>
+      <div data-prompt1x1 className="relative overflow-hidden bg-[#FCFCFC]" style={{ width: 1080, height: 1080 }}>
         <div className="hidden" />
         <div className="absolute inset-0 flex gap-[44px] p-[48px]">
-          {/* Left column: logo pair, badge, raw clip */}
+          {/* Left column: logo pair, badge, prompt card */}
           <div className="flex flex-col items-center w-[380px] shrink-0">
             <div className="flex items-center gap-[26px] self-start">
               <LogoSlot k="l1" className="rounded-[32px] shrink-0 size-[140px] bg-[#eaeaea]" />
@@ -63,9 +85,14 @@
                 ? <img src={window.__AO_LOGO} alt="Agent Opus" className="h-[40px] object-contain" />
                 : <p className="font-bold leading-none text-[34px] text-black tracking-[0.6px] uppercase whitespace-nowrap font-[Geist,sans-serif]">{(labelText.badge && labelText.badge !== "@logo") ? labelText.badge : "100% AUTOMATED"}</p>}
             </div>
-            <div className="flex-1" />
-            <p className="font-semibold leading-none text-[58px] text-black text-center tracking-[-0.5px] font-[Geist,sans-serif]">Raw</p>
-            <Slot k="slot1" className="mt-[24px] w-[320px] h-[568px] bg-[#e6e3de] rounded-[6px]" />
+            <div className="mt-[44px] w-full flex-1 min-h-0 flex flex-col items-start">
+              <p className="font-bold leading-none text-[34px] text-black tracking-[1.2px] uppercase font-[Geist,sans-serif]">Prompt</p>
+              <div ref={boxRef} data-scrolltext className="mt-[22px] w-full flex-1 min-h-0 overflow-hidden">
+                <p className="text-black/85 text-[28px] leading-[1.45] font-medium tracking-[-0.1px] font-[Geist,sans-serif]">
+                  A cinematic product ad. Slow-motion splash, studio lighting, ultra-detailed 4K.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Right column: result heading + big clip */}
@@ -84,13 +111,13 @@
 
   window.TEMPLATES = window.TEMPLATES || [];
   window.TEMPLATES.push({
-    id: "raw-1x1",
-    name: "Raw vs Agent Opus 1:1",
+    id: "prompt-1x1",
+    name: "Prompt vs Agent Opus 1:1",
     width: 1080,
     height: 1080,
-    slots: 2,
+    slots: 1,
     logoSlots: 2,
-    desc: "Square light-canvas comparison: logo pair with a 100% AUTOMATED badge, a small raw clip next to the big Agent Opus result.",
+    desc: "Square light-canvas comparison: logo pair with a 100% AUTOMATED badge and a prompt card beside the Agent Opus result. Long prompts scroll with the video.",
     Component
   });
 })();

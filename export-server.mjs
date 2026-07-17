@@ -36,7 +36,7 @@ const HEAD = `<!doctype html><html><head>
 <style>html,body{margin:0;background:transparent;}#root{display:inline-block;}*{font-family:'Geist',sans-serif;} @property --ao-a { syntax:'<angle>'; initial-value:0deg; inherits:false; } @keyframes ao-rot { to { --ao-a:360deg; } } .ao-glow::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:3px;background:conic-gradient(from var(--ao-a),transparent 50%,rgba(255,255,255,.85) 74%,#fff 82%,transparent 92%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:5;}</style>
 </head><body><div id="root"></div>`;
 
-const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize","display"];
+const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize","display","borderColor","borderWidth","borderStyle","filter"];
 
 let LOGOS_JS = "";
 try { LOGOS_JS = fs.readFileSync(path.join(ROOT, "_logos.js"), "utf8"); } catch {}
@@ -96,6 +96,17 @@ function finalize(){
     if (pluses.length) { const row = pluses[0].parentElement; const tiles = row ? row.querySelectorAll("[data-lslot]").length : 0;
       const keep = X.showPlus === false ? 0 : Math.max(0, tiles - 1);
       pluses.slice(keep).forEach(e => e.remove()); } }
+  // scrolling prompt text: capture geometry, then blank it from the plate (composited as an animated crop)
+  const st = frame.querySelector("[data-scrolltext]");
+  if (st && st.firstElementChild) {
+    const inner = st.firstElementChild;
+    inner.style.transform = "none";
+    const r = st.getBoundingClientRect();
+    if (inner.scrollHeight > 4 && r.width > 4) {
+      window.__SCROLLTXT = { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), full: Math.round(inner.scrollHeight) };
+      inner.style.visibility = "hidden";
+    }
+  }
   // record the frame's own background, then make it transparent so slot holes fall through to the
   // ffmpeg base layer (painted with this colour). Decorative children/gradients stay in the plate.
   window.__FRAMEBG = getComputedStyle(frame).backgroundColor;
@@ -186,6 +197,7 @@ async function renderPlate(templateId, X, W, H, plateOut) {
     const frameBg = await page.evaluate(() => window.__FRAMEBG);
     const el = await page.$("#root > *");
     await el.screenshot({ path: plateOut, omitBackground: true });
+    const scroll = await page.evaluate(() => window.__SCROLLTXT || null);
     let bgPlate = null;
     if (await page.evaluate(() => window.__HASBGIMG)) {
       await page.evaluate(() => {
@@ -197,7 +209,24 @@ async function renderPlate(templateId, X, W, H, plateOut) {
       bgPlate = plateOut.replace(/\.png$/, "_bg.png");
       await el.screenshot({ path: bgPlate });
     }
-    return { rects, frameBg, bgPlate };
+    let txtPlate = null;
+    if (scroll) {
+      await page.evaluate(() => {
+        const frame = document.getElementById("root").firstElementChild;
+        const st2 = frame.querySelector("[data-scrolltext]");
+        const inner = st2.firstElementChild;
+        frame.style.backgroundColor = "transparent"; frame.style.backgroundImage = "none";
+        frame.querySelectorAll("*").forEach(e => { e.style.visibility = "hidden"; });
+        let n = inner; while (n && n !== frame.parentElement) { n.style.visibility = "visible"; n.style.overflow = "visible"; n.style.backgroundColor = "transparent"; n.style.backgroundImage = "none"; n.style.border = "none"; n = n.parentElement; }
+        inner.querySelectorAll("*").forEach(e => { e.style.visibility = "visible"; });
+        inner.style.transform = "none";
+        window.__TXT_EL = inner;
+      });
+      const h = await page.evaluateHandle(() => window.__TXT_EL);
+      txtPlate = plateOut.replace(/\.png$/, "_txt.png");
+      await h.asElement().screenshot({ path: txtPlate, omitBackground: true });
+    }
+    return { rects, frameBg, bgPlate, scroll, txtPlate };
   } finally { try { await page.close(); } catch {} }
 }
 
@@ -208,7 +237,7 @@ function cssToHex(c) {
   return "0x" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
 }
 
-async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate) {
+async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate) {
   // bound output to the shortest clip so the looped plate/color source can't run forever
   const durs = await Promise.all(videoFiles.map(probeDur));
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
@@ -225,9 +254,11 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   if (ambient) { if (ambDur === 0) args.push("-loop", "1"); args.push("-i", ambientFile); }
   args.push("-loop", "1", "-i", plate);
   if (bgPlate) args.push("-loop", "1", "-i", bgPlate);
+  if (scroll && txtPlate) args.push("-loop", "1", "-i", txtPlate);
   const ambIdx = ambient ? nVid * 2 : -1;
   const plateIdx = nVid * 2 + (ambient ? 1 : 0);
   const bgIdx = bgPlate ? plateIdx + 1 : -1;
+  const txtIdx = (scroll && txtPlate) ? (bgPlate ? bgIdx + 1 : plateIdx + 1) : -1;
   const fc = [];
   // base = the frame's own background colour (so rounded-corner gaps match the design); ambient adds blur
   fc.push(`color=c=${cssToHex(frameBg)}:s=${OW}x${OH}:r=30:d=${DUR.toFixed(2)}[base]`);
@@ -277,7 +308,17 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     last = `s${i}`;
   });
   // the design plate (slots are transparent holes) goes straight on top — no colour keying at all
-  fc.push(`[${last}][${plateIdx}:v]overlay=0:0[out]`);
+  fc.push(`[${last}][${plateIdx}:v]overlay=0:0[${txtIdx >= 0 ? "pl" : "out"}]`);
+  if (txtIdx >= 0) {
+    const bw = scroll.w * S, bh = scroll.h * S, fh = scroll.full * S;
+    if (fh > bh + 2) {
+      // window slides down the full text over the clip's duration, mirroring the live preview
+      fc.push(`[${txtIdx}:v]crop=${bw}:${bh}:0:'min(${fh - bh},(${fh - bh})*t/${DUR.toFixed(2)})'[txt]`);
+      fc.push(`[pl][txt]overlay=${scroll.x * S}:${scroll.y * S}[out]`);
+    } else {
+      fc.push(`[pl][${txtIdx}:v]overlay=${scroll.x * S}:${scroll.y * S}[out]`);
+    }
+  }
   // audio: every slot video that has a track AND isn't muted in the editor contributes;
   // two or more get mixed, one maps straight through, zero exports silent
   const audioFlags = await Promise.all(videoFiles.map(hasAudio));
@@ -341,11 +382,11 @@ const server = http.createServer(async (req, res) => {
       const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, mediaXf = {} } = spec;
       const data = await enqueue(async () => {
         const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-        const { rects, frameBg, bgPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn }, W, H, plate);
+        const { rects, frameBg, bgPlate, scroll, txtPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn }, W, H, plate);
         const videoFiles = rects.map(r => path.join(WORK, r.videoId));
         const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
         const out = path.join(WORK, "out_" + Date.now() + ".mp4");
-        await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf, bgPlate);
+        await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate);
         return fs.readFileSync(out);
       });
       res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
