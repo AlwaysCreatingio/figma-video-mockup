@@ -2472,7 +2472,6 @@ function App() {
       if (api.setBoxText && rec.boxText) api.setBoxText(rec.boxText);
       if (api.setLabelText && rec.labelText && Object.keys(rec.labelText).length) api.setLabelText(rec.labelText);
       if (api.setArrowOn && rec.arrowOn != null) api.setArrowOn(!!rec.arrowOn);
-      if (api.setScrollSpeed && rec.scrollSpeed != null) api.setScrollSpeed(rec.scrollSpeed);
       if (api.setShowPlus && rec.showPlus != null) api.setShowPlus(rec.showPlus);
       if (api.setHiddenLogos && rec.hiddenLogos && Object.keys(rec.hiddenLogos).length) api.setHiddenLogos(rec.hiddenLogos);
       if (api.setLogosHidden && rec.logosHidden != null) api.setLogosHidden(rec.logosHidden);
@@ -3415,11 +3414,6 @@ function App() {
                   <label className={LBL}>Line spacing · {insp.lineH}</label>
                   <input type="range" min="0.9" max="2.4" step="0.05" value={insp.lineH}
                     onChange={e => setStyle("lineHeight", String(+e.target.value), { lineH: +e.target.value })} className="w-full accent-white" />
-                </div>}
-                {insp.hasScroll && <div>
-                  <label className={LBL}>Scroll speed · {((window.__slotAPI && window.__slotAPI.scrollSpeed) || 1)}x</label>
-                  <input type="range" min="0.25" max="3" step="0.25" value={(window.__slotAPI && window.__slotAPI.scrollSpeed) || 1}
-                    onChange={e => { if (window.__slotAPI && window.__slotAPI.setScrollSpeed) { window.__slotAPI.setScrollSpeed(+e.target.value); force(x => x + 1); } }} className="w-full accent-white" />
                 </div>}
                 {insp.textValue != null && <div>
                   <label className={LBL}>Content</label>

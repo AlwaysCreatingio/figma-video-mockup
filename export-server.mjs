@@ -333,7 +333,7 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     const bw = scroll.w * S, bh = scroll.h * S, fh = scroll.full * S;
     if (fh > bh + 2) {
       // window slides down the full text over the clip's duration, mirroring the live preview
-      const rate = ((fh - bh) / DUR) * (scroll.speed || 1);
+      const rate = (fh - bh) / DUR;   // the scroll always lands exactly at the clip's end
       fc.push(`[${txtIdx}:v]crop=${bw}:${bh}:0:'min(${fh - bh},${rate.toFixed(4)}*t)'[txt]`);
       fc.push(`[pl][txt]overlay=${scroll.x * S}:${scroll.y * S}[out]`);
     } else {
