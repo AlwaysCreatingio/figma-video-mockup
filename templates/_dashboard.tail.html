@@ -442,7 +442,7 @@ function useDemoOverrides(ref, rec) {
   }, [rec]);
 }
 
-function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, onTag, onDuplicate, onDelete, onDownloaded }) {
+function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, onTag, onDuplicate, onDelete, onDownloaded, onCopyAssets, onPasteAssets, canPaste }) {
   const ref = useRef(null);
   const [menu, setMenu] = useState(false);
   const [menuSide, setMenuSide] = useState("r");
@@ -484,6 +484,10 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Open in editor</button>
           {IS_LOCAL && onDuplicate && <button onClick={() => { setMenu(false); onDuplicate(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Duplicate</button>}
+          {onCopyAssets && <button onClick={() => { setMenu(false); onCopyAssets(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/></svg>Copy assets</button>}
+          {canPaste && onPasteAssets && <button onClick={() => { setMenu(false); onPasteAssets(); }} className="flex w-full items-center gap-2 h-[38px] rounded-[10px] px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/10 transition">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><path d="M9 14l2 2 4-4"/></svg>Paste assets</button>}
           {IS_LOCAL && <React.Fragment>
           <div className="border-t border-white/10 my-1" />
           <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Campaign</div>
@@ -1333,25 +1337,27 @@ function App() {
     }).filter(Boolean);
     return [...base, ...virt].sort((a, b) => a.name.localeCompare(b.name));
   }, [virtTpls, hiddenTplIds]);
-  // when each template was added (append new ids here with today's date; unknown ids count as newest)
+  // when each template was added (append new ids at the END with today's date)
   const TPL_CHRONO = [
     ["3528-13182", "2026-07-13"], ["3528-13213", "2026-07-13"], ["3528-13235", "2026-07-13"],
     ["3532-13307", "2026-07-13"], ["3532-13332", "2026-07-13"], ["3532-13358", "2026-07-13"], ["3532-14362", "2026-07-13"],
     ["3534-14446", "2026-07-14"], ["3534-14453", "2026-07-14"], ["3534-14502", "2026-07-14"], ["3534-14520", "2026-07-14"],
     ["3534-14597", "2026-07-14"], ["3534-14617", "2026-07-14"], ["3534-14698", "2026-07-14"], ["3534-14709", "2026-07-14"],
     ["prompt-16x9", "2026-07-15"], ["prompt-9x16", "2026-07-15"], ["product-1x1", "2026-07-15"],
-    ["collab-1x1", "2026-07-17"],
-    ["collab-9x16", "2026-07-17"],
+    ["raw-1x1", "2026-07-16"], ["prompt-1x1", "2026-07-16"], ["ref-compare", "2026-07-16"],
+    ["duel-16x9", "2026-07-17"], ["collab-1x1", "2026-07-17"], ["collab-9x16", "2026-07-17"],
     ["agent-showcase-9x16", "2026-07-17"], ["gallery-9x16", "2026-07-17"],
     ["angles-9x16", "2026-07-17"], ["vfx-9x16", "2026-07-17"],
-    ["raw-1x1", "2026-07-16"], ["prompt-1x1", "2026-07-16"], ["ref-compare", "2026-07-16"],
-    ["duel-16x9", "2026-07-17"],
   ];
   const CHRONO_DATE = {}; const tplOrderIdx = {};
   TPL_CHRONO.forEach(([id, d], i) => { CHRONO_DATE[id] = d; tplOrderIdx[id] = i; });
   const tplAge = (t) => (tplOrderIdx[t.id] != null ? tplOrderIdx[t.id] : 1e6);
   const tplAdded = (t) => {
-    if (!t.virtual) return CHRONO_DATE[t.id] || "9999";
+    if (!t.virtual) {
+      const d = CHRONO_DATE[t.id];
+      // spread same-day built-ins across fake minutes so list position breaks ties correctly
+      return d ? d + "T12:" + String(tplOrderIdx[t.id]).padStart(2, "0") : "9999";
+    }
     const c = t.createdAt;
     if (!c) return "9999";
     return (typeof c === "number" ? new Date(c).toISOString() : String(c)).slice(0, 19);
@@ -2374,6 +2380,27 @@ function App() {
       })();
     } catch (e) { setSaved(false); alert("Couldn't save asset: " + (e.message || e)); }
   }
+  const ASSET_CLIP_KEY = "aoAssetClipboard";
+  const readAssetClip = () => { try { return JSON.parse(localStorage.getItem(ASSET_CLIP_KEY) || "null"); } catch (e) { return null; } };
+  const [assetClip, setAssetClip] = useState(readAssetClip);
+  function copyAssets(id) {
+    const rec = demoRecs[id]; if (!rec) return;
+    const clip = { vids: rec.vids || {}, logos: rec.logos || {} };
+    try { localStorage.setItem(ASSET_CLIP_KEY, JSON.stringify(clip)); } catch (e) {}
+    setAssetClip(clip);
+    if (window.__toast) window.__toast("Assets copied");
+  }
+  function pasteAssetsIntoSession() {
+    const clip = readAssetClip(); if (!clip) return;
+    injectRecordState({ vids: clip.vids || {}, logos: clip.logos || {} });
+    if (window.__toast) window.__toast("Assets pasted");
+  }
+  function pasteAssetsIntoDemo(id) {
+    const clip = readAssetClip(); if (!clip) return;
+    openDemo(id);
+    setTimeout(() => injectRecordState({ vids: clip.vids || {}, logos: clip.logos || {} }), 1200);
+    if (window.__toast) window.__toast("Assets pasted");
+  }
   async function duplicateTemplate(t) {
     try {
       if (window.__toast) window.__toast("Duplicating template…", { sticky: true });
@@ -2847,7 +2874,9 @@ function App() {
 
         </main>
         <footer className="min-h-[64px] shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-t border-white/10 grid grid-cols-[1fr_auto_1fr] items-center px-4 py-1.5">
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            {assetClip && <button onClick={pasteAssetsIntoSession}
+              className="text-sm px-3 py-1.5 rounded-[30px] bg-white/5 border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 transition">Paste assets</button>}
             {t.height > t.width && <select value={safeZone || "none"} onChange={e => setSafeZone(e.target.value === "none" ? null : e.target.value)} title="Platform safe zones"
               className="text-sm px-3 py-1.5 rounded-[30px] bg-white/5 border border-white/10 text-zinc-300 outline-none" style={SELECT_STYLE}>
               <option value="none">No overlay</option>
@@ -3314,7 +3343,7 @@ function App() {
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} wide={demoFilter === "16:9" || demoFilter === "1:1"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onDownloaded={() => demoStore.bump(d.id)} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} wide={demoFilter === "16:9" || demoFilter === "1:1"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onDownloaded={() => demoStore.bump(d.id)} onCopyAssets={() => copyAssets(d.id)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} />;
       })}
       </div>
     </div>
@@ -3500,7 +3529,7 @@ function App() {
                               {tagged.map(d => {
                                 const t = templates.find(x => x.id === d.templateId);
                                 const rec = demoRecs[d.id];
-                                return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
+                                return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onCopyAssets={() => copyAssets(d.id)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} />;
                               })}
                             </div>
                           : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">{IS_LOCAL ? "No assets tagged yet. Tag one from the Assets page ⋯ menu." : "No assets yet. Check back soon."}</div>}

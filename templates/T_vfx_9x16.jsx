@@ -50,13 +50,12 @@
     return (
       <div className="relative overflow-hidden bg-black" style={{ width: 1080, height: 1920 }}>
         <div className="hidden" />
-        <div className="absolute inset-0 flex flex-col">
-          <div className="relative flex-1">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-[12px]">
+          <div className="relative w-full h-[607px]">
             <Slot k="slot1" className="absolute inset-0 bg-[#dedede]" />
             {Tag({ swap: "label1", text: "Mask" })}
           </div>
-          <div className="h-[8px] bg-black" />
-          <div className="relative flex-1">
+          <div className="relative w-full h-[607px]">
             <Slot k="slot2" className="absolute inset-0 bg-[#8f8f8f]" />
             {Tag({ swap: "label2", text: "AI VFX" })}
           </div>
