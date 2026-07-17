@@ -1874,6 +1874,10 @@ function App() {
   }
   function selectEl(el, forceText) {
     const root = containerRef.current; if (!el || !root.contains(el)) return;
+    // non-text clicks inside a label pill select the pill itself, so moving and the layer row
+    // always target the same box
+    const pillWrap = el.closest && el.closest("[data-pin], [data-swap]");
+    if (pillWrap && pillWrap !== el && !forceText && !isTextLeaf(el)) el = pillWrap;
     clearActive();
     const path = pathOf(el, root);
     const text = forceText || isTextLeaf(el);
