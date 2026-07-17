@@ -1683,6 +1683,9 @@ function App() {
     const swapOn = swapKey != null && swapEl && !!swapEl.querySelector("p, input");
     const swapImg = swapKey != null && swapEl ? swapEl.querySelector("img") : null;
     const swapLogoInv = !!(swapImg && (getComputedStyle(swapImg).filter || "").includes("invert(1)"));
+    const swapSvgEl = swapKey != null && swapEl ? swapEl.querySelector("svg") : null;
+    const swapSvgWrap = swapSvgEl ? swapSvgEl.parentElement : null;
+    const swapSvgColor = swapSvgWrap ? parseColor(getComputedStyle(swapSvgWrap).color).hex : null;
     // [data-pin] labels (or anything inside one) get a corner-pin control
     const pinEl = el.closest("[data-pin]");
     const pinPath = pinEl && root.contains(pinEl) ? pathOf(pinEl, root) : null;
@@ -1700,7 +1703,7 @@ function App() {
     setOpenSec(text ? "Text" : swapKey != null ? "Label content" : "Appearance");
     setInsp({
       path, apPath, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
-      pinPath, pin, swapKey, swapOn, swapLogoInv, moved: !!ovs.transform,
+      pinPath, pin, swapKey, swapOn, swapLogoInv, swapSvgColor, moved: !!ovs.transform,
       textValue: (text && el.tagName !== "INPUT" && el.children.length === 0) ? el.textContent : null,
       pinBg: (pinEl && pinEl !== el) ? parseColor(getComputedStyle(pinEl).backgroundColor).hex : null,
       pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[apPath] || {}).styleMeta || {}).kind || ((acs.backgroundImage && acs.backgroundImage !== "none") ? "custom" : undefined)),
@@ -2834,7 +2837,22 @@ function App() {
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: "@logo" }); setInsp({ ...insp, swapOn: false }); } }} className={!insp.swapOn ? SEG_ON : SEG}>Logo</button>
                   <button onClick={() => { const api = window.__slotAPI; if (api && api.setLabelText) { const cur = (api.labelText || {})[insp.swapKey]; api.setLabelText({ ...(api.labelText || {}), [insp.swapKey]: (cur && cur !== "@logo") ? cur : "" }); setInsp({ ...insp, swapOn: true }); } }} className={insp.swapOn ? SEG_ON : SEG}>Text</button>
                 </div>
-                {!insp.swapOn && <div>
+                {!insp.swapOn && insp.swapSvgColor != null && <div>
+                  <label className={LBL}>Logo color</label>
+                  <div className="flex items-center gap-2">
+                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.swapSvgColor }}>
+                      <input type="color" value={insp.swapSvgColor} onChange={e => {
+                        const root = containerRef.current;
+                        const w = root.querySelector('[data-swap="' + insp.swapKey + '"] svg');
+                        if (!w) return;
+                        setStyleAt(pathOf(w.parentElement, root), "color", e.target.value);
+                        setInsp({ ...insp, swapSvgColor: e.target.value });
+                      }} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                    <span className="text-sm text-zinc-400 flex-1">{insp.swapSvgColor}</span>
+                  </div>
+                </div>}
+                {!insp.swapOn && insp.swapSvgColor == null && <div>
                   <label className={LBL}>Logo color</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                     {[["Dark", false], ["Light", true]].map(([lbl2, inv]) => (
