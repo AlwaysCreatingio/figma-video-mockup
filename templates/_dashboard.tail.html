@@ -2020,6 +2020,14 @@ function App() {
   }
   function deselect() { clearActive(); setInsp(null); }
 
+  function removeMedia(k) {
+    const api = window.__slotAPI; if (!api || !api.setVids) return;
+    pushHistory(true);
+    api.setVids(v => { const n = { ...v }; delete n[k]; return n; });
+    const xf = xfFor(sel); delete xf[k];
+    setInsp(i => (i && i.isMedia && i.slot === k ? { ...i, hasMedia: false, isVideo: false } : i));
+    if (window.__toast) window.__toast("Media removed");
+  }
   function selectMediaSlot(slot) {
     clearActive();
     slot.style.outline = "2px solid #2563eb"; slot.style.outlineOffset = "1px";
@@ -3085,6 +3093,7 @@ function App() {
                   </div>
                 </div>}
                 {insp.hasMedia && <button onClick={() => resetMediaXf(insp.slot)} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position & zoom</button>}
+                {insp.hasMedia && <button onClick={() => removeMedia(insp.slot)} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition">Remove media</button>}
               </Sec>
             </div>}
 
