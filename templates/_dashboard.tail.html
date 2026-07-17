@@ -356,6 +356,9 @@ async function downloadUrl(url, name) {
     setTimeout(() => URL.revokeObjectURL(o), 4000);
   } catch (e) { window.open(url, "_blank"); }
 }
+function htmlOverrideUnsafe(el) {
+  return !!(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"));
+}
 function syncCustomLayersIn(frame, layers) {
   if (!frame) return;
   let wrap = frame.querySelector(":scope > [data-custom]");
@@ -429,7 +432,7 @@ function useDemoOverrides(ref, rec) {
         const el = nodeAt(base, path); if (!el) continue;
         const o = rec.overrides[path];
         if (el.tagName === "INPUT") { if (o.text != null) { el.value = o.text; el.setAttribute("value", o.text); } }
-        else if (o.html != null) el.innerHTML = o.html;
+        else if (o.html != null && o.text == null && !htmlOverrideUnsafe(el)) el.innerHTML = o.html;
         else if (o.text != null) el.textContent = o.text;
         if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
       }
@@ -1600,6 +1603,7 @@ function App() {
       const el = nodeAt(root, path); if (!el) continue;
       const o = ov[path];
       const active = activeRef.current && activeRef.current.el;
+      if (o.html != null && (o.text != null || htmlOverrideUnsafe(el))) delete o.html;   // corrupt/dangerous html snapshots self-clean
       if (o.html != null && el.tagName !== "INPUT" && el !== active) { if (el.__aoHtml !== o.html) { el.innerHTML = o.html; el.__aoHtml = o.html; } }
       else if (o.text != null && el.tagName !== "INPUT" && el !== active) { if (el.textContent !== o.text) el.textContent = o.text; }
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
