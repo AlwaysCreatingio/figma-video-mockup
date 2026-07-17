@@ -1604,6 +1604,8 @@ function App() {
       const o = ov[path];
       const active = activeRef.current && activeRef.current.el;
       if (o.html != null && (o.text != null || htmlOverrideUnsafe(el))) delete o.html;   // corrupt/dangerous html snapshots self-clean
+      // the scroll tick owns the inner paragraph's transform — a recorded one fights it every frame
+      if (o.style && o.style.transform && el.parentElement && el.parentElement.hasAttribute("data-scrolltext")) delete o.style.transform;
       if (o.html != null && el.tagName !== "INPUT" && el !== active) { if (el.__aoHtml !== o.html) { el.innerHTML = o.html; el.__aoHtml = o.html; } }
       else if (o.text != null && el.tagName !== "INPUT" && el !== active) { if (el.textContent !== o.text) el.textContent = o.text; }
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
@@ -2009,7 +2011,7 @@ function App() {
     setOpenSec(text ? "Text" : swapKey != null ? "Label content" : "Appearance");
     setInsp({
       path, apPath, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
-      pinPath, pin, swapKey, swapOn, swapLogoInv, swapSvgColor, moved: !!ovs.transform,
+      pinPath, pin, swapKey, swapOn, swapLogoInv, swapSvgColor, moved: !!ovs.transform, resized: !!(ovs.width || ovs.height),
       hasScroll: !!(el.closest && el.closest("[data-scrolltext]")),
       textValue: (text && el.tagName !== "INPUT" && el.children.length === 0) ? el.textContent : null,
       pinBg: (pinEl && pinEl !== el) ? parseColor(getComputedStyle(pinEl).backgroundColor).hex : null,
@@ -3449,6 +3451,7 @@ function App() {
                     className="w-full accent-white" />
                 </div>}
                 {insp.moved && <button onClick={() => setStyle("transform", "", { moved: false })} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset position</button>}
+                {insp.resized && <button onClick={() => { setStyle("width", ""); setStyle("height", "", { resized: false }); }} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Reset size</button>}
               </Sec>
 
               {insp.isText && <Sec open={openSec === "Text"} onToggle={toggleSec} title="Text">
