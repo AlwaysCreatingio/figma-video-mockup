@@ -64,7 +64,7 @@
           const inner = box.firstElementChild;
           if (inner) {
             const over = inner.scrollHeight - box.clientHeight;
-            if (v && v.duration && over > 0) inner.style.transform = "translateY(-" + (Math.min(1, ((v.currentTime || 0) / v.duration) * (speedRef.current || 1)) * over).toFixed(1) + "px)";
+            if (v && v.duration && over > 0) inner.style.transform = "translateY(-" + (Math.min(1, ((v.currentTime || 0) / ((window.__EXPORT_DUR > 0 && window.__EXPORT_DUR) || v.duration)) * (speedRef.current || 1)) * over).toFixed(1) + "px)";
             else inner.style.transform = "";
           }
         }

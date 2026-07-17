@@ -259,19 +259,25 @@ function cssToHex(c) {
   return "0x" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
 }
 
-async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate) {
+async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate, durationSec) {
   // bound output to the shortest clip so the looped plate/color source can't run forever
   const durs = await Promise.all(videoFiles.map(probeDur));
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
   const finite = durs.filter(d => d > 0);
-  const DUR = Math.max(0.5, Math.min(...(finite.length ? finite : [ambDur > 0 ? ambDur : 4])));
+  let DUR = Math.max(0.5, Math.min(...(finite.length ? finite : [ambDur > 0 ? ambDur : 4])));
+  const wantDur = +durationSec > 0 ? Math.min(+durationSec, 300) : 0;
+  if (wantDur) DUR = wantDur;   // chosen output length: shorter clips loop, longer ones trim
   const S = SCALE;                // plate is rendered at SCALE x (deviceScaleFactor) — supersample for crisp text/edges
   const OW = W * S, OH = H * S;
   // write each slot's rounded-corner alpha mask to disk
   const maskFiles = rects.map((r, i) => { const f = path.join(WORK, "mask_" + Date.now() + "_" + i + ".png"); fs.writeFileSync(f, Buffer.from(r.mask.split(",")[1], "base64")); return f; });
   const nVid = rects.length;
   const args = ["-y"];
-  rects.forEach((r, i) => { if (durs[i] === 0) args.push("-loop", "1"); args.push("-i", videoFiles[i]); }); // 0..nVid-1 videos
+  rects.forEach((r, i) => {
+    if (durs[i] === 0) args.push("-loop", "1");
+    else if (wantDur && durs[i] < wantDur - 0.05) args.push("-stream_loop", "-1");
+    args.push("-i", videoFiles[i]);
+  }); // 0..nVid-1 videos
   maskFiles.forEach(f => { args.push("-loop", "1", "-i", f); });                                            // nVid..2n-1 masks
   if (ambient) { if (ambDur === 0) args.push("-loop", "1"); args.push("-i", ambientFile); }
   args.push("-loop", "1", "-i", plate);
@@ -400,7 +406,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, scrollSpeed = 1, customLayers = [], mediaXf = {} } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, scrollSpeed = 1, durationSec = null, customLayers = [], mediaXf = {} } = spec;
       const data = await enqueue(async () => {
         const plate = path.join(WORK, "plate_" + Date.now() + ".png");
         const { rects, frameBg, bgPlate, scroll, txtPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn, customLayers }, W, H, plate);
@@ -408,7 +414,7 @@ const server = http.createServer(async (req, res) => {
         const videoFiles = rects.map(r => path.join(WORK, r.videoId));
         const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
         const out = path.join(WORK, "out_" + Date.now() + ".mp4");
-        await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate);
+        await composite(W, H, rects, videoFiles, plate, out, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate, durationSec);
         return fs.readFileSync(out);
       });
       res.writeHead(200, { "Content-Type": "video/mp4", "Content-Length": data.length });
