@@ -1333,8 +1333,14 @@ function App() {
     }).filter(Boolean);
     return [...base, ...virt].sort((a, b) => a.name.localeCompare(b.name));
   }, [virtTpls, hiddenTplIds]);
-  const tplOrderIdx = {}; (window.TEMPLATES || []).forEach((t, i) => { tplOrderIdx[t.id] = i; });
-  const tplAge = (t) => (tplOrderIdx[t.id] != null ? tplOrderIdx[t.id] : 1e6);   // copies count as newest
+  // chronological order templates were added (append new ids here; unknown ids count as newest)
+  const TPL_CHRONO = [
+    "3528-13182", "3528-13213", "3528-13235", "3532-13307", "3532-13332", "3532-13358", "3532-14362",
+    "3534-14446", "3534-14453", "3534-14502", "3534-14520", "3534-14597", "3534-14617", "3534-14698", "3534-14709",
+    "prompt-16x9", "prompt-9x16", "product-1x1", "raw-1x1", "prompt-1x1", "ref-compare", "duel-16x9",
+  ];
+  const tplOrderIdx = {}; TPL_CHRONO.forEach((id, i) => { tplOrderIdx[id] = i; });
+  const tplAge = (t) => (tplOrderIdx[t.id] != null ? tplOrderIdx[t.id] : 1e6);   // copies and new arrivals count as newest
   const selTplObj = sel ? templates.find(x => x.id === sel) : null;
   const TplMemo = React.useMemo(() => (selTplObj ? React.memo(selTplObj.Component) : null), [selTplObj && selTplObj.id]);
   useEffect(() => { const f = () => force(x => x + 1); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
