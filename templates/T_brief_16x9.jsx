@@ -66,9 +66,9 @@
           {/* left: the 9:16 result */}
           <Slot k="slot1" className="shrink-0 w-[338px] h-[600px] rounded-[20px] bg-[#9f9f9f]" />
           {/* middle: prompt */}
-          <div className="flex flex-col w-[460px]">
+          <div className="flex flex-col w-[460px] h-[550px]">
             <p className="font-bold leading-none text-[26px] text-white tracking-[1.2px] uppercase font-[Geist,sans-serif]">Prompt</p>
-            <div ref={boxRef} data-scrolltext className="mt-[20px] w-full h-[500px] overflow-hidden">
+            <div ref={boxRef} data-scrolltext className="mt-[20px] w-full flex-1 min-h-0 overflow-hidden">
               <p className="text-[#c8c8ce] text-[22px] leading-[1.5] font-normal font-[Geist,sans-serif]">{PROMPT_TEXT}</p>
             </div>
           </div>

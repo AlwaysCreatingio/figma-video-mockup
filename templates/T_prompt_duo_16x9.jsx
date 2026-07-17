@@ -64,9 +64,9 @@
         </div>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[64px] items-center">
           {/* left: prompt + references */}
-          <div className="flex flex-col w-[620px]">
+          <div className="flex flex-col w-[620px] h-[620px]">
             <p className="font-bold leading-none text-[28px] text-white tracking-[1.2px] uppercase font-[Geist,sans-serif]">Prompt</p>
-            <div ref={boxRef} data-scrolltext className="mt-[24px] w-full h-[330px] overflow-hidden">
+            <div ref={boxRef} data-scrolltext className="mt-[24px] w-full flex-1 min-h-0 overflow-hidden">
               <p className="text-[#c8c8ce] text-[24px] leading-[1.55] font-normal font-[Geist,sans-serif]">{PROMPT_TEXT}</p>
             </div>
             <p className="mt-[40px] font-bold leading-none text-[28px] text-white tracking-[1.2px] uppercase font-[Geist,sans-serif]">References</p>
