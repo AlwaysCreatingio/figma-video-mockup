@@ -1840,6 +1840,10 @@ function App() {
         el = el.parentElement; tPath = pathOf(el, containerRef.current);
       }
     }
+    // text in a scroll box moves the box (the inner node's transform belongs to the scroll sync)
+    if (rec0.outEl && rec0.outEl.isConnected && rec0.outPath != null) {
+      el = rec0.outEl; tPath = rec0.outPath;
+    }
     const cs = getComputedStyle(el);
     const base = cs.transform === "none" ? "" : cs.transform + " ";
     const startX = e.clientX, startY = e.clientY;
@@ -1876,7 +1880,7 @@ function App() {
     const begin = () => {
       if (!pushed) {
         pushed = true;
-        if (rec0.text && el.isContentEditable) { el.contentEditable = "false"; if (window.getSelection) window.getSelection().removeAllRanges(); }
+        if (rec0.text && rec0.el && rec0.el.isContentEditable) { rec0.el.contentEditable = "false"; if (window.getSelection) window.getSelection().removeAllRanges(); }
         pushHistory(true); ensureBase(tPath, el, ["transform"]); setInsp(i => (i ? { ...i, moved: true } : i));
       }
     };
@@ -1928,7 +1932,7 @@ function App() {
     };
     const up = () => {
       setGuides(null);
-      if (started && rec0.text) el.contentEditable = "true";
+      if (started && rec0.text && rec0.el) rec0.el.contentEditable = "true";
       if (started && !fromHandle) { suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150); }
       requestAnimationFrame(syncHandle);
       window.removeEventListener("pointermove", move);
