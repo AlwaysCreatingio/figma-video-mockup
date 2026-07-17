@@ -2410,7 +2410,20 @@ function App() {
       const spec = { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
       let pct = 45;
       setProg({ pct, label: "Rendering video…" });
-      creep = setInterval(() => { pct = Math.min(93, pct + 4); setProg({ pct: Math.round(pct), label: "Rendering video…" }); }, 700);
+      const clipDur = await new Promise(res2 => {
+        const urls = Object.values(rec.vids || {}).filter(v => !v.img).map(v => v.url);
+        if (!urls.length) return res2(0);
+        let done = 0, best = 0;
+        urls.forEach(u => {
+          const v2 = document.createElement("video");
+          v2.preload = "metadata"; v2.src = u;
+          const fin = () => { done++; if (done === urls.length) res2(best); };
+          v2.onloadedmetadata = () => { best = Math.max(best, v2.duration || 0); fin(); };
+          v2.onerror = fin;
+        });
+        setTimeout(() => res2(best), 4000);
+      });
+      creep = renderCreep(clipDur, 45, (pct2, note) => setProg({ pct: pct2, label: "Rendering video…" + note }));
       const doExport = () => fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec), signal });
       let res;
       try { res = await doExport(); }
@@ -2475,6 +2488,21 @@ function App() {
   // local dev talks to the local export server; the deployed site uses the hosted one (window.__EXPORT_BASE)
   const EXPORT_BASE = IS_LOCAL ? "http://localhost:5050" : ((typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050");
   const blobFrom = (u) => fetch(u).then(r => { if (!r.ok) throw new Error("media fetch failed (" + r.status + ")"); return r.blob(); });
+  // render-time estimate from the longest clip; the bar approaches 93% on that clock instead of racing there
+  const renderCreep = (clipDur, startPct, emit) => {
+    const est = Math.max(20, (clipDur || 8) * 1.4 + 15);
+    const note = est > 50 ? " (about " + Math.max(1, Math.ceil(est / 60)) + " min)" : "";
+    const t0 = Date.now();
+    return setInterval(() => {
+      const el = (Date.now() - t0) / 1000;
+      const pct = startPct + (93 - startPct) * (1 - Math.exp(-el / (est * 0.55)));
+      emit(Math.round(Math.min(93, pct)), note);
+    }, 500);
+  };
+  const longestClipDur = () => {
+    const root = containerRef.current; if (!root) return 0;
+    return Math.max(0, ...[...root.querySelectorAll("[data-vslot] video")].map(v => v.duration || 0));
+  };
   const MAX_UPLOAD = 45 * 1024 * 1024;   // Supabase per-object cap is 50 MB — compress anything near it
   async function maybeCompress(blob, label) {
     if (!(blob.type || "").startsWith("video/") || blob.size <= MAX_UPLOAD) return blob;
@@ -2566,7 +2594,7 @@ function App() {
       if (!spec) { alert("Add a video or image to a slot first — click a slot to upload."); setExporting(false); setExportProg(null); resumeVids(); return; }
       let pct = 55;
       setExportProg({ pct, label: "Rendering design…" });
-      creep = setInterval(() => { pct = Math.min(93, pct + 1.5); setExportProg({ pct: Math.round(pct), label: pct > 72 ? "Compositing video…" : "Rendering design…" }); }, 600);
+      creep = renderCreep(longestClipDur(), pct, (pct2, note) => setExportProg({ pct: pct2, label: (pct2 > 72 ? "Compositing video…" : "Rendering design…") + note }));
       const res = await fetch(EXPORT_BASE + "/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spec), signal });
       clearInterval(creep); creep = null;
       if (!res.ok) throw new Error(await res.text());
