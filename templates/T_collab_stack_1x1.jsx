@@ -1,4 +1,4 @@
-/* Template collab-16x9 — Product Collab 16:9 (brand + product shot + partner stacked left, 9:16 video right) */
+/* Template collab-stack-1x1 — Product Collab Stack 1:1 (brand + product shot + partner stacked left, 9:16 video right) */
 (function () {
   function Component(props) {
     const { useState } = React;
@@ -48,19 +48,19 @@
     );
 
     return (
-      <div className="relative overflow-hidden bg-white" style={{ width: 1280, height: 720 }}>
+      <div className="relative overflow-hidden bg-white" style={{ width: 1080, height: 1080 }}>
         <div className="hidden" />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[90px] items-center">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[100px] items-center">
           {/* left: brand + product shot + partner stacked with plus signs */}
-          <div className="flex flex-col items-center gap-[10px]">
-            <LogoSlot k="l1" className="rounded-[32px] shrink-0 size-[150px] bg-[#f4f4f4]" />
-            <span className="text-black text-[44px] leading-none font-bold font-[Geist,sans-serif]">+</span>
-            <Slot k="slot2" className="shrink-0 w-[170px] h-[170px] bg-[#f4f4f4] rounded-[20px]" />
-            <span className="text-black text-[44px] leading-none font-bold font-[Geist,sans-serif]">+</span>
-            <LogoSlot k="l2" className="rounded-[32px] shrink-0 size-[150px] bg-[#111111]" />
+          <div className="flex flex-col items-center gap-[14px]">
+            <LogoSlot k="l1" className="rounded-[44px] shrink-0 size-[220px] bg-[#f4f4f4]" />
+            <span className="text-black text-[60px] leading-none font-bold font-[Geist,sans-serif]">+</span>
+            <Slot k="slot2" className="shrink-0 w-[240px] h-[240px] bg-[#f4f4f4] rounded-[24px]" />
+            <span className="text-black text-[60px] leading-none font-bold font-[Geist,sans-serif]">+</span>
+            <LogoSlot k="l2" className="rounded-[44px] shrink-0 size-[220px] bg-[#111111]" />
           </div>
           {/* right: the 9:16 ad video */}
-          <Slot k="slot1" className="shrink-0 w-[350px] h-[622px] rounded-[20px] bg-[#9f9f9f]" />
+          <Slot k="slot1" className="shrink-0 w-[506px] h-[900px] rounded-[24px] bg-[#9f9f9f]" />
         </div>
       </div>
     );
@@ -68,13 +68,13 @@
 
   window.TEMPLATES = window.TEMPLATES || [];
   window.TEMPLATES.push({
-    id: "collab-16x9",
-    name: "Product Collab 16:9",
-    width: 1280,
-    height: 720,
+    id: "collab-stack-1x1",
+    name: "Product Collab Stack 1:1",
+    width: 1080,
+    height: 1080,
     slots: 2,
     logoSlots: 2,
-    desc: "Widescreen collab: brand + uploadable product shot + partner logos stacked vertically on the left, the 9:16 ad video on the right, all on white.",
+    desc: "Square collab: brand + uploadable product shot + partner logos stacked vertically on the left, the 9:16 ad video on the right, all on white.",
     Component
   });
 })();
