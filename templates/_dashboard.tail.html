@@ -1670,7 +1670,8 @@ function App() {
   }
   function toggleMulti(el) {
     const root = containerRef.current;
-    if (!el || !root.contains(el) || el.hasAttribute("data-vslot") || el.closest("[data-vslot]")) return;
+    if (!el || !root.contains(el)) return;
+    if (el.closest && el.closest("[data-vslot]")) el = el.closest("[data-vslot]");
     const path = pathOf(el, root);
     if (path === "" || path === "0") return;
     if (activeRef.current && activeRef.current.path === path) return;
@@ -1787,6 +1788,22 @@ function App() {
       const bcs = getComputedStyle(bel);
       return { path: m.path, el: bel, base: bcs.transform === "none" ? "" : bcs.transform + " " };
     }).filter(Boolean);
+    // alignment targets: edges + centers of every other visible element on the canvas
+    const rootC = containerRef.current;
+    const skip = new Set([el, rec0.outEl, ...buddies.map(b2 => b2.el)]);
+    const aligns = [];
+    rootC.querySelectorAll("[data-vslot], [data-lslot], [data-pin], [data-swap], [data-scrolltext], p, h1, h2, h3, img").forEach(o => {
+      if (skip.has(o) || el.contains(o) || o.contains(el)) return;
+      if (o.closest("[data-vslot]") !== null && !o.hasAttribute("data-vslot")) return;
+      if (["P", "H1", "H2", "H3"].includes(o.tagName) && o.closest("[data-pin], [data-swap], [data-scrolltext]")) return;
+      const cs2 = getComputedStyle(o);
+      if (cs2.display === "none" || cs2.visibility === "hidden" || o.classList.contains("hidden")) return;
+      const r2 = o.getBoundingClientRect();
+      if (r2.width < 2 || r2.height < 2) return;
+      const L = (r2.left - cont.left) / sc0, T = (r2.top - cont.top) / sc0;
+      aligns.push({ xs: [L, L + r2.width / sc0 / 2, L + r2.width / sc0], ys: [T, T + r2.height / sc0 / 2, T + r2.height / sc0] });
+    });
+    const SNAP = 6;
     let started = !!fromHandle, pushed = false;
     const begin = () => {
       if (!pushed) {
@@ -1804,15 +1821,30 @@ function App() {
         started = true; begin();
       }
       let cSnapX = false, cSnapY = false;
+      let guideX = null, guideY = null;
       if (!ev.altKey) {
         dx = Math.round((bx + dx) / GRID) * GRID - bx;
         dy = Math.round((by + dy) / GRID) * GRID - by;
-        // canvas-center snapping takes priority over the grid
+        // align to other elements' edges and centers (beats the grid)
+        let bestX = null, bestY = null;
+        const myXs = [bx + dx, bx + dx + ew / 2, bx + dx + ew];
+        const myYs = [by + dy, by + dy + eh / 2, by + dy + eh];
+        aligns.forEach(a => {
+          a.xs.forEach(axv => myXs.forEach(mx => { const d = axv - mx; if (Math.abs(d) < SNAP && (bestX == null || Math.abs(d) < Math.abs(bestX.d))) bestX = { d, at: axv }; }));
+          a.ys.forEach(ayv => myYs.forEach(my => { const d = ayv - my; if (Math.abs(d) < SNAP && (bestY == null || Math.abs(d) < Math.abs(bestY.d))) bestY = { d, at: ayv }; }));
+        });
+        if (bestX) { dx += bestX.d; guideX = bestX.at; }
+        if (bestY) { dy += bestY.d; guideY = bestY.at; }
+        // canvas-center snapping takes priority over everything
         const cx = bx + dx + ew / 2, cy = by + dy + eh / 2;
-        if (Math.abs(cx - CVW / 2) < 8) { dx += CVW / 2 - cx; cSnapX = true; }
-        if (Math.abs(cy - CVH / 2) < 8) { dy += CVH / 2 - cy; cSnapY = true; }
+        if (Math.abs(cx - CVW / 2) < 8) { dx += CVW / 2 - cx; cSnapX = true; guideX = null; }
+        if (Math.abs(cy - CVH / 2) < 8) { dy += CVH / 2 - cy; cSnapY = true; guideY = null; }
       }
-      setGuides({ x: bx + dx + ew / 2, y: by + dy + eh / 2, cx: cSnapX, cy: cSnapY });
+      setGuides({
+        x: guideX != null ? guideX : bx + dx + ew / 2,
+        y: guideY != null ? guideY : by + dy + eh / 2,
+        cx: cSnapX, cy: cSnapY, ax: guideX != null, ay: guideY != null,
+      });
       const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
       el.style.transform = t;
       const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {};
@@ -2078,6 +2110,7 @@ function App() {
   // drag-to-pan media inside its slot (mousedown+move on a filled slot); a real drag suppresses the click
   function onMediaDragStart(e) {
     if (!editMode) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return;   // modifier-click = multi-select, handled on click
     const slot = e.target.closest && e.target.closest("[data-vslot]");
     if (!slot || !containerRef.current.contains(slot)) {
       // not on media: direct-drag the selected element from anywhere on it (text keeps the ✥ handle)
@@ -2088,13 +2121,16 @@ function App() {
       return;
     }
     const media = slot.querySelector("video, img");
+    const isBuddySlot = multiRef.current.some(m => (m.el && m.el === slot) || m.path === pathOf(slot, containerRef.current));
     if (!media) {
       // empty slot: still draggable as a box (a plain click keeps selecting/uploading)
+      if (isBuddySlot) { startMoveDrag(e, false); return; }
       if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot"))) selectMediaSlot(slot);
       startMoveDrag(e, false, { isMedia: true });
       return;
     }
     e.preventDefault();
+    if (isBuddySlot) { startMoveDrag(e, false); return; }
     if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot") && insp.hasMedia === !!slot.querySelector("video, img"))) selectMediaSlot(slot);
     if (!e.altKey) { startMoveDrag(e, false, { isMedia: true }); return; }
     const k = slot.getAttribute("data-vslot");
@@ -2807,7 +2843,7 @@ function App() {
               <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold py-1.5">Layers</div>
               {layerList().map((it, i) => (
                 <button key={i} onClick={(e) => {
-                  if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current && it.kind !== "bg" && it.kind !== "video" && it.kind !== "logo") {
+                  if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current && it.kind !== "bg" && it.kind !== "logo") {
                     const root = containerRef.current;
                     const el = it.el && it.el.isConnected ? it.el : nodeAt(root, it.path);
                     if (el) toggleMulti(el);
@@ -2910,8 +2946,8 @@ function App() {
               ))}
             </div>}
             {guides && <div className="absolute inset-0 pointer-events-none z-30">
-              <div className="absolute top-0 bottom-0 w-px" style={{ left: guides.x * s, background: guides.cx ? "#f45f00" : "rgba(37,99,235,.8)" }} />
-              <div className="absolute left-0 right-0 h-px" style={{ top: guides.y * s, background: guides.cy ? "#f45f00" : "rgba(37,99,235,.8)" }} />
+              <div className="absolute top-0 bottom-0 w-px" style={{ left: guides.x * s, background: (guides.cx || guides.ax) ? "#f45f00" : "rgba(37,99,235,.8)" }} />
+              <div className="absolute left-0 right-0 h-px" style={{ top: guides.y * s, background: (guides.cy || guides.ay) ? "#f45f00" : "rgba(37,99,235,.8)" }} />
             </div>}
           </div>
           {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
