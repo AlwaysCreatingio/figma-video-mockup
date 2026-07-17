@@ -665,8 +665,11 @@ const HOOKS = [
 
 function SeekBar({ rootRef }) {
   const [st, setSt] = useState({ t: 0, d: 0 });
+  const barRef = useRef(null);
+  const dragRef = useRef(false);
   useEffect(() => {
     const id = setInterval(() => {
+      if (dragRef.current) return;
       const root = rootRef.current; if (!root) return;
       const vids = [...root.querySelectorAll("[data-vslot] video")].filter(v => v.duration);
       if (!vids.length) { setSt(s2 => (s2.d ? { t: 0, d: 0 } : s2)); return; }
@@ -677,16 +680,31 @@ function SeekBar({ rootRef }) {
   }, []);
   if (!st.d) return null;
   const fmt = (x) => Math.floor(x / 60) + ":" + String(Math.floor(x % 60)).padStart(2, "0");
-  const seek = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  const applyFrac = (clientX) => {
+    const bar = barRef.current; if (!bar) return;
+    const r = bar.getBoundingClientRect();
+    const f = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
     const root = rootRef.current; if (!root) return;
     root.querySelectorAll("[data-vslot] video").forEach(v => { try { v.currentTime = f * (v.duration || 0); } catch (err) {} });
+    setSt(s2 => ({ ...s2, t: f * (s2.d || 0) }));
   };
+  const startDrag = (e) => {
+    e.preventDefault();
+    dragRef.current = true;
+    applyFrac(e.clientX);
+    const mv = (ev) => applyFrac(ev.clientX);
+    const up = () => { dragRef.current = false; window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", mv);
+    window.addEventListener("pointerup", up);
+  };
+  const pct = (st.t / st.d) * 100;
   return (
-    <div className="flex items-center gap-2 mt-1.5">
-      <div onClick={seek} className="w-[240px] h-[6px] rounded-full bg-white/15 cursor-pointer">
-        <div className="h-full rounded-full bg-white pointer-events-none" style={{ width: (st.t / st.d * 100) + "%" }} />
+    <div className="flex items-center gap-2 mt-1">
+      <div ref={barRef} onPointerDown={startDrag} className="relative w-[240px] h-[16px] flex items-center cursor-pointer">
+        <div className="w-full h-[6px] rounded-full bg-white/15 overflow-hidden">
+          <div className="h-full bg-white pointer-events-none" style={{ width: pct + "%" }} />
+        </div>
+        <div className="absolute -translate-x-1/2 w-[13px] h-[13px] rounded-full bg-white shadow pointer-events-none" style={{ left: pct + "%" }} />
       </div>
       <span className="text-[13px] text-zinc-400 font-medium tabular-nums">{fmt(st.t)} / {fmt(st.d)}</span>
     </div>
