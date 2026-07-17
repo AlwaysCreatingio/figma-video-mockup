@@ -71,6 +71,18 @@ const LOGO_LIBRARY = [
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
 const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "filter", "lineHeight"];
+// Seconds needed to scroll a prompt at a comfortable reading pace (~70 design px/sec), so a long
+// prompt over a short clip doesn't rush. 0 when nothing overflows. Shared by the editor + export.
+const SCROLL_READ_PXPS = 70;
+function scrollReadSeconds(root) {
+  let sec = 0;
+  root.querySelectorAll("[data-scrolltext]").forEach(st => {
+    const inner = st.firstElementChild; if (!inner) return;
+    const over = inner.scrollHeight - st.clientHeight;
+    if (over > 6) sec = Math.max(sec, Math.min(120, over / SCROLL_READ_PXPS));
+  });
+  return sec;
+}
 function parseColor(str) {
   const m = (str || "").match(/[\d.]+/g);
   if (!m) return { hex: "#ffffff", a: 1 };
@@ -546,7 +558,7 @@ const routeFromHash = () => {
   if (parts[0] === "hooks") return { sel: null, page: "hooks" };
   if (parts[0] === "tutorials") return { sel: null, page: "tutorials", filter: parts[1] ? decodeURIComponent(parts[1]) : "all" };
   if (parts[0] === "brand") return { sel: null, page: "brand" };
-  if (parts[0] === "campaigns") return { sel: null, page: "campaigns", campaign: parts[1] ? decodeURIComponent(parts[1]) : null, campTab: parts[2] === "resources" ? "resources" : "overview" };
+  if (parts[0] === "campaigns") return { sel: null, page: "campaigns", campaign: parts[1] ? decodeURIComponent(parts[1]) : null, campTab: (parts[2] === "resources" || parts[2] === "hooks") ? parts[2] : "overview" };
   return { sel: null, page: "templates", filter: SLUG_ASPECT[parts[1]] || "all" };
 };
 
@@ -1270,7 +1282,10 @@ function App() {
       const vids = root ? [...root.querySelectorAll("[data-vslot] video")].filter(v => v.duration) : [];
       const vmax = vids.reduce((a, v) => Math.max(a, v.duration || 0), 0);
       const cap = window.__EXPORT_DUR > 0 ? window.__EXPORT_DUR : 0;
-      const d = cap || vmax || 0;
+      // readable default: a long prompt over a short clip shouldn't rush — pace the scroll at a
+      // comfortable speed and let the clip loop to fill. An explicit output duration always wins.
+      const readMin = root ? scrollReadSeconds(root) : 0;
+      const d = cap || Math.max(vmax, readMin) || 0;
       window.__SCROLL_DUR = d;
       if (playingRef.current && d > 0 && dt > 0 && dt < 1) {
         let t = (window.__PLAYHEAD || 0) + dt;
@@ -1413,7 +1428,7 @@ function App() {
     ["raw-1x1", "2026-07-16"], ["prompt-1x1", "2026-07-16"], ["ref-compare", "2026-07-16"],
     ["duel-16x9", "2026-07-17"], ["collab-1x1", "2026-07-17"], ["collab-9x16", "2026-07-17"],
     ["agent-showcase-9x16", "2026-07-17"], ["gallery-9x16", "2026-07-17"],
-    ["angles-9x16", "2026-07-17"], ["vfx-9x16", "2026-07-17"], ["made-in-9x16", "2026-07-17"], ["brief-9x16", "2026-07-17"], ["brief-16x9", "2026-07-17"], ["prompt-duo-16x9", "2026-07-17"], ["prompt-vs-9x16", "2026-07-17"], ["collab-16x9", "2026-07-17"], ["collab-stack-1x1", "2026-07-17"], ["prompt-vs-1x1", "2026-07-17"],
+    ["angles-9x16", "2026-07-17"], ["vfx-9x16", "2026-07-17"], ["made-in-9x16", "2026-07-17"], ["brief-9x16", "2026-07-17"], ["brief-16x9", "2026-07-17"], ["prompt-duo-16x9", "2026-07-17"], ["prompt-vs-9x16", "2026-07-17"], ["collab-16x9", "2026-07-17"], ["collab-stack-1x1", "2026-07-17"], ["prompt-vs-1x1", "2026-07-17"], ["recipe-1x1", "2026-07-17"],
   ];
   const CHRONO_DATE = {}; const tplOrderIdx = {};
   TPL_CHRONO.forEach(([id, d], i) => { CHRONO_DATE[id] = d; tplOrderIdx[id] = i; });
@@ -1473,7 +1488,7 @@ function App() {
       else if (parts[0] === "hooks") { setSel(null); setPage("hooks"); }
       else if (parts[0] === "tutorials") { setSel(null); setPage("tutorials"); setTutFilter(parts[1] ? decodeURIComponent(parts[1]) : "all"); }
       else if (parts[0] === "brand") { setSel(null); setPage("brand"); }
-      else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); setOpenCampaign(parts[1] ? decodeURIComponent(parts[1]) : null); setCampTab(parts[2] === "resources" ? "resources" : "overview"); }
+      else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); setOpenCampaign(parts[1] ? decodeURIComponent(parts[1]) : null); setCampTab((parts[2] === "resources" || parts[2] === "hooks") ? parts[2] : "overview"); }
       else if (parts[0] === "templates") { setSel(null); setPage("templates"); setTplFilter(SLUG_ASPECT[parts[1]] || "all"); }
       else { setSel(null); setPage("campaigns"); setOpenCampaign(null); setCampTab("overview"); }
     };
@@ -1488,7 +1503,7 @@ function App() {
       : page === "hooks" ? "#/hooks"
       : page === "tutorials" ? "#/tutorials" + (tutFilter !== "all" ? "/" + tutFilter : "")
       : page === "brand" ? "#/brand"
-      : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign + (campTab === "resources" ? "/resources" : "") : "#/campaigns")
+      : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign + (campTab === "resources" ? "/resources" : campTab === "hooks" ? "/hooks" : "") : "#/campaigns")
       : "#/templates" + (tplFilter !== "all" ? "/" + ASPECT_SLUG[tplFilter] : "");
     if (location.hash !== want) location.hash = want;
   }, [sel, page, openCampaign, tplFilter, demoFilter, tutFilter, campTab, preview]);
@@ -2606,26 +2621,30 @@ function App() {
   const ASSET_CLIP_KEY = "aoAssetClipboard";
   const readAssetClip = () => { try { return JSON.parse(localStorage.getItem(ASSET_CLIP_KEY) || "null"); } catch (e) { return null; } };
   const [assetClip, setAssetClip] = useState(readAssetClip);
+  // in-memory source of truth for paste: a same-tab copy always uses this, so a fresh copy is never
+  // shadowed by a stale localStorage value (e.g. if a large write hit the quota and was dropped).
+  const assetClipRef = useRef(readAssetClip());
   useEffect(() => {
-    const sync = () => setAssetClip(readAssetClip());
+    const sync = () => { const c = readAssetClip(); assetClipRef.current = c; setAssetClip(c); };
     window.addEventListener("storage", sync);
     window.addEventListener("focus", sync);
     return () => { window.removeEventListener("storage", sync); window.removeEventListener("focus", sync); };
   }, []);
-  function copyAssets(id) {
-    const rec = demoRecs[id]; if (!rec) return;
-    const clip = { vids: rec.vids || {}, logos: rec.logos || {} };
-    try { localStorage.setItem(ASSET_CLIP_KEY, JSON.stringify(clip)); } catch (e) {}
+  function copyAssets(id, recArg) {
+    const rec = recArg || demoRecs[id]; if (!rec) return;
+    const clip = JSON.parse(JSON.stringify({ vids: rec.vids || {}, logos: rec.logos || {} }));
+    assetClipRef.current = clip;               // always fresh for same-tab paste
+    try { localStorage.setItem(ASSET_CLIP_KEY, JSON.stringify(clip)); } catch (e) {}   // cross-tab (may fail on quota)
     setAssetClip(clip);
     if (window.__toast) window.__toast("Assets copied");
   }
   function pasteAssetsIntoSession() {
-    const clip = readAssetClip(); if (!clip) return;
+    const clip = assetClipRef.current || readAssetClip(); if (!clip) return;
     injectRecordState({ vids: clip.vids || {}, logos: clip.logos || {} });
     if (window.__toast) window.__toast("Assets pasted");
   }
   function pasteAssetsIntoDemo(id) {
-    const clip = readAssetClip(); if (!clip) return;
+    const clip = assetClipRef.current || readAssetClip(); if (!clip) return;
     openDemo(id);
     setTimeout(() => injectRecordState({ vids: clip.vids || {}, logos: clip.logos || {} }), 1200);
     if (window.__toast) window.__toast("Assets pasted");
@@ -2871,7 +2890,15 @@ function App() {
     const showPlus = !!root.querySelector("[data-plus]");
     const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
     const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
-    return { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, durationSec: exportDurFor(t.id), customLayers: JSON.parse(JSON.stringify(clFor(t.id))), mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+    // no explicit duration but a long prompt over a short clip: extend so the export reads at the
+    // same comfortable pace as the editor preview (the clip loops to fill).
+    let durationSec = exportDurFor(t.id);
+    if (!durationSec) {
+      const readMin = scrollReadSeconds(root);
+      const vmax = [...root.querySelectorAll("[data-vslot] video")].reduce((a, v) => Math.max(a, v.duration || 0), 0);
+      if (readMin > vmax + 0.4) durationSec = Math.round(readMin);
+    }
+    return { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, durationSec, customLayers: JSON.parse(JSON.stringify(clFor(t.id))), mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
   }
   async function exportMp4() {
     const t = templates.find(x => x.id === sel);
@@ -3624,7 +3651,7 @@ function App() {
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} wide={demoFilter === "16:9" || demoFilter === "1:1"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onDownloaded={() => demoStore.bump(d.id)} onCopyAssets={() => copyAssets(d.id)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} wide={demoFilter === "16:9" || demoFilter === "1:1"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onDownloaded={() => demoStore.bump(d.id)} onCopyAssets={() => copyAssets(d.id, rec)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} />;
       })}
       </div>
     </div>
@@ -3747,12 +3774,25 @@ function App() {
                       </div>
                       <div className="px-7 pb-8">
                         <div className="flex gap-1.5 mt-4 mb-5">
-                          {[["overview", "Overview"], ["resources", "Resources"]].map(([k, l]) => (
+                          {[["overview", "Overview"], ["hooks", "Hooks"], ["resources", "Resources"]].map(([k, l]) => (
                             <button key={k} onClick={() => setCampTab(k)}
                               className={"px-3.5 py-1.5 rounded-[30px] text-sm font-medium transition " + (campTab === k ? "bg-[#2F2F2F] text-white ring-1 ring-white/10" : "text-zinc-400 ring-1 ring-white/15 hover:ring-white/30")}>{l}</button>
                           ))}
                         </div>
-                        {campTab === "resources" ? (
+                        {campTab === "hooks" ? (
+                          <div className="pb-2">
+                            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-3">Example hooks · tap to copy</div>
+                            <div className="flex flex-wrap gap-3">
+                              {c.examples.map(h => (
+                                <button key={h} onClick={() => navigator.clipboard.writeText(h).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
+                                  className="w-[300px] text-left p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col gap-3">
+                                  <span className="flex-1 text-[14px] text-zinc-300 leading-relaxed">{h}</span>
+                                  <span className="text-zinc-500 group-hover:text-zinc-300 transition"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : campTab === "resources" ? (
                           <div className="pb-2">
                             {(c.resources && c.resources.length)
                               ? <div className="flex flex-wrap gap-3">
@@ -3788,29 +3828,13 @@ function App() {
                             <p className="text-sm leading-relaxed text-zinc-300">{c.positioning}</p>
                           </div>
                         </div>
-                        <div className="mt-7 mb-2 flex items-center justify-between">
-                          <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Example hooks</div>
-                          <div className="flex gap-1.5">
-                            <button onClick={(e) => { const r = e.currentTarget.closest("div").parentElement.nextElementSibling; const c = r.querySelector(".snap-start"); r.scrollBy({ left: -((c ? c.getBoundingClientRect().width : 300) + 16), behavior: "smooth" }); }} aria-label="Scroll left" className="w-7 h-7 flex items-center justify-center rounded-full bg-white/[0.05] border border-white/10 text-zinc-400 hover:text-white transition">←</button>
-                            <button onClick={(e) => { const r = e.currentTarget.closest("div").parentElement.nextElementSibling; const c = r.querySelector(".snap-start"); r.scrollBy({ left: (c ? c.getBoundingClientRect().width : 300) + 16, behavior: "smooth" }); }} aria-label="Scroll right" className="w-7 h-7 flex items-center justify-center rounded-full bg-white/[0.05] border border-white/10 text-zinc-400 hover:text-white transition">→</button>
-                          </div>
-                        </div>
-                        <div className="hscroll flex gap-4 overflow-x-auto snap-x pb-4 pt-1 -mx-2 px-2">
-                          {c.examples.map(h => (
-                            <button key={h} onClick={() => navigator.clipboard.writeText(h).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
-                              className="snap-start shrink-0 w-[300px] text-left p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col gap-3">
-                              <span className="flex-1 text-[14px] text-zinc-300 leading-relaxed">{h}</span>
-                              <span className="text-zinc-500 group-hover:text-zinc-300 transition"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>
-                            </button>
-                          ))}
-                        </div>
                         <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">Assets</div>
                         {tagged.length
                           ? <div className="flex flex-wrap gap-6 justify-center md:justify-start">
                               {tagged.map(d => {
                                 const t = templates.find(x => x.id === d.templateId);
                                 const rec = demoRecs[d.id];
-                                return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onCopyAssets={() => copyAssets(d.id)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} />;
+                                return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onCopyAssets={() => copyAssets(d.id, rec)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} />;
                               })}
                             </div>
                           : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">{IS_LOCAL ? "No assets tagged yet. Tag one from the Assets page ⋯ menu." : "No assets yet. Check back soon."}</div>}
