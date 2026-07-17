@@ -1912,12 +1912,13 @@ function App() {
         const br = ovFor(sel)[bd.path] = ovFor(sel)[bd.path] || {};
         br.style = br.style || {}; br.style.transform = bt;
       });
-      if (h0) setHandle({ x: h0.x + dx * sc, y: h0.y + dy * sc });
+      if (h0) setHandle({ ...h0, x: h0.x + dx * sc, y: h0.y + dy * sc });
     };
     const up = () => {
       setGuides(null);
       if (started && rec0.text) el.contentEditable = "true";
       if (started && !fromHandle) { suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150); }
+      requestAnimationFrame(syncHandle);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
