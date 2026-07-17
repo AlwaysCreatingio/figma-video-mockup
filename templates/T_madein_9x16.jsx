@@ -53,20 +53,17 @@
     return (
       <div data-madein className="relative overflow-hidden bg-black" style={{ width: 1080, height: 1920 }}>
         <div className="hidden" />
-        <div className="absolute inset-0 flex flex-col items-center">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full flex flex-col items-center">
           {/* badge header */}
-          <div className="mt-[96px] flex flex-col items-center gap-[18px]">
+          <div className="flex flex-col items-center gap-[18px]">
             <div data-swap="badge" className="inline-flex items-center justify-center px-[14px] py-[8px] bg-white">
               {labelText.badge === "@logo"
                 ? <img src={window.__AO_LOGO} alt="Agent Opus" className="h-[24px] object-contain" />
                 : <p className="font-bold leading-none text-[24px] text-black tracking-[1.5px] uppercase italic font-[Geist,sans-serif]">{(labelText.badge && labelText.badge !== "@logo") ? labelText.badge : "Made in"}</p>}
             </div>
-            <div data-swap="title" className="flex items-center justify-center h-[64px]">
+            <div data-swap="title" className="flex items-center justify-center h-[96px]">
               {(labelText.title == null || labelText.title === "@logo")
-                ? <span className="inline-flex items-center gap-[10px]" style={{ color: "#ffffff" }}>
-                    <svg aria-label="agent opus logo" fill="currentColor" viewBox="0 0 24 24" width="52" height="52"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
-                    <span className="text-[54px] font-bold leading-none tracking-[-0.5px] font-[Geist,sans-serif] whitespace-nowrap">Agent Opus</span>
-                  </span>
+                ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-[84px] object-contain" />
                 : <p className="font-bold leading-none text-[52px] text-white text-center tracking-[-0.4px] font-[Geist,sans-serif] whitespace-nowrap">{labelText.title}</p>}
             </div>
             <p className="font-bold leading-none text-[44px] text-[#ff570a] text-center tracking-[1px] uppercase font-[Geist,sans-serif]">Prompt to video</p>
