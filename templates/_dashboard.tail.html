@@ -3124,7 +3124,7 @@ function App() {
       <FilterFab options={[["all", "All"], ["16:9", "Horizontal"], ["9:16", "Vertical"], ["1:1", "Square"]]} value={demoFilter} onChange={setDemoFilter} />
       <div className="hidden md:flex items-center justify-start gap-2 mb-8">
         {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "Horizontal", demoFilter, setDemoFilter)}{chipBtn("9:16", "Vertical", demoFilter, setDemoFilter)}{chipBtn("1:1", "Square", demoFilter, setDemoFilter)}
-        <SortMenu value={demoSort} onChange={setDemoSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most downloaded"]]} />
+        <div className="ml-auto"><SortMenu value={demoSort} onChange={setDemoSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most downloaded"]]} /></div>
       </div>
       <div className="flex flex-wrap gap-6 justify-center md:justify-start">
       {shownDemos.map(d => {
@@ -3367,7 +3367,7 @@ function App() {
               <header className="hidden md:flex flex-wrap items-center justify-end gap-4 mb-8">
                 <div className="flex items-center gap-2">
                   {chip("all", "All")}{chip("16:9", "Horizontal")}{chip("9:16", "Vertical")}{chip("1:1", "Square")}
-                  <SortMenu value={tplSort} onChange={setTplSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most popular"]]} />
+                  <div className="ml-auto"><SortMenu value={tplSort} onChange={setTplSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most popular"]]} /></div>
                 </div>
               </header>
               <div className="flex flex-wrap gap-6 justify-center md:justify-start">
