@@ -481,7 +481,7 @@ function useDemoOverrides(ref, rec) {
   }, [rec]);
 }
 
-function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, onTag, onDuplicate, onDelete, onDownloaded, onCopyAssets, onPasteAssets, canPaste }) {
+function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, onTag, onDuplicate, onDelete, onDownloaded, onCopyAssets, onPasteAssets, canPaste, selectable, selected, onToggleSelect }) {
   const ref = useRef(null);
   const [menu, setMenu] = useState(false);
   const [menuSide, setMenuSide] = useState("r");
@@ -499,17 +499,22 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
   useDemoOverrides(ref, rec);
   return (
     <div className="text-left group/card relative" style={{ width: CW }}>
-      <button onClick={onPreview} className="block w-full text-left">
-        <div className="rounded-[30px] overflow-hidden bg-white/[0.03] border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5 transition-all duration-200 relative" style={{ width: CW, height: CH }}>
+      <button onClick={selectable ? onToggleSelect : onPreview} className="block w-full text-left">
+        <div className={"rounded-[30px] overflow-hidden bg-white/[0.03] border transition-all duration-200 relative " + (selected ? "border-white ring-2 ring-white shadow-xl -translate-y-0.5" : "border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:shadow-black/[.08] group-hover/card:-translate-y-0.5")} style={{ width: CW, height: CH }}>
           {mp4
             ? <video src={mp4} autoPlay loop muted playsInline className="w-full h-full object-contain" />
             : pre
               ? <div ref={ref} className="pointer-events-none absolute" style={{ width: t.width, height: t.height, transform: `translate(${ox}px, ${oy}px) scale(${sc})`, transformOrigin: "top left" }}><t.Component preload={pre} /></div>
               : (d.thumb ? <img src={d.thumb} className="w-full h-full object-cover" /> : null)}
+          {selectable && <div className={"absolute inset-0 transition " + (selected ? "bg-black/20" : "bg-transparent")} />}
         </div>
       </button>
+      {/* selection checkbox (multi-select mode) */}
+      {selectable && <div className={"absolute top-3 left-3 z-20 w-7 h-7 rounded-full flex items-center justify-center transition shadow ring-1 " + (selected ? "bg-white text-zinc-900 ring-black/10" : "bg-black/40 text-transparent ring-white/40")}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>}
       {/* ⋯ actions menu (hover, over the preview) */}
-      <div className="absolute bottom-3 right-3 z-20">
+      {!selectable && <div className="absolute bottom-3 right-3 z-20">
         <button onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new Event("click")); const rct = e.currentTarget.getBoundingClientRect(); setMenuSide(window.innerWidth - rct.right > 244 ? "r" : "l"); setMenu(m => !m); }} title="Actions"
           className="w-7 h-7 flex items-center justify-center rounded-[30px] bg-white/90 text-zinc-700 hover:text-zinc-950 shadow ring-1 ring-black/5 opacity-0 group-hover/card:opacity-100 transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
@@ -543,7 +548,7 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete</button>
           </React.Fragment>}
         </div>}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -769,6 +774,36 @@ function SeekBar({ rootRef }) {
         <div className="absolute -translate-x-1/2 w-[13px] h-[13px] rounded-full bg-white shadow pointer-events-none" style={{ left: pct + "%" }} />
       </div>
       <span className="text-[13px] text-zinc-400 font-medium tabular-nums">{fmt(st.t)} / {fmt(st.d)}</span>
+    </div>
+  );
+}
+function BulkBar({ count, campaigns, onTag, onDelete }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 rounded-[30px] bg-[#2b2b2b]/95 backdrop-blur-2xl shadow-2xl border border-white/10">
+      <span className="px-2 text-sm font-medium text-white tabular-nums">{count} selected</span>
+      <div className="relative" onClick={e => e.stopPropagation()}>
+        <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[30px] text-sm font-medium text-zinc-100 bg-white/10 hover:bg-white/15 transition">
+          Tag campaign
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        {open && <div className="absolute bottom-11 left-0 z-40 w-[210px] rounded-[16px] bg-[#2b2b2b]/95 backdrop-blur-2xl shadow-2xl border border-white/10 p-1.5">
+          {campaigns.map(c => (
+            <button key={c.id} onClick={() => { setOpen(false); onTag(c.id); }} className="flex w-full items-center h-[34px] rounded-[10px] px-2.5 text-[13px] font-medium text-zinc-200 hover:bg-white/10 transition">{c.title}</button>
+          ))}
+          <div className="border-t border-white/10 my-1" />
+          <button onClick={() => { setOpen(false); onTag(null); }} className="flex w-full items-center h-[34px] rounded-[10px] px-2.5 text-[13px] font-medium text-zinc-400 hover:bg-white/10 transition">Remove tag</button>
+        </div>}
+      </div>
+      <button onClick={onDelete} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete
+      </button>
     </div>
   );
 }
@@ -1346,6 +1381,10 @@ function App() {
   const [hiddenTplIds, setHiddenTplIds] = useState([]);   // built-in templates removed from the gallery
   const [tplSort, setTplSort] = useState("new");    // new | old | pop
   const [demoSort, setDemoSort] = useState("new");  // new | old | pop
+  const [selMode, setSelMode] = useState(false);    // multi-select on the Assets page (owner-only)
+  const [selIds, setSelIds] = useState([]);         // ids currently selected for bulk actions
+  const toggleSel = (id) => setSelIds(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  const exitSelMode = () => { setSelMode(false); setSelIds([]); };
   const [demosLoaded, setDemosLoaded] = useState(false);
   const refreshDemos = async () => {
     const list = await demoStore.list();
@@ -2805,6 +2844,26 @@ function App() {
     await demoStore.remove(id);
     await refreshDemos();
   }
+  async function bulkTag(campaign) {
+    const ids = selIds.slice(); if (!ids.length) return;
+    if (window.__toast) window.__toast("Tagging " + ids.length + "…", { sticky: true });
+    for (const id of ids) { try { await demoStore.patch(id, { campaign }); } catch (e) {} }
+    await refreshDemos();
+    const c = CAMPAIGNS.find(x => x.id === campaign);
+    if (window.__toastClear) window.__toastClear();
+    if (window.__toast) window.__toast((c ? "Tagged: " + c.title : "Tag removed") + " · " + ids.length + " assets");
+    exitSelMode();
+  }
+  async function bulkDelete() {
+    const ids = selIds.slice(); if (!ids.length) return;
+    if (!window.confirm("Delete " + ids.length + " asset" + (ids.length > 1 ? "s" : "") + "? This can't be undone.")) return;
+    if (window.__toast) window.__toast("Deleting " + ids.length + "…", { sticky: true });
+    for (const id of ids) { try { await demoStore.remove(id); } catch (e) {} }
+    await refreshDemos();
+    if (window.__toastClear) window.__toastClear();
+    if (window.__toast) window.__toast(ids.length + " asset" + (ids.length > 1 ? "s" : "") + " deleted");
+    exitSelMode();
+  }
 
   // local dev talks to the local export server; the deployed site uses the hosted one (window.__EXPORT_BASE)
   const EXPORT_BASE = IS_LOCAL ? "http://localhost:5050" : ((typeof window !== "undefined" && window.__EXPORT_BASE) || "http://localhost:5050");
@@ -3645,15 +3704,25 @@ function App() {
       <FilterFab options={[["all", "All"], ["16:9", "Horizontal"], ["9:16", "Vertical"], ["1:1", "Square"]]} value={demoFilter} onChange={setDemoFilter} />
       <div className="hidden md:flex items-center justify-start gap-2 mb-8">
         {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "Horizontal", demoFilter, setDemoFilter)}{chipBtn("9:16", "Vertical", demoFilter, setDemoFilter)}{chipBtn("1:1", "Square", demoFilter, setDemoFilter)}
-        <div className="ml-auto"><SortMenu value={demoSort} onChange={setDemoSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most downloaded"]]} /></div>
+        <div className="ml-auto flex items-center gap-2">
+          {IS_LOCAL && (selMode
+            ? <React.Fragment>
+                <button onClick={() => setSelIds(selIds.length === shownDemos.length ? [] : shownDemos.map(d => d.id))} className="px-3 py-1.5 rounded-[30px] text-sm font-medium text-zinc-300 ring-1 ring-white/15 hover:ring-white/30 transition">{selIds.length === shownDemos.length ? "Deselect all" : "Select all"}</button>
+                <button onClick={exitSelMode} className="px-3 py-1.5 rounded-[30px] text-sm font-medium text-zinc-300 ring-1 ring-white/15 hover:ring-white/30 transition">Cancel</button>
+              </React.Fragment>
+            : <button onClick={() => setSelMode(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[30px] text-sm font-medium text-zinc-300 ring-1 ring-white/15 hover:ring-white/30 transition">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Select</button>)}
+          <SortMenu value={demoSort} onChange={setDemoSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most downloaded"]]} />
+        </div>
       </div>
       <div className="flex flex-wrap gap-6 justify-center md:justify-start">
       {shownDemos.map(d => {
         const t = templates.find(x => x.id === d.templateId);
         const rec = demoRecs[d.id];
-        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} wide={demoFilter === "16:9" || demoFilter === "1:1"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onDownloaded={() => demoStore.bump(d.id)} onCopyAssets={() => copyAssets(d.id, rec)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} />;
+        return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={demoFilter === "all"} wide={demoFilter === "16:9" || demoFilter === "1:1"} onOpen={() => openDemo(d.id)} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} onDownloaded={() => demoStore.bump(d.id)} onCopyAssets={() => copyAssets(d.id, rec)} onPasteAssets={() => pasteAssetsIntoDemo(d.id)} canPaste={!!assetClip} selectable={IS_LOCAL && selMode} selected={selIds.includes(d.id)} onToggleSelect={() => toggleSel(d.id)} />;
       })}
       </div>
+      {IS_LOCAL && selMode && selIds.length > 0 && <BulkBar count={selIds.length} campaigns={CAMPAIGNS} onTag={bulkTag} onDelete={bulkDelete} />}
     </div>
   ) : (
     <div className="text-center py-28 text-neutral-400">

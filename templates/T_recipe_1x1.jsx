@@ -57,18 +57,17 @@
           <LogoSlot k="l2" className="rounded-[28px] shrink-0 size-[168px]" />
         </div>
 
-        {/* converging arrows pointing to the result */}
-        <svg className="absolute pointer-events-none" style={{ left: 300, top: 0 }} width="180" height="1080" viewBox="0 0 180 1080" fill="none">
-          <g stroke="#111111" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none">
-            {/* top arm curves down to center */}
-            <path d="M14 250 C 90 300, 120 430, 150 528" />
-            <path d="M132 512 L152 530 L132 548" />
-            {/* middle arm straight to center */}
-            <path d="M10 540 L150 540" />
-            <path d="M132 522 L152 540 L132 558" />
-            {/* bottom arm curves up to center */}
-            <path d="M14 830 C 90 780, 120 650, 150 552" />
-            <path d="M132 532 L152 550 L132 568" />
+        {/* three smooth strokes converging into the result */}
+        <svg className="absolute pointer-events-none" style={{ left: 300, top: 0 }} width="200" height="1080" viewBox="0 0 200 1080" fill="none">
+          <g stroke="#111111" strokeWidth="8" strokeLinecap="round" fill="none">
+            <path d="M6 264 C 78 300, 118 424, 138 524" />
+            <path d="M4 540 L138 540" />
+            <path d="M6 816 C 78 780, 118 656, 138 556" />
+          </g>
+          <g fill="#111111">
+            <path d="M136 510 L162 524 L136 538 Z" />
+            <path d="M138 526 L164 540 L138 554 Z" />
+            <path d="M136 542 L162 556 L136 570 Z" />
           </g>
         </svg>
       </div>
