@@ -1701,18 +1701,24 @@ function App() {
     if (!el || !el.isConnected) el = nodeAt(containerRef.current, rec0.path);
     if (!el) return;
     const sc0 = editorScaleRef.current || 1;
-    const er0 = el.getBoundingClientRect();
-    const cs = getComputedStyle(el);
-    const mode = insp.isText && el.tagName !== "INPUT" ? "font" : el.tagName === "IMG" ? "img" : "box";
-    const f0 = parseFloat(cs.fontSize) || 16, h0 = er0.height / sc0, w0 = er0.width / sc0;
+    // text drags resize the box; hold shift to scale the type instead
+    const mode = insp.isText && el.tagName !== "INPUT" ? (e.shiftKey ? "font" : "box") : el.tagName === "IMG" ? "img" : "box";
     // a video and its same-size wrapper act as one box: resize the wrapper so layout follows
     let tEl = el, tPath = rec0.path;
     if (insp.isMedia && el.parentElement) {
-      const pr = el.parentElement.getBoundingClientRect();
-      if (Math.abs(pr.left - er0.left) < 3 && Math.abs(pr.top - er0.top) < 3 && Math.abs(pr.width - er0.width) < 3 && Math.abs(pr.height - er0.height) < 3) {
+      const pr = el.parentElement.getBoundingClientRect(), sr0 = el.getBoundingClientRect();
+      if (Math.abs(pr.left - sr0.left) < 3 && Math.abs(pr.top - sr0.top) < 3 && Math.abs(pr.width - sr0.width) < 3 && Math.abs(pr.height - sr0.height) < 3) {
         tEl = el.parentElement; tPath = pathOf(tEl, containerRef.current);
       }
     }
+    // text inside a clipping scroll box resizes the box itself
+    if (mode === "box" && insp.isText && rec0.outEl && rec0.outEl.isConnected && rec0.outPath != null) {
+      tEl = rec0.outEl; tPath = rec0.outPath;
+    }
+    const measureEl = mode === "box" ? tEl : el;
+    const er0 = measureEl.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const f0 = parseFloat(cs.fontSize) || 16, h0 = er0.height / sc0, w0 = er0.width / sc0;
     const hs0 = handle;
     // anchor at the corner opposite the grip being dragged
     const ax = corner.includes("w") ? er0.right : er0.left;
@@ -1724,14 +1730,13 @@ function App() {
       const k = Math.max(0.15, Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0);
       if (mode === "font") setStyle("fontSize", Math.max(6, Math.round(f0 * k)) + "px", { size: Math.max(6, Math.round(f0 * k)) });
       else if (mode === "img") setStyle("height", Math.max(8, Math.round(h0 * k)) + "px", { imgH: Math.max(8, Math.round(h0 * k)) });
-      else if (insp.isMedia) {
+      else {
         const w1 = Math.max(8, Math.round(w0 * k)), h1 = Math.max(8, Math.round(h0 * k));
         const live = tEl.isConnected ? tEl : nodeAt(containerRef.current, tPath);
         if (live) { live.style.width = w1 + "px"; live.style.height = h1 + "px"; }
         const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {}; rec.style = rec.style || {};
         rec.style.width = w1 + "px"; rec.style.height = h1 + "px";
       }
-      else { setStyle("width", Math.max(8, Math.round(w0 * k)) + "px"); setStyle("height", Math.max(8, Math.round(h0 * k)) + "px"); }
       requestAnimationFrame(syncHandle);
     };
     const up = () => {
