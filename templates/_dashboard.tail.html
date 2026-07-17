@@ -70,7 +70,7 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "filter"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "filter", "lineHeight"];
 function parseColor(str) {
   const m = (str || "").match(/[\d.]+/g);
   if (!m) return { hex: "#ffffff", a: 1 };
@@ -156,7 +156,7 @@ const demoStore = {
         if (up.error) throw new Error("upload failed for " + k + ": " + up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
+      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, customLayers: rec.customLayers || [], arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
       if (opts && opts.createdAt) row.created_at = opts.createdAt;
       const { error } = await SB.from("demos").insert(row);
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
@@ -356,6 +356,29 @@ async function downloadUrl(url, name) {
     setTimeout(() => URL.revokeObjectURL(o), 4000);
   } catch (e) { window.open(url, "_blank"); }
 }
+function syncCustomLayersIn(frame, layers) {
+  if (!frame) return;
+  let wrap = frame.querySelector(":scope > [data-custom]");
+  if (!layers || !layers.length) { if (wrap) wrap.remove(); return; }
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.setAttribute("data-custom", "1");
+    wrap.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:15";
+    frame.appendChild(wrap);
+  } else if (frame.lastElementChild !== wrap) frame.appendChild(wrap);
+  layers.forEach((cl, i) => {
+    let el = wrap.children[i];
+    if (!el || el.getAttribute("data-cl") !== cl.id) {
+      el = document.createElement("p");
+      el.setAttribute("data-cl", cl.id);
+      el.textContent = cl.text || "";
+      el.style.position = "absolute"; el.style.margin = "0"; el.style.pointerEvents = "auto"; el.style.cursor = "move";
+      for (const k in (cl.style || {})) el.style[k] = cl.style[k];
+      wrap.insertBefore(el, wrap.children[i] || null);
+    }
+  });
+  while (wrap.children.length > layers.length) wrap.lastElementChild.remove();
+}
 function solidifySlotsIn(root) {
   root.querySelectorAll("[data-vslot]").forEach(el => {
     if (el.querySelector("video, img")) { if (el.dataset.opq) { el.style.backgroundColor = ""; delete el.dataset.opq; } return; }
@@ -377,7 +400,7 @@ function solidifySlotsIn(root) {
 
 function TplPreview({ t, d, pre }) {
   const ref = useRef(null);
-  useDemoOverrides(ref, d ? { overrides: d.overrides, mediaXf: d.mediaXf } : null);
+  useDemoOverrides(ref, d ? { overrides: d.overrides, mediaXf: d.mediaXf, customLayers: d.customLayers } : null);
   return <div ref={ref} className="pointer-events-none w-full h-full"><t.Component preload={pre || (d && d.labelText ? { labelText: d.labelText } : undefined)} /></div>;
 }
 
@@ -400,6 +423,7 @@ function useDemoOverrides(ref, rec) {
     if (!rec || !rec.overrides) return;
     const apply = () => {
       const base = ref.current; if (!base) return;
+      syncCustomLayersIn(base.firstElementChild, rec.customLayers);
       if (!__normOv.has(rec.overrides)) { rec.overrides = fixLegacyOverrides(base, rec.overrides); __normOv.add(rec.overrides); }
       for (const path in rec.overrides) {
         const el = nodeAt(base, path); if (!el) continue;
@@ -1317,6 +1341,7 @@ function App() {
   const mainRef = useRef(null);
   const overrides = useRef({});
   const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
+  const customLayers = useRef({});     // per-template user-added layers: [{ id, text, style }]
   const histRef = useRef({});          // undo stacks per template
   const redoRef = useRef({});
   const baseRef = useRef({});          // pristine text/style per touched path (for clean restores)
@@ -1431,6 +1456,7 @@ function App() {
   const resetTemplateSession = (id) => {
     delete overrides.current[id];
     delete mediaXf.current[id];
+    delete customLayers.current[id];
     delete histRef.current[id];
     delete redoRef.current[id];
     delete baseRef.current[id];
@@ -1439,7 +1465,8 @@ function App() {
   const histFor = (id) => (histRef.current[id] = histRef.current[id] || []);
   const redoFor = (id) => (redoRef.current[id] = redoRef.current[id] || []);
   const baseFor = (id) => (baseRef.current[id] = baseRef.current[id] || {});
-  const histSnap = () => JSON.parse(JSON.stringify({ o: ovFor(sel), x: xfFor(sel) }));
+  const clFor = (id) => (customLayers.current[id] = customLayers.current[id] || []);
+  const histSnap = () => JSON.parse(JSON.stringify({ o: ovFor(sel), x: xfFor(sel), cl: clFor(sel) }));
   // record an element's pristine text/inline styles the first time we touch it, so undo can reset it
   function ensureBase(path, el, props, withText) {
     if (!sel || path == null) return;
@@ -1476,6 +1503,7 @@ function App() {
     }
     overrides.current[sel] = state.o;
     mediaXf.current[sel] = state.x;
+    customLayers.current[sel] = state.cl || [];
     clearActive(); setInsp(null);
     applyAll();
     bumpHist(n => n + 1);
@@ -1555,6 +1583,7 @@ function App() {
   }
   function applyAll() {
     const root = containerRef.current; if (!root || !sel) return;
+    syncCustomLayersIn(root.firstElementChild, clFor(sel));
     applyingRef.current = true;
     let ov = ovFor(sel);
     if (!__normOv.has(ov)) { ov = overrides.current[sel] = fixLegacyOverrides(root, ov); __normOv.add(ov); }
@@ -1663,6 +1692,33 @@ function App() {
     if (!el) return;
     const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
     setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
+  }
+  function addCustomLayer(base) {
+    const id2 = "cl_" + Math.random().toString(36).slice(2, 9);
+    pushHistory(true);
+    clFor(sel).push({ id: id2, text: base.text || "New text", style: base.style || {} });
+    applyAll(); force(x => x + 1);
+    setTimeout(() => {
+      const el2 = containerRef.current && containerRef.current.querySelector('[data-cl="' + id2 + '"]');
+      if (el2) selectEl(el2, true);
+    }, 80);
+  }
+  function duplicateSelectedLayer() {
+    const a = activeRef.current; if (!a || !insp || !insp.isText || !a.el) return;
+    const el2 = a.el, cs2 = getComputedStyle(el2);
+    const cont2 = containerRef.current.getBoundingClientRect();
+    const r2 = el2.getBoundingClientRect();
+    const sc2 = editorScaleRef.current || 1;
+    addCustomLayer({
+      text: el2.textContent,
+      style: {
+        left: Math.round((r2.left - cont2.left) / sc2 + 24) + "px",
+        top: Math.round((r2.top - cont2.top) / sc2 + 24) + "px",
+        maxWidth: Math.round(r2.width / sc2) + "px",
+        fontSize: cs2.fontSize, fontWeight: cs2.fontWeight, color: cs2.color, fontFamily: cs2.fontFamily,
+        letterSpacing: cs2.letterSpacing, textTransform: cs2.textTransform, lineHeight: cs2.lineHeight,
+      },
+    });
   }
   function clearMulti() {
     multiRef.current.forEach(m => { if (m.el && m.el.isConnected) { m.el.style.outline = ""; m.el.style.outlineOffset = ""; } });
@@ -1933,6 +1989,7 @@ function App() {
       borderW: Math.round(parseFloat(aovs.borderWidth != null ? aovs.borderWidth : acs.borderTopWidth) || 0),
       borderHex: parseColor(aovs.borderColor || acs.borderTopColor).hex,
       radius: parseInt(aovs.borderRadius != null ? aovs.borderRadius : acs.borderRadius) || 0,
+      lineH: +((parseFloat(aovs.lineHeight || "") || parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.2) / (parseFloat(cs.fontSize) || 16)).toFixed(2),
       font: (ovs.fontFamily || cs.fontFamily || "Geist").replace(/["']/g, "").split(",")[0].trim(),
       weight: parseInt(ovs.fontWeight || cs.fontWeight) || 400,
       size: parseInt(ovs.fontSize || cs.fontSize) || 16,
@@ -2066,7 +2123,12 @@ function App() {
       if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot]") || el.hasAttribute("data-ambient")) return;
       items.push({ label: el.alt || "Image", kind: "image", el });
     });
-    const shown = items.filter(it => it.kind === "bg" || !(it.el.classList && it.el.classList.contains("hidden")));
+    const shown = items.filter(it => {
+      if (it.kind === "bg") return true;
+      if (it.el.classList && it.el.classList.contains("hidden")) return false;
+      const r3 = ovFor(sel)[pathOf(it.el, root)];
+      return !(r3 && r3.deleted);
+    });
     shown.forEach(it => { it.path = pathOf(it.el, root); });
     const bg = shown.filter(x => x.kind === "bg");
     const rest = shown.filter(x => x.kind !== "bg").sort((a, b) => {
@@ -2100,9 +2162,20 @@ function App() {
   function deleteSelectedLayer() {
     const a = activeRef.current; if (!a || !insp) return;
     if (insp.isLogo || a.path === "" || a.path === "0") return;
+    const el2 = a.el;
+    if (el2 && el2.hasAttribute && el2.hasAttribute("data-cl")) {
+      pushHistory(true);
+      const id2 = el2.getAttribute("data-cl");
+      customLayers.current[sel] = clFor(sel).filter(c => c.id !== id2);
+      delete ovFor(sel)[a.path];
+      deselect(); applyAll(); force(x => x + 1);
+      if (window.__toast) window.__toast("Layer deleted");
+      return;
+    }
     toggleLayerHidden({ el: a.el, path: a.path });
+    const rec2 = ovFor(sel)[a.path]; if (rec2) rec2.deleted = true;
     deselect();
-    if (window.__toast) window.__toast("Layer removed. The eye in Layers brings it back.");
+    if (window.__toast) window.__toast("Layer deleted. Undo with cmd Z.");
   }
   function selectLayer(it) {
     if (!it.el || !it.el.isConnected) {
@@ -2358,6 +2431,7 @@ function App() {
     injectRecordState(d, { skipVids: true });
   }, [sel, tplDefaults]);
   function injectRecordState(rec, opts) {
+    if (rec.customLayers) customLayers.current[rec.templateId || sel] = JSON.parse(JSON.stringify(rec.customLayers));
     let tries = 0;
     const inject = () => {
       const api = window.__slotAPI;
@@ -2430,7 +2504,7 @@ function App() {
         const c = document.createElement("canvas"); c.width = 240; c.height = Math.round(240 * vh / vw);
         c.getContext("2d").drawImage(m, 0, 0, c.width, c.height); thumb = c.toDataURL("image/jpeg", 0.7); }
     } catch (e) {}
-    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
+    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, customLayers: JSON.parse(JSON.stringify(clFor(sel))), arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
   }
   async function saveDemo() {
     const t = templates.find(x => x.id === sel); if (!containerRef.current || !t) return;
@@ -2519,7 +2593,7 @@ function App() {
       const api = window.__slotAPI || {};
       await demoStore.replace({
         id: "tpl:" + sel, name: "__template__", templateId: sel, vids: {}, logos, boxText: {},
-        labelText: api.labelText || {}, arrowOn: !!api.arrowOn, scrollSpeed: api.scrollSpeed || 1, campaign: null,
+        labelText: api.labelText || {}, customLayers: JSON.parse(JSON.stringify(clFor(sel))), arrowOn: !!api.arrowOn, scrollSpeed: api.scrollSpeed || 1, campaign: null,
         showPlus: api.plusOn != null ? api.plusOn : true, hiddenLogos: api.hiddenLogos || {}, logosHidden: !!api.logosHidden,
         mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: JSON.parse(JSON.stringify(ovFor(sel))), thumb: null,
       });
@@ -2564,7 +2638,7 @@ function App() {
       const logos = Object.entries(rec.logos || {}).map(([slot, v]) => ({ slot, uri: v.uri, fit: (window.__FILL_LOGOS || []).indexOf(v.uri) >= 0 ? "cover" : "contain", bg: v.bg, scale: v.scale }));
       const ambient = (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on && videoSlots.length)
         ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
-      const spec = { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
+      const spec = { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, customLayers: rec.customLayers || [], mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
       let pct = 45;
       setProg({ pct, label: "Rendering video…" });
       const clipDur = await new Promise(res2 => {
@@ -2726,7 +2800,7 @@ function App() {
     const showPlus = !!root.querySelector("[data-plus]");
     const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
     const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
-    return { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+    return { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, customLayers: JSON.parse(JSON.stringify(clFor(t.id))), mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
   }
   async function exportMp4() {
     const t = templates.find(x => x.id === sel);
@@ -2808,7 +2882,7 @@ function App() {
   const editorSig = () => {
     const root = containerRef.current; if (!root || !sel) return "";
     const vids = [...root.querySelectorAll("[data-vslot]")].map(el => el.getAttribute("data-vslot") + ":" + (((el.querySelector("video, img") || {}).currentSrc) || ((el.querySelector("video, img") || {}).src) || "")).join("|");
-    return JSON.stringify({ o: ovFor(sel), x: xfFor(sel), v: vids, l: (window.__slotAPI && window.__slotAPI.labelText) || {}, a: !!(window.__slotAPI && window.__slotAPI.arrowOn) });
+    return JSON.stringify({ o: ovFor(sel), x: xfFor(sel), v: vids, l: (window.__slotAPI && window.__slotAPI.labelText) || {}, a: !!(window.__slotAPI && window.__slotAPI.arrowOn), c: clFor(sel) });
   };
   useEffect(() => {
     if (!sel) { cleanSigRef.current = null; return; }
@@ -2852,7 +2926,18 @@ function App() {
 
 
             <div className="space-y-0.5 mb-4">
-              <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold py-1.5">Layers</div>
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Layers</span>
+                <button onClick={() => {
+                  const frame = containerRef.current && containerRef.current.firstElementChild;
+                  const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
+                  const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
+                  const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
+                  addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff", whiteSpace: "nowrap" } });
+                }} title="Add text layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+              </div>
               {layerList().map((it, i) => (
                 <button key={i} onClick={(e) => {
                   if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current && it.kind !== "bg" && it.kind !== "logo") {
@@ -3310,6 +3395,11 @@ function App() {
               </Sec>
 
               {insp.isText && <Sec open={openSec === "Text"} onToggle={toggleSec} title="Text">
+                {insp.isText && <div>
+                  <label className={LBL}>Line spacing · {insp.lineH}</label>
+                  <input type="range" min="0.9" max="2.4" step="0.05" value={insp.lineH}
+                    onChange={e => setStyle("lineHeight", String(+e.target.value), { lineH: +e.target.value })} className="w-full accent-white" />
+                </div>}
                 {insp.hasScroll && <div>
                   <label className={LBL}>Scroll speed · {((window.__slotAPI && window.__slotAPI.scrollSpeed) || 1)}x</label>
                   <input type="range" min="0.25" max="3" step="0.25" value={(window.__slotAPI && window.__slotAPI.scrollSpeed) || 1}
@@ -3370,9 +3460,12 @@ function App() {
                 </div>
               </Sec>}
             </div>}
+            {insp && insp.isText &&
+              <button onClick={duplicateSelectedLayer}
+                className="mt-5 w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Duplicate layer</button>}
             {insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
               <button onClick={deleteSelectedLayer}
-                className="mt-5 w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition">Delete layer</button>}
+                className={(insp.isText ? "mt-3" : "mt-5") + " w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition"}>Delete layer</button>}
           </div>
           <div className="shrink-0 p-4 border-t border-white/5">
             <button onClick={exportMp4} disabled={exporting}
