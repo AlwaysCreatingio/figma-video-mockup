@@ -1936,14 +1936,15 @@ function App() {
     if (pillWrap && pillWrap !== el && !forceText && !isTextLeaf(el)) el = pillWrap;
     // heal labels moved before container-selection existed: the move lives on a child, so the
     // container (and its selection box) sits at the original spot — hoist it up
-    if (el.hasAttribute && (el.hasAttribute("data-swap") || el.hasAttribute("data-pin")) && (!el.style.transform || el.style.transform === "none")) {
+    if (el.hasAttribute && (el.hasAttribute("data-swap") || el.hasAttribute("data-pin"))) {
       const movedKid = [...el.querySelectorAll("*")].find(c => c.style && /translate/.test(c.style.transform || ""));
       if (movedKid) {
         const cp = pathOf(movedKid, root), pp = pathOf(el, root);
         pushHistory(true);
         const ovh = ovFor(sel);
-        el.style.transform = movedKid.style.transform;
-        ovh[pp] = ovh[pp] || {}; ovh[pp].style = ovh[pp].style || {}; ovh[pp].style.transform = movedKid.style.transform;
+        const own = el.style.transform && el.style.transform !== "none" ? el.style.transform + " " : "";
+        el.style.transform = own + movedKid.style.transform;
+        ovh[pp] = ovh[pp] || {}; ovh[pp].style = ovh[pp].style || {}; ovh[pp].style.transform = el.style.transform;
         movedKid.style.transform = "";
         if (ovh[cp] && ovh[cp].style) delete ovh[cp].style.transform;
       }
