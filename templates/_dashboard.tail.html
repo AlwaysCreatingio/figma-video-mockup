@@ -1205,7 +1205,7 @@ function App() {
     return () => { delete window.__toast; };
   }, []);
   const toastEl = <React.Fragment>
-    {toast && !renderProg && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-[#242424] border border-white/10 text-zinc-100 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div>}
+    {toast && !renderProg && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-[30px] bg-[#242424] border border-white/10 text-zinc-100 text-sm font-medium shadow-2xl pointer-events-none">{toast}</div>}
     {renderProg && !(preview && renderProg.id === preview) && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] w-[min(360px,90vw)] rounded-[30px] bg-[#242424] border border-white/10 shadow-2xl px-5 py-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium text-zinc-100">{renderProg.label}</span>
