@@ -2043,7 +2043,8 @@ function App() {
     if (!el || el.tagName === "INPUT") return;
     pushHistory();
     const rec = ovFor(sel)[activeRef.current.path] = ovFor(sel)[activeRef.current.path] || {};
-    if (el.children.length) rec.html = el.innerHTML; else rec.text = el.textContent;
+    if (el.children.length) { rec.html = el.innerHTML; delete rec.text; }
+    else { rec.text = el.textContent; delete rec.html; }
   }
   function onEditorClick(e) {
     if (!editMode || suppressRef.current) return;
@@ -3051,6 +3052,13 @@ function App() {
         <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
             <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
+              onPaste={(e) => {
+                const t2 = e.target;
+                if (!t2 || !t2.isContentEditable) return;
+                e.preventDefault();
+                const txt = (e.clipboardData || window.clipboardData).getData("text/plain");
+                document.execCommand("insertText", false, txt);
+              }}
               style={{ width: t.width, height: t.height, transform: `scale(${s})`, transformOrigin: "top left" }}>
               <TplMemo />
             </div>
