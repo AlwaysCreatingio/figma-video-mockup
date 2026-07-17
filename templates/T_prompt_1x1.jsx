@@ -47,7 +47,12 @@
       </div>
     );
 
-    // long prompts scroll in sync with the result video's playback
+    // long prompts scroll in sync with the result video's playback (speed = multiplier on progress)
+    const [scrollSpeed, setScrollSpeed] = useState(() => (props && props.preload && props.preload.scrollSpeed) || 1);
+    const speedRef = React.useRef(1);
+    speedRef.current = scrollSpeed;
+    React.useEffect(() => { if (window.__slotAPI) { window.__slotAPI.setScrollSpeed = (v) => { window.__slotAPI.scrollSpeed = v; setScrollSpeed(v); }; window.__slotAPI.scrollSpeed = scrollSpeed; } }, []);
+    React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.scrollSpeed = scrollSpeed; }, [scrollSpeed]);
     const boxRef = React.useRef(null);
     React.useEffect(() => {
       let raf;
@@ -59,7 +64,7 @@
           const inner = box.firstElementChild;
           if (inner) {
             const over = inner.scrollHeight - box.clientHeight;
-            if (v && v.duration && over > 0) inner.style.transform = "translateY(-" + (Math.min(1, (v.currentTime || 0) / v.duration) * over).toFixed(1) + "px)";
+            if (v && v.duration && over > 0) inner.style.transform = "translateY(-" + (Math.min(1, ((v.currentTime || 0) / v.duration) * (speedRef.current || 1)) * over).toFixed(1) + "px)";
             else inner.style.transform = "";
           }
         }

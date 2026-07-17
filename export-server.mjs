@@ -313,7 +313,8 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     const bw = scroll.w * S, bh = scroll.h * S, fh = scroll.full * S;
     if (fh > bh + 2) {
       // window slides down the full text over the clip's duration, mirroring the live preview
-      fc.push(`[${txtIdx}:v]crop=${bw}:${bh}:0:'min(${fh - bh},(${fh - bh})*t/${DUR.toFixed(2)})'[txt]`);
+      const rate = ((fh - bh) / DUR) * (scroll.speed || 1);
+      fc.push(`[${txtIdx}:v]crop=${bw}:${bh}:0:'min(${fh - bh},${rate.toFixed(4)}*t)'[txt]`);
       fc.push(`[pl][txt]overlay=${scroll.x * S}:${scroll.y * S}[out]`);
     } else {
       fc.push(`[pl][${txtIdx}:v]overlay=${scroll.x * S}:${scroll.y * S}[out]`);
@@ -379,10 +380,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, mediaXf = {} } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, scrollSpeed = 1, mediaXf = {} } = spec;
       const data = await enqueue(async () => {
         const plate = path.join(WORK, "plate_" + Date.now() + ".png");
         const { rects, frameBg, bgPlate, scroll, txtPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn }, W, H, plate);
+        if (scroll) scroll.speed = +scrollSpeed || 1;
         const videoFiles = rects.map(r => path.join(WORK, r.videoId));
         const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
         const out = path.join(WORK, "out_" + Date.now() + ".mp4");

@@ -156,7 +156,7 @@ const demoStore = {
         if (up.error) throw new Error("upload failed for " + k + ": " + up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, arrowOn: !!rec.arrowOn, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
+      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
       if (opts && opts.createdAt) row.created_at = opts.createdAt;
       const { error } = await SB.from("demos").insert(row);
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
@@ -1205,6 +1205,7 @@ function App() {
     boxText: rec.boxText || {},
     labelText: rec.labelText || {},
     arrowOn: !!rec.arrowOn,
+    scrollSpeed: rec.scrollSpeed || 1,
     showPlus: rec.showPlus,
     hiddenLogos: rec.hiddenLogos || {},
     logosHidden: rec.logosHidden,
@@ -1714,6 +1715,7 @@ function App() {
     setInsp({
       path, apPath, tag: el.tagName.toLowerCase(), isText: text, isSlot: !!slotEl, hasParent: el.parentElement && el.parentElement !== root,
       pinPath, pin, swapKey, swapOn, swapLogoInv, swapSvgColor, moved: !!ovs.transform,
+      hasScroll: !!(el.closest && el.closest("[data-scrolltext]")),
       textValue: (text && el.tagName !== "INPUT" && el.children.length === 0) ? el.textContent : null,
       pinBg: (pinEl && pinEl !== el) ? parseColor(getComputedStyle(pinEl).backgroundColor).hex : null,
       pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[apPath] || {}).styleMeta || {}).kind || ((acs.backgroundImage && acs.backgroundImage !== "none") ? "custom" : undefined)),
@@ -2148,6 +2150,7 @@ function App() {
       if (api.setBoxText && rec.boxText) api.setBoxText(rec.boxText);
       if (api.setLabelText && rec.labelText && Object.keys(rec.labelText).length) api.setLabelText(rec.labelText);
       if (api.setArrowOn && rec.arrowOn != null) api.setArrowOn(!!rec.arrowOn);
+      if (api.setScrollSpeed && rec.scrollSpeed != null) api.setScrollSpeed(rec.scrollSpeed);
       if (api.setShowPlus && rec.showPlus != null) api.setShowPlus(rec.showPlus);
       if (api.setHiddenLogos && rec.hiddenLogos && Object.keys(rec.hiddenLogos).length) api.setHiddenLogos(rec.hiddenLogos);
       if (api.setLogosHidden && rec.logosHidden != null) api.setLogosHidden(rec.logosHidden);
@@ -2195,7 +2198,7 @@ function App() {
         const c = document.createElement("canvas"); c.width = 240; c.height = Math.round(240 * vh / vw);
         c.getContext("2d").drawImage(m, 0, 0, c.width, c.height); thumb = c.toDataURL("image/jpeg", 0.7); }
     } catch (e) {}
-    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
+    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
   }
   async function saveDemo() {
     const t = templates.find(x => x.id === sel); if (!containerRef.current || !t) return;
@@ -2263,7 +2266,7 @@ function App() {
       const api = window.__slotAPI || {};
       await demoStore.replace({
         id: "tpl:" + sel, name: "__template__", templateId: sel, vids: {}, logos, boxText: {},
-        labelText: api.labelText || {}, arrowOn: !!api.arrowOn, campaign: null,
+        labelText: api.labelText || {}, arrowOn: !!api.arrowOn, scrollSpeed: api.scrollSpeed || 1, campaign: null,
         showPlus: api.plusOn != null ? api.plusOn : true, hiddenLogos: api.hiddenLogos || {}, logosHidden: !!api.logosHidden,
         mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: JSON.parse(JSON.stringify(ovFor(sel))), thumb: null,
       });
@@ -2306,7 +2309,7 @@ function App() {
       const logos = Object.entries(rec.logos || {}).map(([slot, v]) => ({ slot, uri: v.uri, fit: (window.__FILL_LOGOS || []).indexOf(v.uri) >= 0 ? "cover" : "contain", bg: v.bg, scale: v.scale }));
       const ambient = (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on && videoSlots.length)
         ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
-      const spec = { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
+      const spec = { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };
       let pct = 45;
       setRenderProg({ pct, label: "Rendering video…" });
       creep = setInterval(() => { pct = Math.min(93, pct + 4); setRenderProg({ pct: Math.round(pct), label: "Rendering video…" }); }, 700);
@@ -2440,7 +2443,7 @@ function App() {
     const showPlus = !!root.querySelector("[data-plus]");
     const visibleLogos = [...root.querySelectorAll("[data-lslot]")].map(e => e.getAttribute("data-lslot"));
     const logosHidden = !!(window.__slotAPI && window.__slotAPI.logosHidden);
-    return { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
+    return { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: merged, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText: (window.__slotAPI && window.__slotAPI.labelText) || {}, arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, mediaXf: JSON.parse(JSON.stringify(xfFor(t.id))) };
   }
   async function exportMp4() {
     const t = templates.find(x => x.id === sel);
@@ -3003,6 +3006,11 @@ function App() {
               </Sec>
 
               {insp.isText && <Sec open={openSec === "Text"} onToggle={toggleSec} title="Text">
+                {insp.hasScroll && <div>
+                  <label className={LBL}>Scroll speed · {((window.__slotAPI && window.__slotAPI.scrollSpeed) || 1)}x</label>
+                  <input type="range" min="0.25" max="3" step="0.25" value={(window.__slotAPI && window.__slotAPI.scrollSpeed) || 1}
+                    onChange={e => { if (window.__slotAPI && window.__slotAPI.setScrollSpeed) { window.__slotAPI.setScrollSpeed(+e.target.value); force(x => x + 1); } }} className="w-full accent-white" />
+                </div>}
                 {insp.textValue != null && <div>
                   <label className={LBL}>Content</label>
                   <textarea value={insp.textValue} rows={Math.min(12, Math.max(2, Math.ceil((insp.textValue || "").length / 34)))}
