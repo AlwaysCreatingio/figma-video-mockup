@@ -608,6 +608,32 @@ const HOOKS = [
   },
 ];
 
+function SortMenu({ value, onChange, options }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+  const cur = (options.find(o => o[0] === value) || options[0])[1];
+  return (
+    <div className="relative" onClick={e => e.stopPropagation()}>
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 px-2 py-1.5 text-sm font-medium text-zinc-400 hover:text-white transition">
+        {cur}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      {open && <div className="absolute right-0 top-9 z-40 w-[190px] rounded-[16px] bg-[#2b2b2b]/95 backdrop-blur-2xl shadow-2xl border border-white/10 p-1.5">
+        {options.map(([v, l]) => (
+          <button key={v} onClick={() => { onChange(v); setOpen(false); }}
+            className={"flex w-full items-center justify-between gap-2 h-[34px] rounded-[10px] px-2.5 text-sm font-medium transition " + (v === value ? "bg-[#2F2F2F] text-white" : "text-zinc-300 hover:bg-white/10")}>
+            {l}{v === value && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+          </button>
+        ))}
+      </div>}
+    </div>
+  );
+}
 function FilterFab({ options, value, onChange }) {
   const [open, setOpen] = useState(false);
   const cur = options.find(o => o[0] === value);
@@ -1117,7 +1143,7 @@ function App() {
   const toggleSec = (t) => setOpenSec(cur => (cur === t ? null : t));
   const [tplDefaults, setTplDefaults] = useState({});
   const [tplStats, setTplStats] = useState({});     // template id -> export count
-  const [tplSort, setTplSort] = useState("name");   // name | new | old | pop
+  const [tplSort, setTplSort] = useState("new");    // new | old | pop
   const [demoSort, setDemoSort] = useState("new");  // new | old | pop
   const refreshDemos = async () => {
     const list = await demoStore.list();
@@ -2954,18 +2980,12 @@ function App() {
   });
   if (demoSort === "old") shownDemos.reverse();
   else if (demoSort === "pop") shownDemos.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
-  const sortSelect = (val, set, opts) => (
-    <select value={val} onChange={e => set(e.target.value)} style={SELECT_STYLE}
-      className="text-sm px-3 py-1.5 rounded-[30px] bg-white/5 border border-white/10 text-zinc-300 outline-none">
-      {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-    </select>
-  );
   const demosView = demos.length ? (
     <div>
       <FilterFab options={[["all", "All"], ["16:9", "Horizontal"], ["9:16", "Vertical"], ["1:1", "Square"]]} value={demoFilter} onChange={setDemoFilter} />
       <div className="hidden md:flex items-center justify-end gap-2 mb-8">
         {chipBtn("all", "All", demoFilter, setDemoFilter)}{chipBtn("16:9", "Horizontal", demoFilter, setDemoFilter)}{chipBtn("9:16", "Vertical", demoFilter, setDemoFilter)}{chipBtn("1:1", "Square", demoFilter, setDemoFilter)}
-        {sortSelect(demoSort, setDemoSort, [["new", "Newest"], ["old", "Oldest"], ["pop", "Most downloaded"]])}
+        <SortMenu value={demoSort} onChange={setDemoSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most downloaded"]]} />
       </div>
       <div className="flex flex-wrap gap-6 justify-center md:justify-start">
       {shownDemos.map(d => {
@@ -3209,7 +3229,7 @@ function App() {
               <header className="hidden md:flex flex-wrap items-center justify-end gap-4 mb-8">
                 <div className="flex items-center gap-2">
                   {chip("all", "All")}{chip("16:9", "Horizontal")}{chip("9:16", "Vertical")}{chip("1:1", "Square")}
-                  {sortSelect(tplSort, setTplSort, [["name", "Name"], ["new", "Newest"], ["old", "Oldest"], ["pop", "Most exported"]])}
+                  <SortMenu value={tplSort} onChange={setTplSort} options={[["new", "Newest"], ["old", "Oldest"], ["pop", "Most exported"]]} />
                 </div>
               </header>
               <div className="flex flex-wrap gap-6 justify-center md:justify-start">
