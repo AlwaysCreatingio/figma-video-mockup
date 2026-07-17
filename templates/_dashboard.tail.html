@@ -1340,6 +1340,7 @@ function App() {
     ["3534-14446", "2026-07-14"], ["3534-14453", "2026-07-14"], ["3534-14502", "2026-07-14"], ["3534-14520", "2026-07-14"],
     ["3534-14597", "2026-07-14"], ["3534-14617", "2026-07-14"], ["3534-14698", "2026-07-14"], ["3534-14709", "2026-07-14"],
     ["prompt-16x9", "2026-07-15"], ["prompt-9x16", "2026-07-15"], ["product-1x1", "2026-07-15"],
+    ["collab-1x1", "2026-07-17"],
     ["raw-1x1", "2026-07-16"], ["prompt-1x1", "2026-07-16"], ["ref-compare", "2026-07-16"],
     ["duel-16x9", "2026-07-17"],
   ];
@@ -1358,6 +1359,7 @@ function App() {
   useEffect(() => { window.__logoPicker = (cb) => setPicker({ cb }); return () => { delete window.__logoPicker; }; }, []);
   useEffect(() => { if (!sel) return; const t = setTimeout(() => force(x => x + 1), 450); return () => clearTimeout(t); }, [sel]);
   useEffect(() => { if (!sel) document.querySelectorAll("video").forEach(v => { if (!v.muted) { v.muted = true; try { v.pause(); } catch (e) {} } }); }, [sel]);
+  useEffect(() => { deselect(); }, [sel]);   // selection and grips never survive switching templates
   // logo tiles register themselves here on click → show the Logo inspector (replace / size / background)
   useEffect(() => {
     window.__selectLogo = (api) => {
@@ -1632,6 +1634,14 @@ function App() {
     return () => mo.disconnect();
   }, [sel]);
 
+  function syncHandle() {
+    const a = activeRef.current; if (!a || !mainRef.current) return;
+    const root = containerRef.current; if (!root) return;
+    let el = (a.outEl && a.outEl.isConnected) ? a.outEl : (a.el && a.el.isConnected ? a.el : nodeAt(root, a.path));
+    if (!el) return;
+    const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
+    setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
+  }
   function clearMulti() {
     multiRef.current.forEach(m => { if (m.el && m.el.isConnected) { m.el.style.outline = ""; m.el.style.outlineOffset = ""; } });
     multiRef.current = [];
@@ -1700,11 +1710,12 @@ function App() {
         rec.style.width = w1 + "px"; rec.style.height = h1 + "px";
       }
       else { setStyle("width", Math.max(8, Math.round(w0 * k)) + "px"); setStyle("height", Math.max(8, Math.round(h0 * k)) + "px"); }
-      if (hs0) setHandle({ ...hs0, w: er0.width * k, h: er0.height * k });
+      requestAnimationFrame(syncHandle);
     };
     const up = () => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
       suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150);
+      requestAnimationFrame(syncHandle);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1871,6 +1882,7 @@ function App() {
     const rec = ovFor(sel)[insp.path] = ovFor(sel)[insp.path] || {};
     rec.style = rec.style || {};
     rec.style[prop] = val; el.style[prop] = val;
+    requestAnimationFrame(syncHandle);
     if (prop === "backgroundColor") { rec.style.backgroundImage = "none"; el.style.backgroundImage = "none"; }
     // rich text (spans with their own classes, e.g. two-tone headlines) must inherit the new value
     if (["fontSize", "color", "fontWeight", "fontStyle", "fontFamily", "letterSpacing", "textDecoration"].includes(prop) && el.querySelector("span")) {
