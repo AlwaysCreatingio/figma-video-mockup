@@ -1367,7 +1367,8 @@ function App() {
       else if (parts[0] === "tutorials") { setSel(null); setPage("tutorials"); setTutFilter(parts[1] ? decodeURIComponent(parts[1]) : "all"); }
       else if (parts[0] === "brand") { setSel(null); setPage("brand"); }
       else if (parts[0] === "campaigns") { setSel(null); setPage("campaigns"); setOpenCampaign(parts[1] ? decodeURIComponent(parts[1]) : null); setCampTab(parts[2] === "resources" ? "resources" : "overview"); }
-      else { setSel(null); setPage("templates"); setTplFilter(SLUG_ASPECT[parts[1]] || "all"); }
+      else if (parts[0] === "templates") { setSel(null); setPage("templates"); setTplFilter(SLUG_ASPECT[parts[1]] || "all"); }
+      else { setSel(null); setPage("campaigns"); setOpenCampaign(null); setCampTab("overview"); }
     };
     apply();
     window.addEventListener("hashchange", apply);
@@ -2271,7 +2272,7 @@ function App() {
       blob = await maybeCompress(blob, slot);
       vids[slot] = { blob, img: el.tagName === "IMG", type: blob.type };
     }
-    if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as a demo."); return null; }
+    if (!Object.keys(vids).length) { alert("Add a video or image first, then save this as an asset."); return null; }
     const logos = {};
     for (const img of root.querySelectorAll("[data-lslot] img")) {
       const tile = img.closest("[data-lslot]"); const slot = tile.getAttribute("data-lslot");
@@ -2309,7 +2310,7 @@ function App() {
       editingDemoRef.current = id;
       try { history.replaceState(null, "", "#/creative/" + encodeURIComponent(id)); } catch (e) {}
       cleanSigRef.current = editorSig();
-      setSaved(true); if (window.__toast) window.__toast(updating ? "Creative updated" : "Saved to Creatives"); setTimeout(() => setSaved(false), 1800);
+      setSaved(true); if (window.__toast) window.__toast(updating ? "Asset updated" : "Saved to Assets"); setTimeout(() => setSaved(false), 1800);
       // render the real output in the background so the demo card can play the final MP4;
       // silently skipped if the export server isn't reachable (card falls back to a live preview)
       const tok = (renderTokRef.current[id] = (renderTokRef.current[id] || 0) + 1);
@@ -2323,10 +2324,10 @@ function App() {
           if (renderTokRef.current[id] !== tok) return;
           await demoStore.attachMp4(id, mp4blob);
           await refreshDemos();
-          if (window.__toast) window.__toast("Creative rendered");
+          if (window.__toast) window.__toast("Asset rendered");
         } catch (e) { console.warn("demo mp4 render skipped:", e.message || e); }
       })();
-    } catch (e) { setSaved(false); alert("Couldn't save demo: " + (e.message || e)); }
+    } catch (e) { setSaved(false); alert("Couldn't save asset: " + (e.message || e)); }
   }
   async function duplicateTemplate(t) {
     try {
@@ -2675,7 +2676,7 @@ function App() {
       <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
         <aside style={{ width: SB }} className="shrink-0 h-screen bg-[#1f1f1f] border-r border-white/10 flex flex-col">
           <div className="h-14 shrink-0 flex items-center px-5 border-b border-white/10">
-            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as a demo yet.")) return; deselect(); editingDemoRef.current = null; setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← Back</button>
+            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as an asset yet.")) return; deselect(); editingDemoRef.current = null; setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← Back</button>
           </div>
 
           <div className="px-5 py-5 flex-1 overflow-y-auto">
@@ -2753,7 +2754,7 @@ function App() {
             </select>
             <button onClick={saveDemo}
               className="w-full text-sm px-3 py-2.5 rounded-[30px] bg-white/10 hover:bg-white/15 text-zinc-100 font-medium transition">
-              {saved === "saving" ? "Saving…" : saved ? "Saved ✓" : (editingDemoRef.current && demoRecs[editingDemoRef.current] ? "Save changes" : "Save to Creatives")}</button>
+              {saved === "saving" ? "Saving…" : saved ? "Saved ✓" : (editingDemoRef.current && demoRecs[editingDemoRef.current] ? "Save changes" : "Save to Assets")}</button>
             {editingDemoRef.current && demoRecs[editingDemoRef.current] && <button onClick={() => { editingDemoRef.current = null; saveDemo(); }}
               className="w-full text-xs px-3 py-2 rounded-[30px] text-zinc-400 hover:text-white hover:bg-white/10 transition">Save as new copy</button>}
             <button onClick={saveTemplateDefaults}
@@ -3275,8 +3276,8 @@ function App() {
   ) : (
     <div className="text-center py-28 text-neutral-400">
       <div className="w-14 h-14 mx-auto rounded-[30px] bg-white/10 flex items-center justify-center text-neutral-300">{iconShowcase}</div>
-      <div className="mt-4 text-lg font-medium text-zinc-300">No creatives yet</div>
-      <p className="mt-1 text-sm">Open a template, add your videos, then hit <span className="font-medium text-zinc-300">Save to Creatives</span>.</p>
+      <div className="mt-4 text-lg font-medium text-zinc-300">No assets yet</div>
+      <p className="mt-1 text-sm">Open a template, add your videos, then hit <span className="font-medium text-zinc-300">Save to Assets</span>.</p>
     </div>
   );
   // standalone, nav-less demos page at #/demos
@@ -3308,7 +3309,7 @@ function App() {
         <nav className="p-3 pt-1 flex flex-col gap-1">
           {sideBtn("campaigns", "Campaigns", iconCampaigns)}
           {sideBtn("templates", "Templates", iconTemplates)}
-          {sideBtn("showcase", "Creatives", iconShowcase)}
+          {sideBtn("showcase", "Assets", iconShowcase)}
           {sideBtn("hooks", "Hooks", iconHooks)}
           {sideBtn("tutorials", "Tutorials", iconTutorials)}
           {sideBtn("brand", "Brand Guidelines", iconBrand)}
@@ -3337,7 +3338,7 @@ function App() {
             </button>
           </div>
           {mobileNav && <nav className="px-3 pb-3 flex flex-col gap-1 border-t border-white/10 pt-3">
-            {[["campaigns", "Campaigns", iconCampaigns], ["templates", "Templates", iconTemplates], ["showcase", "Creatives", iconShowcase], ["hooks", "Hooks", iconHooks], ["tutorials", "Tutorials", iconTutorials], ["brand", "Brand Guidelines", iconBrand]].map(([id, label, icon]) => (
+            {[["campaigns", "Campaigns", iconCampaigns], ["templates", "Templates", iconTemplates], ["showcase", "Assets", iconShowcase], ["hooks", "Hooks", iconHooks], ["tutorials", "Tutorials", iconTutorials], ["brand", "Brand Guidelines", iconBrand]].map(([id, label, icon]) => (
               <button key={id} onClick={() => { setPage(id); setMobileNav(false); }}
                 className={"w-full flex items-center gap-3 px-4 py-3 rounded-[30px] text-[15px] font-medium transition " + (page === id ? "bg-[#2F2F2F] text-white" : "text-zinc-400 hover:bg-white/10 hover:text-white")}>
                 {icon}{label}
@@ -3357,7 +3358,7 @@ function App() {
                     <svg aria-label="agent opus logo" fill="currentColor" viewBox="0 0 24 24" width="38" height="38"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"></path><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"></path></svg>
                     Campaigns
                   </h1>
-                  <p className="mt-4 text-[16px] leading-relaxed text-zinc-200">Every active campaign with its brief, hooks, and ready-to-post creatives. Pick one, grab the assets, and start creating.</p>
+                  <p className="mt-4 text-[16px] leading-relaxed text-zinc-200">Every active campaign with its brief, hooks, and ready-to-post assets. Pick one, grab the assets, and start creating.</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-6 justify-center md:justify-start">
@@ -3448,7 +3449,7 @@ function App() {
                             </button>
                           ))}
                         </div>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">Creatives</div>
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">Assets</div>
                         {tagged.length
                           ? <div className="flex flex-wrap gap-6 justify-center md:justify-start">
                               {tagged.map(d => {
@@ -3457,7 +3458,7 @@ function App() {
                                 return <DemoCard key={d.id} t={t} d={d} rec={rec} pre={demoPreload(rec)} uniform={true} onOpen={() => { setOpenCampaign(null); openDemo(d.id); }} onPreview={() => setPreview(d.id)} onRender={() => renderDemoMp4(d.id, true)} onTag={(camp) => tagDemo(d.id, camp)} onDuplicate={() => duplicateDemo(d.id)} onDelete={(e) => deleteDemo(d.id, e)} />;
                               })}
                             </div>
-                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">{IS_LOCAL ? "No creatives tagged yet. Tag one from the Creatives page ⋯ menu." : "No creatives yet. Check back soon."}</div>}
+                          : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">{IS_LOCAL ? "No assets tagged yet. Tag one from the Assets page ⋯ menu." : "No assets yet. Check back soon."}</div>}
                         </React.Fragment>
                         )}
                       </div>
