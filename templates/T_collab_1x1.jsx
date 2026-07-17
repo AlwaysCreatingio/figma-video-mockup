@@ -38,7 +38,7 @@
     React.useEffect(() => { let on = true; Object.keys(logos).forEach(k => { const u = logos[k]; if (u && window.__logoDominant) window.__logoDominant(u).then(c => { if (on && c) setLogoBgDefault(m => (m[k] === c ? m : { ...m, [k]: c })); }); }); return () => { on = false; }; }, [logos]);
     const __logoBg = (k) => (logoBgs[k] != null ? logoBgs[k] : (logoBgDefault[k] != null ? logoBgDefault[k] : (window.__LOGO_BG || {})[logos[k]]));
     const __logoScale = (k) => (logoScales[k] != null ? logoScales[k] : ((window.__LOGO_SCALE_DEFAULTS || {})[logos[k]] || 1));
-    const __openLogo = (k) => { if (window.__selectLogo) window.__selectLogo({ k, hasLogo: !!logos[k], uri: logos[k], bg: __logoBg(k) || "#ffffff", scale: __logoScale(k), setBg: v => setLogoBgs(m => ({ ...m, [k]: v })), setScale: v => setLogoScales(m => ({ ...m, [k]: v })), border: __logoBorder(k), setBorder: v => setLogoBorders(m => ({ ...m, [k]: v })), borderW: __logoBorderW(k), setBorderW: v => setLogoBorderWs(m => ({ ...m, [k]: v })), radius: logoRadii[k] != null ? logoRadii[k] : 56, setRadius: v => setLogoRadii(m => ({ ...m, [k]: v })), fit: __logoFit(k), setFit: v => setLogoFits(m => ({ ...m, [k]: v })), replace: () => { if (window.__logoPicker) window.__logoPicker(url => setLogos(l => ({ ...l, [k]: url }))); } }); else if (window.__logoPicker) window.__logoPicker(url => setLogos(l => ({ ...l, [k]: url }))); };
+    const __openLogo = (k) => { if (window.__selectLogo) window.__selectLogo({ k, hasLogo: !!logos[k], uri: logos[k], bg: __logoBg(k) || "#ffffff", scale: __logoScale(k), setBg: v => setLogoBgs(m => ({ ...m, [k]: v })), setScale: v => setLogoScales(m => ({ ...m, [k]: v })), border: __logoBorder(k), setBorder: v => setLogoBorders(m => ({ ...m, [k]: v })), borderW: __logoBorderW(k), setBorderW: v => setLogoBorderWs(m => ({ ...m, [k]: v })), radius: logoRadii[k] != null ? logoRadii[k] : 44, setRadius: v => setLogoRadii(m => ({ ...m, [k]: v })), fit: __logoFit(k), setFit: v => setLogoFits(m => ({ ...m, [k]: v })), replace: () => { if (window.__logoPicker) window.__logoPicker(url => setLogos(l => ({ ...l, [k]: url }))); } }); else if (window.__logoPicker) window.__logoPicker(url => setLogos(l => ({ ...l, [k]: url }))); };
     const LogoSlot = ({ k, className, style }) => (
       <div data-lslot={k} onClick={() => __openLogo(k)} className={'overflow-hidden cursor-pointer group flex items-center justify-center ' + (className || '')} style={{ ...(style || {}), ...(logos[k] && __logoBg(k) ? { backgroundColor: __logoBg(k) } : {}), ...(__logoBorder(k) ? { border: __logoBorderW(k) + "px solid " + __logoBorder(k), boxSizing: "border-box" } : {}), ...(logoRadii[k] != null ? { borderRadius: logoRadii[k] + "px" } : {}) }}>
         {logos[k]
@@ -54,12 +54,12 @@
           {/* top: the ad video, full width */}
           <Slot k="slot1" className="w-full h-[608px] bg-[#9f9f9f]" />
           {/* bottom: brand + product shot + partner on white */}
-          <div className="flex-1 flex items-center justify-center gap-[44px] bg-white">
-            <LogoSlot k="l1" className="rounded-[56px] shrink-0 size-[300px] bg-[#f4f4f4]" />
-            <span className="text-black text-[84px] leading-none font-bold font-[Geist,sans-serif]">+</span>
-            <Slot k="slot2" className="shrink-0 w-[320px] h-[380px] bg-white" />
-            <span className="text-black text-[84px] leading-none font-bold font-[Geist,sans-serif]">+</span>
-            <LogoSlot k="l2" className="rounded-[56px] shrink-0 size-[300px] bg-[#111111]" />
+          <div className="flex-1 flex items-center justify-center gap-[34px] bg-white">
+            <LogoSlot k="l1" className="rounded-[44px] shrink-0 size-[240px] bg-[#f4f4f4]" />
+            <span className="text-black text-[64px] leading-none font-bold font-[Geist,sans-serif]">+</span>
+            <Slot k="slot2" className="shrink-0 w-[280px] h-[360px] bg-[#f4f4f4] rounded-[24px]" />
+            <span className="text-black text-[64px] leading-none font-bold font-[Geist,sans-serif]">+</span>
+            <LogoSlot k="l2" className="rounded-[44px] shrink-0 size-[240px] bg-[#111111]" />
           </div>
         </div>
       </div>
