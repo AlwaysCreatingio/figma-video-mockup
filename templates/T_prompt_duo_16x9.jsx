@@ -63,11 +63,16 @@
           </div>
         </div>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[64px] items-center">
-          {/* left: prompt */}
+          {/* left: prompt + references */}
           <div className="flex flex-col w-[620px]">
             <p className="font-bold leading-none text-[28px] text-white tracking-[1.2px] uppercase font-[Geist,sans-serif]">Prompt</p>
-            <div ref={boxRef} data-scrolltext className="mt-[24px] w-full h-[520px] overflow-hidden">
+            <div ref={boxRef} data-scrolltext className="mt-[24px] w-full h-[330px] overflow-hidden">
               <p className="text-[#c8c8ce] text-[24px] leading-[1.55] font-normal font-[Geist,sans-serif]">{PROMPT_TEXT}</p>
+            </div>
+            <p className="mt-[40px] font-bold leading-none text-[28px] text-white tracking-[1.2px] uppercase font-[Geist,sans-serif]">References</p>
+            <div className="mt-[20px] flex gap-[20px]">
+              <Slot k="slot2" className="w-[150px] h-[150px] rounded-[14px] bg-[#26262b]" />
+              <Slot k="slot3" className="w-[150px] h-[150px] rounded-[14px] bg-[#26262b]" />
             </div>
           </div>
           {/* right: the 9:16 result */}
@@ -83,8 +88,8 @@
     name: "Prompt + Video 16:9",
     width: 1280,
     height: 720,
-    slots: 1,
-    desc: "Widescreen split: the prompt on the left, the 9:16 result on the right. The prompt scrolls with playback.",
+    slots: 3,
+    desc: "Widescreen split: the prompt and two reference images on the left, the 9:16 result on the right. The prompt scrolls with playback.",
     Component
   });
 })();
