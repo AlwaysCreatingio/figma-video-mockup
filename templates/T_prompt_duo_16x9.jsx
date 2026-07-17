@@ -55,7 +55,7 @@
     return (
       <div data-brief className="relative overflow-hidden bg-[#0f0f13]" style={{ width: 1280, height: 720 }}>
         <div className="hidden" />
-        <div className="absolute left-[56px] top-[30px] h-[34px]">
+        <div className="absolute left-[56px] bottom-[30px] h-[34px]">
           <div data-swap="brand" className="h-[34px] flex items-center justify-center">
             {labelText.brand === "@logo" || labelText.brand == null
               ? <img src={window.__AO_LOGO} alt="Agent Opus" className="invert h-full object-contain" />
