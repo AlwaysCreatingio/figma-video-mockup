@@ -51,7 +51,7 @@
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-[960px]">
           {/* heading: Claude wordmark, an X you can restyle, and the Agent Opus wordmark */}
           <div className="flex items-center gap-[30px]">
-            <img src={window.__CLAUDE_WORDMARK_LIGHT} alt="Claude" className="h-[68px] object-contain" />
+            <img src={window.__CLAUDE_WORDMARK_MIX} alt="Claude" className="h-[68px] object-contain" />
             <p className="font-semibold leading-none text-[54px] text-[#f3ede2] font-[Geist,sans-serif]">X</p>
             <div data-swap="title" className="flex items-center justify-center h-[84px]">
               {(labelText.title == null || labelText.title === "@logo")

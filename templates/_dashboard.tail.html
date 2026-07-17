@@ -1488,12 +1488,23 @@ function App() {
     for (const k in xf) {
       const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
       if (m) {
-          const t = xf[k];
-        const pad = t.fit === "contain" ? (t.pad != null ? t.pad : 14) : 0;   // Inset = even padding on all sides
-        m.style.width = pad ? `calc(100% - ${pad * 2}px)` : "100%";
-        m.style.height = pad ? `calc(100% - ${pad * 2}px)` : "100%";
-        m.style.objectFit = t.fit === "fit" ? "contain" : "cover";
-        m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${t.s || 1})`;
+        const t = xf[k];
+        const s2 = t.s || 1;
+        const slotEl = m.closest("[data-vslot]");
+        const nw = m.videoWidth || m.naturalWidth || 0, nh = m.videoHeight || m.naturalHeight || 0;
+        if ((t.fit == null || t.fit === "cover") && s2 < 1 && slotEl && nw && nh) {
+          const kf = Math.max(slotEl.clientWidth / nw, slotEl.clientHeight / nh) * s2;
+          m.style.width = Math.round(nw * kf) + "px";
+          m.style.height = Math.round(nh * kf) + "px";
+          m.style.objectFit = "cover";
+          m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px)`;
+        } else {
+          const pad = t.fit === "contain" ? (t.pad != null ? t.pad : 14) : 0;   // Inset = even padding on all sides
+          m.style.width = pad ? `calc(100% - ${pad * 2}px)` : "100%";
+          m.style.height = pad ? `calc(100% - ${pad * 2}px)` : "100%";
+          m.style.objectFit = t.fit === "fit" ? "contain" : "cover";
+          m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${s2})`;
+        }
         m.style.transformOrigin = "center"; m.draggable = false;
       }
     }
@@ -1581,6 +1592,8 @@ function App() {
     root.querySelectorAll("[data-vslot] video, [data-vslot] img").forEach(m => {
       if (m.__deadTracked) return;
       m.__deadTracked = true;
+      const reXf = () => { try { applyXf(root, sel); } catch (e) {} };
+      m.addEventListener(m.tagName === "IMG" ? "load" : "loadedmetadata", reXf, { once: true });
       m.addEventListener("error", () => {
         const slot2 = m.closest("[data-vslot]");
         if (!slot2 || slot2.querySelector("[data-deadmedia]")) return;
@@ -2064,7 +2077,12 @@ function App() {
       return;
     }
     const media = slot.querySelector("video, img");
-    if (!media) return;
+    if (!media) {
+      // empty slot: still draggable as a box (a plain click keeps selecting/uploading)
+      if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot"))) selectMediaSlot(slot);
+      startMoveDrag(e, false, { isMedia: true });
+      return;
+    }
     e.preventDefault();
     if (!(insp && insp.isMedia && insp.slot === slot.getAttribute("data-vslot") && insp.hasMedia === !!slot.querySelector("video, img"))) selectMediaSlot(slot);
     if (!e.altKey) { startMoveDrag(e, false, { isMedia: true }); return; }

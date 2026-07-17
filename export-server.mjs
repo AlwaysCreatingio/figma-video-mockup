@@ -286,14 +286,12 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     const ox = t ? Math.round((t.x || 0) * S) : 0, oy = t ? Math.round((t.y || 0) * S) : 0;
     const zw = Math.round(w * zs / 2) * 2, zh = Math.round(h * zs / 2) * 2;
     if (zs < 1) {
-      // shrunk below 100%: the video covers only a zw×zh patch — pad out to the slot with its
-      // background colour, panning via the pad offsets (clamped so the patch stays inside)
-      const pd = (t && t.fit === "contain") ? Math.round((t.pad != null ? t.pad : 14) * S) : 0;
-      const bw = Math.max(2, Math.round((w - 2 * pd) / 2) * 2), bh = Math.max(2, Math.round((h - 2 * pd) / 2) * 2);
-      const sw = Math.max(2, Math.round(bw * zs / 2) * 2), sh = Math.max(2, Math.round(bh * zs / 2) * 2);
-      const px = Math.min(Math.max(Math.round((w - sw) / 2 + ox), 0), w - sw);
-      const py = Math.min(Math.max(Math.round((h - sh) / 2 + oy), 0), h - sh);
-      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${sw}:${sh}:force_original_aspect_ratio=increase,crop=${sw}:${sh},pad=${w}:${h}:${px}:${py}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+      // shrunk below 100%: scale the WHOLE source down from its cover size (revealing more of
+      // it as it shrinks), then crop any overflow and pad the rest with the slot background
+      fc.push(`[${i}:v]setpts=PTS-STARTPTS,` +
+        `scale=w='trunc((${zs.toFixed(4)}*max(${w}\,${h}*iw/ih))/2)*2':h=-2,` +
+        `crop=w='min(iw,${w})':h='min(ih,${h})':x='clip((iw-out_w)/2-(${ox}),0,iw-out_w)':y='clip((ih-out_h)/2-(${oy}),0,ih-out_h)',` +
+        `pad=${w}:${h}:x='clip((out_w-in_w)/2+(${ox}),0,out_w-in_w)':y='clip((out_h-in_h)/2+(${oy}),0,out_h-in_h)':color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else if (t && t.fit === "fit") {
       // whole video visible: scale down to fit, pan within the letterbox, pad with the slot bg
       const sw = Math.round(w * zs / 2) * 2, sh = Math.round(h * zs / 2) * 2;
