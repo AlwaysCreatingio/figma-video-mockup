@@ -55,7 +55,7 @@
     React.useEffect(() => { if (window.__slotAPI) window.__slotAPI.scrollSpeed = scrollSpeed; }, [scrollSpeed]);
     const boxRef = React.useRef(null);
     React.useEffect(() => {
-      let raf;
+      let raf, overC = 0, tO = 0;
       const tick = () => {
         const box = boxRef.current;
         if (box) {
@@ -63,8 +63,9 @@
           const v = frame && frame.querySelector('[data-vslot="slot2"] video');
           const inner = box.firstElementChild;
           if (inner) {
-            const over = inner.scrollHeight - box.clientHeight;
-            if (over > 0) { const prog = window.__scrollProg ? window.__scrollProg(v) : (v && v.duration ? Math.min(1, (v.currentTime || 0) / v.duration) : 0); if (!inner.style.willChange) inner.style.willChange = "transform"; inner.style.transform = "translate3d(0,-" + (prog * over).toFixed(2) + "px,0)"; }
+            const now = performance.now();
+            if (!tO || now - tO > 400) { overC = inner.scrollHeight - box.clientHeight; tO = now; }
+            if (overC > 0) { const prog = window.__scrollProg ? window.__scrollProg(v) : (v && v.duration ? Math.min(1, (v.currentTime || 0) / v.duration) : 0); if (!inner.style.willChange) inner.style.willChange = "transform"; inner.style.transform = "translate3d(0,-" + (prog * overC).toFixed(2) + "px,0)"; }
             else inner.style.transform = "";
           }
         }

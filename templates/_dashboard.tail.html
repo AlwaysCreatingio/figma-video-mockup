@@ -1314,16 +1314,19 @@ function App() {
       const d = window.__SCROLL_DUR || (v && v.duration) || 0;
       return d > 0 ? Math.min(1, (window.__PLAYHEAD || 0) / d) : 0;
     };
-    let raf, last = 0;
+    let raf, last = 0, measured = 0, vmax = 0, readMin = 0, vids = [];
     const tick = (now) => {
       const dt = last ? (now - last) / 1000 : 0; last = now;
       const root = containerRef.current;
-      const vids = root ? [...root.querySelectorAll("[data-vslot] video")].filter(v => v.duration) : [];
-      const vmax = vids.reduce((a, v) => Math.max(a, v.duration || 0), 0);
+      // remeasure durations + scroll overflow at most a few times a second — reading scrollHeight
+      // every frame forces a synchronous layout and drops frames on slow scrolls.
+      if (!measured || now - measured > 400) {
+        vids = root ? [...root.querySelectorAll("[data-vslot] video")].filter(v => v.duration) : [];
+        vmax = vids.reduce((a, v) => Math.max(a, v.duration || 0), 0);
+        readMin = root ? scrollReadSeconds(root) : 0;
+        measured = now;
+      }
       const cap = window.__EXPORT_DUR > 0 ? window.__EXPORT_DUR : 0;
-      // readable default: a long prompt over a short clip shouldn't rush — pace the scroll at a
-      // comfortable speed and let the clip loop to fill. An explicit output duration always wins.
-      const readMin = root ? scrollReadSeconds(root) : 0;
       const d = cap || Math.max(vmax, readMin) || 0;
       window.__SCROLL_DUR = d;
       if (playingRef.current && d > 0 && dt > 0 && dt < 1) {
