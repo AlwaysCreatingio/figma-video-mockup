@@ -2574,6 +2574,12 @@ function App() {
   const ASSET_CLIP_KEY = "aoAssetClipboard";
   const readAssetClip = () => { try { return JSON.parse(localStorage.getItem(ASSET_CLIP_KEY) || "null"); } catch (e) { return null; } };
   const [assetClip, setAssetClip] = useState(readAssetClip);
+  useEffect(() => {
+    const sync = () => setAssetClip(readAssetClip());
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    return () => { window.removeEventListener("storage", sync); window.removeEventListener("focus", sync); };
+  }, []);
   function copyAssets(id) {
     const rec = demoRecs[id]; if (!rec) return;
     const clip = { vids: rec.vids || {}, logos: rec.logos || {} };
