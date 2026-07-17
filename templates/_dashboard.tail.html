@@ -1861,25 +1861,43 @@ function App() {
     const existing = clFor(sel).find(c => c.draw);
     frame.querySelectorAll("[data-custom] img").forEach(im => { im.style.visibility = "hidden"; });
     if (existing && existing.img) { const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, cv.width, cv.height); im.src = existing.img; }
-    let drawing = false, last = null;
-    const pt = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height) }; };
+    let drawing = false, pts = [], wPrev = 0;
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const pt = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height), t: e.timeStamp }; };
     const down = (e) => {
       e.preventDefault(); e.stopPropagation();
       drawUndoRef.current.push(ctx.getImageData(0, 0, cv.width, cv.height));
       if (drawUndoRef.current.length > 30) drawUndoRef.current.shift();
-      drawing = true; last = pt(e);
+      drawing = true; const p = pt(e); pts = [p];
       ctx.lineCap = "round"; ctx.lineJoin = "round";
       ctx.globalCompositeOperation = drawEraseRef.current ? "destination-out" : "source-over";
-      ctx.strokeStyle = drawColorRef.current; ctx.fillStyle = drawColorRef.current; ctx.lineWidth = drawSizeRef.current;
-      ctx.beginPath(); ctx.arc(last.x, last.y, drawSizeRef.current / 2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = drawColorRef.current; ctx.fillStyle = drawColorRef.current;
+      wPrev = drawSizeRef.current;
+      ctx.beginPath(); ctx.arc(p.x, p.y, wPrev / 2, 0, Math.PI * 2); ctx.fill();
     };
     const move = (e) => {
       if (!drawing) return;
-      const p = pt(e);
+      pts.push(pt(e));
+      const n = pts.length;
       ctx.globalCompositeOperation = drawEraseRef.current ? "destination-out" : "source-over";
-      ctx.strokeStyle = drawColorRef.current; ctx.lineWidth = drawSizeRef.current;
-      ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
-      last = p;
+      ctx.strokeStyle = drawColorRef.current; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      if (n < 3) { const a = pts[0], b = pts[n - 1]; ctx.lineWidth = wPrev; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); return; }
+      const p0 = pts[n - 3], p1 = pts[n - 2], p2 = pts[n - 1];
+      // velocity-tapered width (slower = thicker, faster = thinner) gives a marker/hand-drawn feel
+      const base = drawSizeRef.current;
+      let w = base;
+      if (!drawEraseRef.current) {
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const dt = Math.max(1, p2.t - p1.t);
+        const speed = dist / dt;                 // px per ms
+        const target = base * (1 - Math.min(0.55, speed / 3.2));   // thin out up to ~55% at speed
+        w = wPrev + (target - wPrev) * 0.35;     // smooth the width change
+      }
+      wPrev = w;
+      ctx.lineWidth = w;
+      // quadratic through the midpoints, using each raw point as the control point = smooth curve
+      const m1 = mid(p0, p1), m2 = mid(p1, p2);
+      ctx.beginPath(); ctx.moveTo(m1.x, m1.y); ctx.quadraticCurveTo(p1.x, p1.y, m2.x, m2.y); ctx.stroke();
     };
     const up = () => { drawing = false; };
     cv.addEventListener("pointerdown", down);
