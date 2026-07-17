@@ -663,6 +663,35 @@ const HOOKS = [
   },
 ];
 
+function SeekBar({ rootRef }) {
+  const [st, setSt] = useState({ t: 0, d: 0 });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const root = rootRef.current; if (!root) return;
+      const vids = [...root.querySelectorAll("[data-vslot] video")].filter(v => v.duration);
+      if (!vids.length) { setSt(s2 => (s2.d ? { t: 0, d: 0 } : s2)); return; }
+      const v = vids.reduce((a, b) => ((b.duration || 0) > (a.duration || 0) ? b : a));
+      setSt({ t: v.currentTime || 0, d: v.duration || 0 });
+    }, 250);
+    return () => clearInterval(id);
+  }, []);
+  if (!st.d) return null;
+  const fmt = (x) => Math.floor(x / 60) + ":" + String(Math.floor(x % 60)).padStart(2, "0");
+  const seek = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const root = rootRef.current; if (!root) return;
+    root.querySelectorAll("[data-vslot] video").forEach(v => { try { v.currentTime = f * (v.duration || 0); } catch (err) {} });
+  };
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      <div onClick={seek} className="w-[240px] h-[4px] rounded-full bg-white/15 cursor-pointer">
+        <div className="h-full rounded-full bg-white pointer-events-none" style={{ width: (st.t / st.d * 100) + "%" }} />
+      </div>
+      <span className="text-[11px] text-zinc-500 font-medium tabular-nums">{fmt(st.t)} / {fmt(st.d)}</span>
+    </div>
+  );
+}
 function SortMenu({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -1530,7 +1559,7 @@ function App() {
     });
     // keep the resize grips glued to the element's live rect (style edits reflow it)
     if (a && a.el && a.el.isConnected && mainRef.current) {
-      const mr = mainRef.current.getBoundingClientRect(), er = a.el.getBoundingClientRect();
+      const mr = mainRef.current.getBoundingClientRect(), er = ((a.outEl && a.outEl.isConnected) ? a.outEl : a.el).getBoundingClientRect();
       const nx = er.left - mr.left + mainRef.current.scrollLeft, ny = er.top - mr.top + mainRef.current.scrollTop;
       setHandle(h => (!h || Math.abs(h.x - nx) > 0.5 || Math.abs(h.y - ny) > 0.5 || Math.abs(h.w - er.width) > 0.5 || Math.abs(h.h - er.height) > 0.5)
         ? { x: nx, y: ny, w: er.width, h: er.height } : h);
@@ -1732,7 +1761,7 @@ function App() {
     if (el.tagName === "IMG") el.draggable = false;
     activeRef.current = { el, path, text, outEl: outEl === el ? null : outEl, outPath: outEl === el ? null : pathOf(outEl, root) };
     if (mainRef.current) {
-      const mr = mainRef.current.getBoundingClientRect(), er = el.getBoundingClientRect();
+      const mr = mainRef.current.getBoundingClientRect(), er = outEl.getBoundingClientRect();
       setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
     }
     const cs = getComputedStyle(el);
@@ -2725,7 +2754,7 @@ function App() {
             ))}
 
         </main>
-        <footer className="h-14 shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-t border-white/10 grid grid-cols-[1fr_auto_1fr] items-center px-4">
+        <footer className="min-h-[64px] shrink-0 bg-[#1A1A1A]/85 backdrop-blur border-t border-white/10 grid grid-cols-[1fr_auto_1fr] items-center px-4 py-1.5">
           <div className="flex items-center">
             {t.height > t.width && <select value={safeZone || "none"} onChange={e => setSafeZone(e.target.value === "none" ? null : e.target.value)} title="Platform safe zones"
               className="text-sm px-3 py-1.5 rounded-[30px] bg-white/5 border border-white/10 text-zinc-300 outline-none" style={SELECT_STYLE}>
@@ -2735,7 +2764,8 @@ function App() {
               <option value="shorts">Shorts UI</option>
             </select>}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col items-center">
+            <div className="flex items-center gap-1.5">
               <button onClick={() => { containerRef.current.querySelectorAll("[data-vslot] video").forEach(v => { try { v.currentTime = Math.max(0, v.currentTime - 5); } catch (e) {} }); }} title="Back 5s"
                 className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11 12l8.5-6v12L11 12z"/><path d="M4 6h2.5v12H4z"/></svg>
@@ -2759,14 +2789,17 @@ function App() {
                 className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13 12L4.5 6v12L13 12z"/><path d="M17.5 6H20v12h-2.5z"/></svg>
               </button>
-              <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
-                className={"w-9 h-9 flex items-center justify-center rounded-full transition ml-1 " + (soundOn ? "text-white bg-white/10" : "text-zinc-400 hover:bg-white/10 hover:text-white")}>
-                {soundOn
-                  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
-                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
-              </button>
+            </div>
+            <SeekBar rootRef={containerRef} />
           </div>
-          <div />
+          <div className="flex items-center justify-end">
+            <button onClick={() => setSoundOn(v => !v)} title={soundOn ? "Mute preview" : "Play sound"}
+              className={"w-9 h-9 flex items-center justify-center rounded-full transition " + (soundOn ? "text-white bg-white/10" : "text-zinc-400 hover:bg-white/10 hover:text-white")}>
+              {soundOn
+                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M19 5a9 9 0 010 14"/></svg>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6"/><path d="M16 9l6 6"/></svg>}
+            </button>
+          </div>
         </footer>
         </div>
 
