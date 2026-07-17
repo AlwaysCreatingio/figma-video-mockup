@@ -11,7 +11,9 @@ const head = fs.readFileSync(path.join(TDIR, "_dashboard.head.html"), "utf8");
 const tail = fs.readFileSync(path.join(TDIR, "_dashboard.tail.html"), "utf8");
 const templates = fs.readdirSync(TDIR).filter(f => /^T_.*\.jsx$/.test(f)).sort();
 
-let html = head;
+// cache-bust the logos bundle so embedded assets always match the page code
+const logosVer2 = fs.statSync("_logos.js").mtimeMs.toFixed(0);
+let html = head.replace('src="/_logos.js"', 'src="/_logos.js?v=' + logosVer2 + '"');
 for (const f of templates) {
   html += `\n<script type="text/babel">\n` + fs.readFileSync(path.join(TDIR, f), "utf8") + `\n</script>\n`;
 }
