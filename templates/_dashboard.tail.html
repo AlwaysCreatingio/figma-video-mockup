@@ -3005,7 +3005,8 @@ function App() {
               {insp.isText && <Sec open={openSec === "Text"} onToggle={toggleSec} title="Text">
                 {insp.textValue != null && <div>
                   <label className={LBL}>Content</label>
-                  <textarea value={insp.textValue} rows={2}
+                  <textarea value={insp.textValue} rows={Math.min(12, Math.max(2, Math.ceil((insp.textValue || "").length / 34)))}
+                    ref={el => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + 6 + "px"; } }}
                     onChange={e => {
                       let el = activeRef.current && activeRef.current.el;
                       if (el && !el.isConnected) el = nodeAt(containerRef.current, insp.path);
