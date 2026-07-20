@@ -93,6 +93,8 @@ function finalize(){
     else if(o.text!=null) el.textContent=o.text;
     if(o.style) for(const k of SP) if(o.style[k]!=null) el.style[k]=o.style[k];
   }
+  // legacy bubble captions hidden without the intentional-hide marker: make them visible
+  frame.querySelectorAll('[data-bubble] span').forEach(s => { if(s.style.display==="none" && !s.hasAttribute("data-caphide")) s.style.display="inline-block"; });
   // set logos (matched by stable data-lslot id) — background tint + per-logo scale mirror the editor
   for(const l of X.logos){ const el=frame.querySelector('[data-lslot="'+l.slot+'"]'); if(!el)continue;
     const fit=l.fit||"cover", pad=fit==="cover"?"0":"10px", sc=(l.scale!=null?l.scale:1);

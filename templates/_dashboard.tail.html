@@ -427,6 +427,13 @@ function htmlOverrideUnsafe(el) {
 function stripSelOutline(html) {
   return typeof html === "string" ? html.replace(/outline(-offset)?:\s*[^;"']*;?/gi, "") : html;
 }
+// a bubble caption hidden without the intentional-hide marker is a legacy artifact — make it visible
+function healBubbleCaptions(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('[data-bubble] span').forEach(s => {
+    if (s.style.display === "none" && !s.hasAttribute("data-caphide")) s.style.display = "inline-block";
+  });
+}
 function syncCustomLayersIn(frame, layers) {
   if (!frame) return;
   let wrap = frame.querySelector(":scope > [data-custom]");
@@ -517,6 +524,7 @@ function useDemoOverrides(ref, rec) {
         else if (o.text != null) el.textContent = o.text;
         if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
       }
+      healBubbleCaptions(base);
       if (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on) {
         const frame = base.firstElementChild;
         const media = base.querySelector("[data-vslot] video, [data-vslot] img");
@@ -1808,6 +1816,7 @@ function App() {
       else if (o.text != null && el.tagName !== "INPUT" && el !== active) { if (el.textContent !== o.text) el.textContent = o.text; }
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
     }
+    healBubbleCaptions(root);
     autoZoomNewMedia(root);
     applyXf(root, sel);
     solidifyEmptySlots(root);
@@ -2595,7 +2604,7 @@ function App() {
     const bg = parseColor(getComputedStyle(bub).backgroundColor);
     activeRef.current = { el: bub, path: pathOf(bub, root), bubble: true, parentEl: bub.closest("[data-cl], p, h1, h2, h3") };
     setOpenSec("Bubble");
-    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && cap.style.display !== "none") });
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")) });
   }
   function setBubbleBg(hex) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -2608,7 +2617,9 @@ function App() {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
     const cap = bub.querySelector("span"); if (!cap) return;
     pushHistory(true);
-    cap.style.display = show ? "inline-block" : "none";
+    // mark intentional hides so legacy display:none (an old artifact) can still be auto-healed to visible
+    if (show) { cap.style.display = "inline-block"; cap.removeAttribute("data-caphide"); }
+    else { cap.style.display = "none"; cap.setAttribute("data-caphide", "1"); }
     const p = bubbleParent(); if (p) persistTextHtml(p);
     setInsp(i => ({ ...i, textShown: show }));
   }
