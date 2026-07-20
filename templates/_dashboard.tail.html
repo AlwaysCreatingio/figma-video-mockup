@@ -2322,6 +2322,8 @@ function App() {
     else { rec.text = el.textContent; delete rec.html; }
     // keep the selection/resize box hugging the text as it grows or shrinks while typing
     requestAnimationFrame(syncHandle);
+    // mirror the live text into the inspector's Content field
+    setInsp(i => (i && i.isText && i.textValue != null ? { ...i, textValue: el.innerText } : i));
   }
   function onEditorClick(e) {
     if (!editMode || suppressRef.current) return;
