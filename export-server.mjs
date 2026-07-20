@@ -371,8 +371,12 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
       fc.push(`[vcs${i}][vbm${i}]overlay=0:0[vcp${i}]`);
       vlbl = `vcp${i}`;
     }
+    // flatten the media over its slot bg so a transparent PNG's transparency shows the slot colour,
+    // not black (the rounded mask below replaces alpha, which would otherwise expose the PNG's RGB)
+    fc.push(`color=c=${cssToHex(r.bg)}:s=${w}x${h}:r=30:d=${DUR.toFixed(2)},format=yuva420p[vbg${i}]`);
+    fc.push(`[vbg${i}][${vlbl}]overlay=0:0:eof_action=repeat[vfl${i}]`);
     fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
-    fc.push(`[${vlbl}][mk${i}]alphamerge[vr${i}]`);
+    fc.push(`[vfl${i}][mk${i}]alphamerge[vr${i}]`);
     fc.push(`[${last}][vr${i}]overlay=${x}:${y}:eof_action=repeat[s${i}]`);
     last = `s${i}`;
   });
