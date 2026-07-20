@@ -2227,7 +2227,13 @@ function App() {
     const base = ov.__groupBase[key], Gc = base.center;
     grp.paths.forEach(p => {
       const el = nodeAt(root, p), mb = base.members[p]; if (!el || !mb) return;
-      const Tx = (Gc.x - mb.ec.x) * (1 - s), Ty = (Gc.y - mb.ec.y) * (1 - s);
+      // transform-origin:center pivots on the element's LAID-OUT centre, so subtract the base
+      // translate from its visual centre to get the true pivot (moved elements drift otherwise)
+      let bx = 0, by = 0;
+      const mm = /matrix\(([^)]+)\)/.exec(mb.t);
+      if (mm) { const q = mm[1].split(",").map(parseFloat); bx = q[4] || 0; by = q[5] || 0; }
+      const Ox = mb.ec.x - bx, Oy = mb.ec.y - by;
+      const Tx = (Gc.x - Ox) * (1 - s), Ty = (Gc.y - Oy) * (1 - s);
       const nt = `translate(${Tx.toFixed(2)}px, ${Ty.toFixed(2)}px) scale(${s}) ${mb.t}`.trim();
       ensureBase(p, el, ["transform"]);
       el.style.transformOrigin = "center"; el.style.transform = nt;
