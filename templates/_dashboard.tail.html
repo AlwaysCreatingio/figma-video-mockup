@@ -2300,6 +2300,31 @@ function App() {
     window.addEventListener("pointercancel", up);
     window.addEventListener("blur", up);
   }
+  // nudge one element by (dx,dy) design px, composing onto a translate we own at the end of its transform
+  function nudgeEl(path, el, dx, dy) {
+    if (!el || path == null) return;
+    ensureBase(path, el, ["transform"]);
+    const rec = ovFor(sel)[path] = ovFor(sel)[path] || {}; rec.style = rec.style || {};
+    let tf = rec.style.transform;
+    if (tf == null || tf === "") { const cs = getComputedStyle(el).transform; tf = (cs && cs !== "none") ? cs + " " : ""; }
+    const m = /translate\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*\)\s*$/.exec(tf);
+    let base = tf, x = 0, y = 0;
+    if (m) { base = tf.slice(0, m.index); x = parseFloat(m[1]); y = parseFloat(m[2]); }
+    x = Math.round(x + dx); y = Math.round(y + dy);
+    const nt = base + `translate(${x}px, ${y}px)`;
+    el.style.transform = nt; rec.style.transform = nt;
+  }
+  // arrow-key nudge: move the current selection (and its buddies) by 1px, or 10px with Shift
+  function nudgeSelection(dx, dy) {
+    const a = activeRef.current, root = containerRef.current; if (!a || !root) return;
+    if (a.bubble || a.path === "" || a.path === "0") return;   // background / inline bubbles don't nudge
+    pushHistory();
+    const primary = (a.outEl && a.outEl.isConnected && a.outPath != null) ? { path: a.outPath, el: a.outEl } : { path: a.path, el: (a.el && a.el.isConnected) ? a.el : nodeAt(root, a.path) };
+    nudgeEl(primary.path, primary.el, dx, dy);
+    multiRef.current.forEach(mm => nudgeEl(mm.path, (mm.el && mm.el.isConnected) ? mm.el : nodeAt(root, mm.path), dx, dy));
+    requestAnimationFrame(syncHandle);
+    setInsp(i => (i ? { ...i, moved: true } : i));
+  }
   function selectEl(el, forceText, startEdit) {
     const root = containerRef.current; if (!el || !root.contains(el)) return;
     // non-text clicks inside a label pill select the pill itself, so moving and the layer row
@@ -2562,10 +2587,11 @@ function App() {
     clearActive();
     bub.style.outline = "2px solid #2563eb"; bub.style.outlineOffset = "2px";
     const img = bub.querySelector("img");
+    const cap = bub.querySelector("span");
     const bg = parseColor(getComputedStyle(bub).backgroundColor);
     activeRef.current = { el: bub, path: pathOf(bub, root), bubble: true, parentEl: bub.closest("[data-cl], p, h1, h2, h3") };
     setOpenSec("Bubble");
-    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")) });
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && cap.style.display !== "none") });
   }
   function setBubbleBg(hex) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -2573,6 +2599,14 @@ function App() {
     bub.style.background = hex;
     const p = bubbleParent(); if (p) persistTextHtml(p);
     setInsp(i => ({ ...i, bgHex: hex, bgTransparent: false }));
+  }
+  function setBubbleText(show) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    const cap = bub.querySelector("span"); if (!cap) return;
+    pushHistory(true);
+    cap.style.display = show ? "inline-block" : "none";
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, textShown: show }));
   }
   function setBubbleImgFit(full) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -3532,6 +3566,26 @@ function App() {
     window.addEventListener("resize", h);
     return () => { document.removeEventListener("selectionchange", h); window.removeEventListener("scroll", h, true); window.removeEventListener("resize", h); };
   }, [sel, editMode]);
+  // arrow keys nudge the selected layer(s) — 1px, or 10px with Shift
+  useEffect(() => {
+    if (!sel) return;
+    const h = (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const a = activeRef.current; if (!a) return;
+      if (a.el && a.el.isContentEditable && document.activeElement === a.el) return;   // typing on canvas
+      const step = e.shiftKey ? 10 : 1;
+      let dx = 0, dy = 0;
+      if (e.key === "ArrowLeft") dx = -step; else if (e.key === "ArrowRight") dx = step;
+      else if (e.key === "ArrowUp") dy = -step; else dy = step;
+      e.preventDefault();
+      nudgeSelection(dx, dy);
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [sel]);
   // cmd/ctrl+g group the current selection, shift+cmd/ctrl+g ungroup
   useEffect(() => {
     if (!sel) return;
@@ -3946,6 +4000,13 @@ function App() {
                   <button onClick={() => setBubbleImgFit(true)} className={insp.bubbleFull ? SEG_ON : SEG}>Full</button>
                 </div>
               </div>
+              {insp.hasCaption && <div>
+                <label className={LBL}>Text</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => setBubbleText(true)} className={insp.textShown ? SEG_ON : SEG}>Show</button>
+                  <button onClick={() => setBubbleText(false)} className={!insp.textShown ? SEG_ON : SEG}>Hide</button>
+                </div>
+              </div>}
               <button onClick={replaceBubbleImg} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Replace image…</button>
               <button onClick={removeBubble} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition">Remove bubble</button>
             </div>}
