@@ -70,7 +70,7 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "boxSizing", "filter", "lineHeight"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "boxSizing", "boxShadow", "filter", "lineHeight"];
 // Agent Opus brand palette (from the brand guidelines) — presets for every color control.
 const BRAND_COLORS = [["#FA9819", "Orange"], ["#D77655", "Terracotta"], ["#C6EBF7", "Baby Blue"], ["#B6C9CF", "Blue Tint"], ["#F9F5F2", "Cream"], ["#1A1A1A", "Black"], ["#FFFFFF", "White"], ["#0F0F13", "Ink"]];
 // A color control: swatch button that opens a popover with brand presets + a native picker + hex.
@@ -426,6 +426,15 @@ function htmlOverrideUnsafe(el) {
 // strip the editor's transient selection outline so it never bakes into saved/exported html
 function stripSelOutline(html) {
   return typeof html === "string" ? html.replace(/outline(-offset)?:\s*[^;"']*;?/gi, "") : html;
+}
+// parse an inset box-shadow ring (our media "border") from inline or computed form -> {w,color}
+function parseInset(bsh) {
+  if (!bsh || bsh === "none") return null;
+  let m = bsh.match(/inset\s+\S+\s+\S+\s+([\d.]+)px\s+(#[0-9a-fA-F]+|rgba?\([^)]+\))/);
+  if (m) return { w: Math.round(parseFloat(m[1])), color: m[2] };
+  m = bsh.match(/(#[0-9a-fA-F]+|rgba?\([^)]+\))\s+[\d.]+px\s+[\d.]+px\s+[\d.]+px\s+([\d.]+)px\s+inset/);
+  if (m) return { w: Math.round(parseFloat(m[2])), color: m[1] };
+  return null;
 }
 // #rrggbb + alpha -> rgba() string
 function hexA(hex, a) {
@@ -2742,9 +2751,11 @@ function App() {
     const tt = xfFor(sel)[kk] || {};
     setOpenSec("Fit");
     const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
-    const __bd = parseColor((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor);
+    const __ins = parseInset((__mo.style || {}).boxShadow || getComputedStyle(slot).boxShadow);
+    const __bw = __ins ? __ins.w : Math.round(parseFloat((__mo.style || {}).borderWidth) || 0);
+    const __bd = parseColor(__ins ? __ins.color : ((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor));
     const __grad = tt.grad || {};
-    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: Math.round(parseFloat((__mo.style || {}).borderWidth) || 0), borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top" });
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: __bw, borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top" });
     expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
@@ -3020,18 +3031,22 @@ function App() {
     applyXf(containerRef.current, sel);
     setInsp(i => ({ ...i, blurOn: !!t.blur.on, blurAmount: t.blur.amount, blurDir: t.blur.dir }));
   }
-  // border is a style override on the slot element, so it flows into demos + exports
+  // border is an inset box-shadow ring on the slot (drawn on top of the video, following the corner
+  // radius) so a cover/zoomed clip can't bleed past it; stored as a style override for demos + exports
   function setMediaBorder(k, w, color) {
     const root = containerRef.current;
     const el = root.querySelector('[data-vslot="' + k + '"]'); if (!el) return;
     const p = pathOf(el, root);
     pushHistory();
-    ensureBase(p, el, ["borderStyle", "borderWidth", "borderColor"]);
+    ensureBase(p, el, ["boxShadow", "borderStyle", "borderWidth"]);
     const rec = ovFor(sel)[p] = ovFor(sel)[p] || {}; rec.style = rec.style || {};
     const hex = color != null ? color : (insp && insp.borderHex) || "#ffffff";
     const px = w != null ? w : (insp && insp.borderW) || 0;
-    rec.style.borderStyle = px > 0 ? "solid" : "none"; rec.style.borderWidth = px + "px"; rec.style.borderColor = hex; rec.style.boxSizing = "border-box";
-    el.style.borderStyle = rec.style.borderStyle; el.style.borderWidth = rec.style.borderWidth; el.style.borderColor = hex; el.style.boxSizing = "border-box";
+    const val = px > 0 ? `inset 0 0 0 ${px}px ${hex}` : "none";
+    // clear any legacy CSS border (older records used a real border that could bleed)
+    rec.style.borderStyle = "none"; rec.style.borderWidth = "0px";
+    rec.style.boxShadow = val;
+    el.style.borderStyle = "none"; el.style.borderWidth = "0px"; el.style.boxShadow = val;
     setInsp(i => ({ ...i, borderW: px, borderHex: hex }));
   }
   // subtle background patterns drawn with CSS gradients; line color adapts to the bg luminance
