@@ -388,7 +388,7 @@ function syncCustomLayersIn(frame, layers) {
       el = document.createElement(cl.img ? "img" : "p");
       el.setAttribute("data-cl", cl.id);
       if (cl.img) { el.setAttribute("src", cl.img); el.setAttribute("alt", cl.alt || "Drawing"); el.style.pointerEvents = "none"; el.draggable = false; }
-      else { el.textContent = cl.text || ""; el.style.pointerEvents = "auto"; el.style.cursor = "move"; }
+      else { el.textContent = cl.text || ""; el.style.pointerEvents = "auto"; el.style.cursor = "move"; el.style.width = "max-content"; }
       el.style.position = "absolute"; el.style.margin = "0";
       for (const k in (cl.style || {})) el.style[k] = cl.style[k];
       wrap.insertBefore(el, wrap.children[i] || null);
