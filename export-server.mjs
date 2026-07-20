@@ -158,6 +158,13 @@ function finalize(){
         gd.style.cssText='position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:linear-gradient('+dir+','+hexA(col,op)+' 0%,'+hexA(col,0)+' 70%);';
         el.appendChild(gd);
       }
+      // border ring on top of the composited video (covers its edge — no bleed)
+      const bd = X.mediaXf && X.mediaXf[s.slot] && X.mediaXf[s.slot].border;
+      if (bd && bd.w > 0) {
+        const bdd=document.createElement('div');
+        bdd.style.cssText='position:absolute;inset:0;pointer-events:none;border-radius:inherit;box-sizing:border-box;border:'+bd.w+'px solid '+(bd.color||'#ffffff')+';';
+        el.appendChild(bdd);
+      }
     }
     if(!ok && attempt<15){ return setTimeout(()=>measure(attempt+1), 200); }
     window.__RECTS = rects;

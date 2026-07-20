@@ -477,6 +477,16 @@ function applySlotBlur(slot, blur) {
     `-webkit-backdrop-filter:blur(${amt}px);backdrop-filter:blur(${amt}px);` +
     `-webkit-mask-image:${mask};mask-image:${mask};`;
 }
+// border ring drawn as an overlay ON TOP of the media (a real border, so clip-path can't eat it and
+// it covers the media's edge — no bleed, in editor or export)
+function applyBorderOverlay(slot, border) {
+  if (!slot) return;
+  let ov = slot.querySelector(":scope > [data-vborder]");
+  if (!border || !(border.w > 0)) { if (ov) ov.remove(); return; }
+  if (!ov) { ov = document.createElement("div"); ov.setAttribute("data-vborder", "1"); slot.appendChild(ov); }
+  else if (slot.lastElementChild !== ov) slot.appendChild(ov);
+  ov.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:6;border-radius:inherit;box-sizing:border-box;border:${border.w}px solid ${border.color || "#ffffff"};`;
+}
 // a bubble caption hidden without the intentional-hide marker is a legacy artifact — make it visible
 function healBubbleCaptions(root) {
   if (!root || !root.querySelectorAll) return;
@@ -1761,8 +1771,17 @@ function App() {
     });
     for (const k in xf) {
       const slotEl0 = root.querySelector('[data-vslot="' + k + '"]');
+      // migrate a legacy box-shadow/CSS border on the slot to the overlay-border config
+      if (!xf[k].border && slotEl0) {
+        const ins = parseInset(slotEl0.style.boxShadow);
+        const cbw = Math.round(parseFloat(slotEl0.style.borderTopWidth) || 0);
+        const rc = ins || (cbw > 0 && slotEl0.style.borderStyle !== "none") ? (ovFor(id)[pathOf(slotEl0, root)] || {}) : null;
+        if (ins && ins.w > 0) { xf[k].border = { w: ins.w, color: ins.color }; slotEl0.style.boxShadow = ""; if (rc && rc.style) delete rc.style.boxShadow; }
+        else if (cbw > 0 && slotEl0.style.borderStyle !== "none") { xf[k].border = { w: cbw, color: slotEl0.style.borderColor || "#ffffff" }; slotEl0.style.border = ""; if (rc && rc.style) { delete rc.style.borderStyle; delete rc.style.borderWidth; delete rc.style.borderColor; } }
+      }
       applySlotGradient(slotEl0, xf[k].grad);
       applySlotBlur(slotEl0, xf[k].blur);
+      applyBorderOverlay(slotEl0, xf[k].border);
       const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
       if (m && m.tagName === "VIDEO") { try { m.playbackRate = xf[k].speed || 1; } catch (e) {} }
       if (m) {
@@ -2759,11 +2778,15 @@ function App() {
     const tt = xfFor(sel)[kk] || {};
     setOpenSec("Fit");
     const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
-    const __ins = parseInset((__mo.style || {}).boxShadow || getComputedStyle(slot).boxShadow);
-    const __bw = __ins ? __ins.w : Math.round(parseFloat((__mo.style || {}).borderWidth) || 0);
-    const __bd = parseColor(__ins ? __ins.color : ((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor));
+    let __bw, __bdHex;
+    if (tt.border) { __bw = tt.border.w || 0; __bdHex = parseColor(tt.border.color).hex; }
+    else {
+      const __ins = parseInset((__mo.style || {}).boxShadow || getComputedStyle(slot).boxShadow);
+      __bw = __ins ? __ins.w : Math.round(parseFloat((__mo.style || {}).borderWidth) || 0);
+      __bdHex = parseColor(__ins ? __ins.color : ((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor)).hex;
+    }
     const __grad = tt.grad || {};
-    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: __bw, borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top" });
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: __bw, borderHex: __bdHex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top" });
     expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
@@ -3040,22 +3063,21 @@ function App() {
     applyXf(containerRef.current, sel);
     setInsp(i => ({ ...i, blurOn: !!t.blur.on, blurAmount: t.blur.amount, blurDir: t.blur.dir }));
   }
-  // border is an inset box-shadow ring on the slot (drawn on top of the video, following the corner
-  // radius) so a cover/zoomed clip can't bleed past it; stored as a style override for demos + exports
+  // border is an overlay ring drawn on top of the media (a real border on a [data-vborder] child),
+  // stored in mediaXf so it flows to demos/export and shows regardless of clip-path
   function setMediaBorder(k, w, color) {
     const root = containerRef.current;
     const el = root.querySelector('[data-vslot="' + k + '"]'); if (!el) return;
-    const p = pathOf(el, root);
     pushHistory();
-    ensureBase(p, el, ["boxShadow", "borderStyle", "borderWidth"]);
-    const rec = ovFor(sel)[p] = ovFor(sel)[p] || {}; rec.style = rec.style || {};
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     const hex = color != null ? color : (insp && insp.borderHex) || "#ffffff";
     const px = Math.max(0, Math.min(24, (w != null ? w : (insp && insp.borderW) || 0)));   // clamp so a border can't fill the slot
-    const val = px > 0 ? `inset 0 0 0 ${px}px ${hex}` : "none";
-    // clear any legacy CSS border (older records used a real border that could bleed)
-    rec.style.borderStyle = "none"; rec.style.borderWidth = "0px";
-    rec.style.boxShadow = val;
-    el.style.borderStyle = "none"; el.style.borderWidth = "0px"; el.style.boxShadow = val;
+    t.border = { w: px, color: hex };
+    // clear any legacy box-shadow / CSS border override on the slot
+    const p = pathOf(el, root); const rec = ovFor(sel)[p];
+    if (rec && rec.style) { delete rec.style.boxShadow; delete rec.style.borderStyle; delete rec.style.borderWidth; }
+    el.style.boxShadow = ""; el.style.border = "";
+    applyBorderOverlay(el, t.border);
     setInsp(i => ({ ...i, borderW: px, borderHex: hex }));
   }
   // subtle background patterns drawn with CSS gradients; line color adapts to the bg luminance
