@@ -1961,6 +1961,53 @@ function App() {
     clearMulti();
     setHandle(null);
   }
+  // ---- persistent layer groups (per template/demo), stored in overrides.__groups ----
+  const groupsFor = () => (ovFor(sel).__groups = ovFor(sel).__groups || []);
+  const groupOfPath = (path) => groupsFor().find(g => g.indexOf(path) >= 0) || null;
+  function selectedPaths() {
+    const ps = [];
+    if (activeRef.current && activeRef.current.path != null) ps.push(activeRef.current.path);
+    multiRef.current.forEach(m => { if (ps.indexOf(m.path) < 0) ps.push(m.path); });
+    return ps.filter(p => p !== "" && p !== "0" && p != null);
+  }
+  function groupSelection() {
+    const ps = selectedPaths();
+    if (ps.length < 2) { if (window.__toast) window.__toast("Select 2+ layers to group (shift-click)"); return; }
+    pushHistory(true);
+    const groups = groupsFor();
+    // a layer belongs to at most one group: drop these paths from any existing group first
+    for (let i = groups.length - 1; i >= 0; i--) {
+      groups[i] = groups[i].filter(p => ps.indexOf(p) < 0);
+      if (groups[i].length < 2) groups.splice(i, 1);
+    }
+    groups.push(ps.slice());
+    force(x => x + 1);
+    if (window.__toast) window.__toast("Grouped " + ps.length + " layers");
+  }
+  function ungroupPaths(ps) {
+    const groups = groupsFor();
+    let changed = false;
+    for (let i = groups.length - 1; i >= 0; i--) {
+      if (groups[i].some(p => ps.indexOf(p) >= 0)) { if (!changed) pushHistory(true); groups.splice(i, 1); changed = true; }
+    }
+    if (changed) { force(x => x + 1); if (window.__toast) window.__toast("Ungrouped"); }
+    return changed;
+  }
+  function ungroupSelection() { ungroupPaths(selectedPaths()); }
+  // when a grouped layer is selected, pull its group-mates into the multi-selection so the group moves as one
+  function expandGroupSelection() {
+    const a = activeRef.current; if (!a || a.path == null) return;
+    const g = groupOfPath(a.path); if (!g) return;
+    const root = containerRef.current; if (!root) return;
+    g.forEach(p => {
+      if (p === a.path || multiRef.current.some(m => m.path === p)) return;
+      const el = nodeAt(root, p); if (!el) return;
+      const rec = ovFor(sel)[p];
+      if (rec && (rec.deleted || (rec.style && rec.style.display === "none"))) return;
+      el.style.outline = "2px solid #2563eb"; el.style.outlineOffset = "1px";
+      multiRef.current.push({ el, path: p });
+    });
+  }
   function startResizeDrag(e, corner) {
     e.preventDefault(); e.stopPropagation();
     const rec0 = activeRef.current; if (!rec0 || !insp) return;
@@ -2065,6 +2112,16 @@ function App() {
       const bcs = getComputedStyle(bel);
       return { path: m.path, el: bel, base: bcs.transform === "none" ? "" : bcs.transform + " " };
     }).filter(Boolean);
+    // combined bounding box of the moving set (leader + buddies) — snapping targets this box so a
+    // whole group aligns by its outer edges/center, not just the clicked leader
+    let gx = bx, gy = by, gr = bx + ew, gb = by + eh;
+    buddies.forEach(bd => {
+      const r = bd.el.getBoundingClientRect();
+      const L = (r.left - cont.left) / sc0, T = (r.top - cont.top) / sc0;
+      gx = Math.min(gx, L); gy = Math.min(gy, T);
+      gr = Math.max(gr, L + r.width / sc0); gb = Math.max(gb, T + r.height / sc0);
+    });
+    const gw = gr - gx, gh = gb - gy;
     // alignment targets: edges + centers of every other visible element on the canvas
     const rootC = containerRef.current;
     const skip = new Set([el, rec0.outEl, ...buddies.map(b2 => b2.el)]);
@@ -2100,12 +2157,12 @@ function App() {
       let cSnapX = false, cSnapY = false;
       let guideX = null, guideY = null;
       if (!ev.altKey) {
-        dx = Math.round((bx + dx) / GRID) * GRID - bx;
-        dy = Math.round((by + dy) / GRID) * GRID - by;
-        // align to other elements' edges and centers (beats the grid)
+        dx = Math.round((gx + dx) / GRID) * GRID - gx;
+        dy = Math.round((gy + dy) / GRID) * GRID - gy;
+        // align the group box's edges and centers to other elements (beats the grid)
         let bestX = null, bestY = null;
-        const myXs = [bx + dx, bx + dx + ew / 2, bx + dx + ew];
-        const myYs = [by + dy, by + dy + eh / 2, by + dy + eh];
+        const myXs = [gx + dx, gx + dx + gw / 2, gx + dx + gw];
+        const myYs = [gy + dy, gy + dy + gh / 2, gy + dy + gh];
         aligns.forEach(a => {
           a.xs.forEach(axv => myXs.forEach(mx => { const d = axv - mx; if (Math.abs(d) < SNAP && (bestX == null || Math.abs(d) < Math.abs(bestX.d))) bestX = { d, at: axv }; }));
           a.ys.forEach(ayv => myYs.forEach(my => { const d = ayv - my; if (Math.abs(d) < SNAP && (bestY == null || Math.abs(d) < Math.abs(bestY.d))) bestY = { d, at: ayv }; }));
@@ -2113,13 +2170,13 @@ function App() {
         if (bestX) { dx += bestX.d; guideX = bestX.at; }
         if (bestY) { dy += bestY.d; guideY = bestY.at; }
         // canvas-center snapping takes priority over everything
-        const cx = bx + dx + ew / 2, cy = by + dy + eh / 2;
+        const cx = gx + dx + gw / 2, cy = gy + dy + gh / 2;
         if (Math.abs(cx - CVW / 2) < 8) { dx += CVW / 2 - cx; cSnapX = true; guideX = null; }
         if (Math.abs(cy - CVH / 2) < 8) { dy += CVH / 2 - cy; cSnapY = true; guideY = null; }
       }
       setGuides({
-        x: guideX != null ? guideX : bx + dx + ew / 2,
-        y: guideY != null ? guideY : by + dy + eh / 2,
+        x: guideX != null ? guideX : gx + dx + gw / 2,
+        y: guideY != null ? guideY : gy + dy + gh / 2,
         cx: cSnapX, cy: cSnapY, ax: guideX != null, ay: guideY != null,
       });
       const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
@@ -2235,6 +2292,7 @@ function App() {
       italic: (ovs.fontStyle || cs.fontStyle) === "italic",
       underline: (ovs.textDecoration || cs.textDecorationLine || "").includes("underline"),
     });
+    expandGroupSelection();
   }
   function setStyle(prop, val, patch) {
     let el = activeRef.current && activeRef.current.el; if (!el || !insp) return;
@@ -2336,6 +2394,7 @@ function App() {
     setOpenSec("Fit");
     const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
     setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video") });
+    expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
   function layerList() {
@@ -2429,6 +2488,60 @@ function App() {
       return;
     }
     selectEl(it.el, it.kind === "text" && it.el.tagName !== "INPUT" ? true : undefined);
+  }
+  // group-aware view of the layer list: contiguous group members collapse under a group header
+  function layerTree() {
+    const items = layerList();
+    const groups = (ovFor(sel).__groups || []);
+    const byPath = {}; items.forEach(it => { byPath[it.path] = it; });
+    const used = {}, emitted = {}, units = [];
+    items.forEach(it => {
+      if (used[it.path]) return;
+      const gi = groups.findIndex(g => g.indexOf(it.path) >= 0);
+      if (gi >= 0 && !emitted[gi]) {
+        const members = groups[gi].map(p => byPath[p]).filter(Boolean);
+        if (members.length >= 2) {
+          members.forEach(m => { used[m.path] = 1; }); emitted[gi] = 1;
+          units.push({ type: "group", gi, members }); return;
+        }
+      }
+      used[it.path] = 1; units.push({ type: "item", item: it });
+    });
+    return units;
+  }
+  function renderLayerRow(it, key, indent) {
+    const active = (activeRef.current && insp && activeRef.current.path === it.path) || multiRef.current.some(m => m.path === it.path)
+      || (insp && insp.isLogo && insp.logoApi && insp.logoApi.k != null && it.el && it.el.getAttribute && it.el.getAttribute("data-lslot") === insp.logoApi.k);
+    return (
+      <button key={key} onClick={(e) => {
+        if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current && it.kind !== "bg" && it.kind !== "logo") {
+          const root = containerRef.current;
+          const el = it.el && it.el.isConnected ? it.el : nodeAt(root, it.path);
+          if (el) toggleMulti(el);
+          return;
+        }
+        selectLayer(it);
+      }}
+        style={indent ? { paddingLeft: 22 } : undefined}
+        className={"group/layer w-full flex items-center gap-2.5 px-3 py-2 rounded-[14px] text-sm hover:bg-white/10 hover:text-white transition text-left " +
+          (active ? "bg-[#2F2F2F] text-white " : (layerHidden(it) ? "text-zinc-600 " : "text-zinc-300 "))}>
+        <span className="shrink-0 text-zinc-500">
+          {it.kind === "bg" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>}
+          {it.kind === "video" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>}
+          {it.kind === "logo" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>}
+          {it.kind === "label" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12l-8 8-9-9V4h7l10 8z"/></svg>}
+          {it.kind === "text" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>}
+          {it.kind === "image" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
+        </span>
+        <span className="truncate flex-1">{it.label}</span>
+        {it.kind !== "bg" && <span onClick={(e) => { e.stopPropagation(); toggleLayerHidden(it); }} title={layerHidden(it) ? "Show layer" : "Hide layer"}
+          className={"shrink-0 cursor-pointer transition " + (layerHidden(it) ? "text-zinc-500 hover:text-white" : "text-zinc-500 opacity-0 group-hover/layer:opacity-100 hover:text-white")}>
+          {layerHidden(it)
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><path d="M14.12 14.12a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+        </span>}
+      </button>
+    );
   }
   // drag-to-pan media inside its slot (mousedown+move on a filled slot); a real drag suppresses the click
   function onMediaDragStart(e) {
@@ -3152,6 +3265,19 @@ function App() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [sel]);
+  // cmd/ctrl+g group the current selection, shift+cmd/ctrl+g ungroup
+  useEffect(() => {
+    if (!sel) return;
+    const h = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "g") return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      if (e.shiftKey) ungroupSelection(); else groupSelection();
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [sel]);
 
   // warn before leaving the editor only when the session differs from the last saved/opened state
   const cleanSigRef = useRef(null);
@@ -3204,48 +3330,36 @@ function App() {
             <div className="space-y-0.5 mb-4">
               <div className="flex items-center justify-between py-1.5">
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Layers</span>
-                <button onClick={() => {
-                  const frame = containerRef.current && containerRef.current.firstElementChild;
-                  const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
-                  const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
-                  const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
-                  addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff", whiteSpace: "nowrap" } });
-                }} title="Add text layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                </button>
+                <div className="flex items-center gap-1">
+                  {selectedPaths().length >= 2 && <button onClick={groupSelection} title="Group selected layers (⌘G)" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="12" height="12" rx="2"/><path d="M9 3h9a2 2 0 012 2v9"/></svg>
+                  </button>}
+                  <button onClick={() => {
+                    const frame = containerRef.current && containerRef.current.firstElementChild;
+                    const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
+                    const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
+                    const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
+                    addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff", whiteSpace: "nowrap" } });
+                  }} title="Add text layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </div>
               </div>
-              {layerList().map((it, i) => (
-                <button key={i} onClick={(e) => {
-                  if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current && it.kind !== "bg" && it.kind !== "logo") {
-                    const root = containerRef.current;
-                    const el = it.el && it.el.isConnected ? it.el : nodeAt(root, it.path);
-                    if (el) toggleMulti(el);
-                    return;
-                  }
-                  selectLayer(it);
-                }}
-                  className={"group/layer w-full flex items-center gap-2.5 px-3 py-2 rounded-[14px] text-sm hover:bg-white/10 hover:text-white transition text-left " +
-                    ((activeRef.current && insp && activeRef.current.path === it.path) || multiRef.current.some(m => m.path === it.path)
-                      || (insp && insp.isLogo && insp.logoApi && insp.logoApi.k != null && it.el && it.el.getAttribute && it.el.getAttribute("data-lslot") === insp.logoApi.k)
-                      ? "bg-[#2F2F2F] text-white "
-                      : (layerHidden(it) ? "text-zinc-600 " : "text-zinc-300 "))}>
-                  <span className="shrink-0 text-zinc-500">
-                    {it.kind === "bg" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>}
-                    {it.kind === "video" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>}
-                    {it.kind === "logo" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>}
-                    {it.kind === "label" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12l-8 8-9-9V4h7l10 8z"/></svg>}
-                    {it.kind === "text" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>}
-                    {it.kind === "image" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
-                  </span>
-                  <span className="truncate flex-1">{it.label}</span>
-                  {it.kind !== "bg" && <span onClick={(e) => { e.stopPropagation(); toggleLayerHidden(it); }} title={layerHidden(it) ? "Show layer" : "Hide layer"}
-                    className={"shrink-0 cursor-pointer transition " + (layerHidden(it) ? "text-zinc-500 hover:text-white" : "text-zinc-500 opacity-0 group-hover/layer:opacity-100 hover:text-white")}>
-                    {layerHidden(it)
-                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><path d="M14.12 14.12a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
-                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
-                  </span>}
-                </button>
-              ))}
+              {layerTree().map((u, i) => u.type === "group" ? (
+                <div key={"g" + u.gi} className="mb-0.5">
+                  <div onClick={() => { if (u.members[0]) selectLayer(u.members[0]); }}
+                    className={"group/gh w-full flex items-center gap-2.5 px-3 py-2 rounded-[14px] text-sm cursor-pointer hover:bg-white/10 hover:text-white transition " +
+                      (u.members.some(m => (activeRef.current && activeRef.current.path === m.path) || multiRef.current.some(x => x.path === m.path)) ? "text-white" : "text-zinc-300")}>
+                    <span className="shrink-0 text-zinc-500"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="12" height="12" rx="2"/><path d="M9 3h9a2 2 0 012 2v9"/></svg></span>
+                    <span className="truncate flex-1 font-medium">Group {u.gi + 1}</span>
+                    <span onClick={(e) => { e.stopPropagation(); pushHistory(true); groupsFor().splice(u.gi, 1); force(x => x + 1); if (window.__toast) window.__toast("Ungrouped"); }}
+                      title="Ungroup" className="shrink-0 text-[11px] text-zinc-500 opacity-0 group-hover/gh:opacity-100 hover:text-white transition">Ungroup</span>
+                  </div>
+                  <div className="ml-[18px] pl-1 border-l border-white/10 flex flex-col">
+                    {u.members.map((m, j) => renderLayerRow(m, "g" + u.gi + "-" + j, true))}
+                  </div>
+                </div>
+              ) : renderLayerRow(u.item, i, false))}
             </div>
             {window.__slotAPI && window.__slotAPI.setArrowOn && <Sec open={openSec === "Advanced"} onToggle={toggleSec} title="Advanced">
               <div>
