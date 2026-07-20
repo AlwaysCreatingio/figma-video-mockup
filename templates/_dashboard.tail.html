@@ -2510,6 +2510,9 @@ function App() {
       if (onClick) onClick({ stopPropagation() {}, preventDefault() {} });
       return;
     }
+    // an image bubble selects as its own element (edit its background / image / remove it)
+    const bub = el.closest && el.closest("[data-bubble]");
+    if (bub && containerRef.current.contains(bub)) { e.preventDefault(); e.stopPropagation(); selectBubble(bub); return; }
     const unit = textUnit(el);
     if (unit && containerRef.current.contains(unit) && isTextLeaf(unit)) {
       if (unit.tagName !== "INPUT") e.preventDefault();
@@ -2548,6 +2551,55 @@ function App() {
     if (!unit || !containerRef.current.contains(unit) || !isTextLeaf(unit) || unit.tagName === "INPUT") return;
     e.preventDefault(); e.stopPropagation();
     enterTextEdit(unit, e, true);
+  }
+  // ---- image bubbles (inline image+text pills inside a text layer) ----
+  function bubbleParent() {
+    const a = activeRef.current; if (!a) return null;
+    return (a.parentEl && a.parentEl.isConnected) ? a.parentEl : (a.el && a.el.closest("[data-cl], p, h1, h2, h3"));
+  }
+  function selectBubble(bub) {
+    const root = containerRef.current; if (!bub || !root.contains(bub)) return;
+    clearActive();
+    bub.style.outline = "2px solid #2563eb"; bub.style.outlineOffset = "2px";
+    const img = bub.querySelector("img");
+    const bg = parseColor(getComputedStyle(bub).backgroundColor);
+    activeRef.current = { el: bub, path: pathOf(bub, root), bubble: true, parentEl: bub.closest("[data-cl], p, h1, h2, h3") };
+    setOpenSec("Bubble");
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")) });
+  }
+  function setBubbleBg(hex) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    pushHistory();
+    bub.style.background = hex;
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, bgHex: hex, bgTransparent: false }));
+  }
+  function setBubbleImgFit(full) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    const img = bub.querySelector("img"); if (!img) return;
+    pushHistory(true);
+    if (full) { img.style.width = "auto"; img.style.height = "1.2em"; img.style.maxWidth = "8em"; img.style.objectFit = "contain"; img.style.borderRadius = ".3em"; }
+    else { img.style.width = "1.2em"; img.style.height = "1.2em"; img.style.maxWidth = ""; img.style.objectFit = "cover"; img.style.borderRadius = "9999px"; }
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, bubbleFull: full }));
+  }
+  function replaceBubbleImg() {
+    const bub = activeRef.current && activeRef.current.el; if (!bub) return;
+    const img = bub.querySelector("img"); if (!img) return;
+    const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+    document.body.appendChild(i);
+    i.onchange = () => { const f = i.files && i.files[0]; i.remove(); if (!f) return; const rd = new FileReader(); rd.onload = () => { pushHistory(true); img.src = String(rd.result); const p = bubbleParent(); if (p) persistTextHtml(p); }; rd.readAsDataURL(f); };
+    i.click();
+  }
+  function removeBubble() {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    pushHistory(true);
+    const p = bubbleParent();
+    const cap = bub.querySelector("span");
+    bub.replaceWith(document.createTextNode(cap ? cap.textContent : ""));
+    if (p) persistTextHtml(p);
+    deselect(); force(x => x + 1);
+    if (window.__toast) window.__toast("Bubble removed");
   }
   function selectParent() { const el = activeRef.current && activeRef.current.el; if (el && el.parentElement && containerRef.current.contains(el.parentElement) && el.parentElement !== containerRef.current) selectEl(el.parentElement); }
   function uploadIntoSlot() {
@@ -2747,6 +2799,8 @@ function App() {
       const a = activeRef.current;
       // while a text layer is focused for editing, let a drag highlight text instead of moving it (move via the ✥ handle)
       if (a && a.text && a.el && document.activeElement === a.el) return;
+      if (a && a.bubble) return;   // bubbles are inline; don't drag-move them
+      if (insp && insp.isBubble) return;
       if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isSlot && insp.path !== "" && insp.path !== "0" &&
           !a.el.hasAttribute("data-vslot") && (e.target === a.el || a.el.contains(e.target) ||
             multiRef.current.some(m => m.el && m.el.isConnected && (e.target === m.el || m.el.contains(e.target))))) startMoveDrag(e, false);
@@ -3764,7 +3818,7 @@ function App() {
         {/* settings column for the current selection */}
         <div className="w-[300px] shrink-0 h-screen flex flex-col border-l border-white/5 bg-[#1A1A1A] overflow-hidden">
           <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{!insp ? "Design" : (insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element") + (multiRef.current.length > 0 ? " · +" + multiRef.current.length + " selected" : "")}</span>
+            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{!insp ? "Design" : (insp.isBubble ? "Bubble" : insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element") + (multiRef.current.length > 0 ? " · +" + multiRef.current.length + " selected" : "")}</span>
             {insp && <button onClick={deselect} title="Close" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>}
           </div>
           <div className="vscroll overflow-y-auto px-4 pb-4 flex-1">
@@ -3877,7 +3931,26 @@ function App() {
               {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
             </div>}
 
-            {insp && !insp.isLogo && !insp.isMedia && <div className="space-y-5">
+            {insp && insp.isBubble && <div className="space-y-5">
+              <div>
+                <label className={LBL}>Bubble background</label>
+                <div className="flex items-center gap-2">
+                  <BrandColorField transparent={insp.bgTransparent} value={insp.bgHex} onChange={setBubbleBg} />
+                  <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
+                </div>
+              </div>
+              <div>
+                <label className={LBL}>Image</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => setBubbleImgFit(false)} className={!insp.bubbleFull ? SEG_ON : SEG}>Circle</button>
+                  <button onClick={() => setBubbleImgFit(true)} className={insp.bubbleFull ? SEG_ON : SEG}>Full</button>
+                </div>
+              </div>
+              <button onClick={replaceBubbleImg} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Replace image…</button>
+              <button onClick={removeBubble} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition">Remove bubble</button>
+            </div>}
+
+            {insp && !insp.isLogo && !insp.isMedia && !insp.isBubble && <div className="space-y-5">
               {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Upload media into slot</button>}
 
               {insp.swapKey != null && <Sec open={openSec === "Label content"} onToggle={toggleSec} title="Label content">
@@ -4093,7 +4166,7 @@ function App() {
             {insp && insp.isText &&
               <button onClick={duplicateSelectedLayer}
                 className="mt-5 w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Duplicate layer</button>}
-            {insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
+            {insp && !insp.isLogo && !insp.isBubble && insp.path !== "" && insp.path !== "0" &&
               <button onClick={deleteSelectedLayer}
                 className={(insp.isText ? "mt-3" : "mt-5") + " w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition"}>Delete layer</button>}
           </div>
