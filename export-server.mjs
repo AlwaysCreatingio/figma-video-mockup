@@ -263,13 +263,13 @@ function cssToHex(c) {
 }
 
 async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate, durationSec) {
-  // bound output to the shortest clip so the looped plate/color source can't run forever
+  // default output length = the LONGEST uploaded clip; shorter clips loop to fill it
   const durs = await Promise.all(videoFiles.map(probeDur));
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
   const finite = durs.filter(d => d > 0);
-  let DUR = Math.max(0.5, Math.min(...(finite.length ? finite : [ambDur > 0 ? ambDur : 4])));
+  let DUR = Math.max(0.5, (finite.length ? Math.max(...finite) : (ambDur > 0 ? ambDur : 4)));
   const wantDur = +durationSec > 0 ? Math.min(+durationSec, 300) : 0;
-  if (wantDur) DUR = wantDur;   // chosen output length: shorter clips loop, longer ones trim
+  if (wantDur) DUR = wantDur;   // an explicit chosen length overrides: shorter clips loop, longer ones trim
   const S = SCALE;                // plate is rendered at SCALE x (deviceScaleFactor) — supersample for crisp text/edges
   const OW = W * S, OH = H * S;
   // write each slot's rounded-corner alpha mask to disk
@@ -278,7 +278,7 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   const args = ["-y"];
   rects.forEach((r, i) => {
     if (durs[i] === 0) args.push("-loop", "1");
-    else if (wantDur && durs[i] < wantDur - 0.05) args.push("-stream_loop", "-1");
+    else if (durs[i] < DUR - 0.05) args.push("-stream_loop", "-1");   // loop any clip shorter than the output
     args.push("-i", videoFiles[i]);
   }); // 0..nVid-1 videos
   maskFiles.forEach(f => { args.push("-loop", "1", "-i", f); });                                            // nVid..2n-1 masks
