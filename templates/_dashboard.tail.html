@@ -71,6 +71,58 @@ const LOGO_LIBRARY = [
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
 const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "filter", "lineHeight"];
+// Agent Opus brand palette (from the brand guidelines) — presets for every color control.
+const BRAND_COLORS = [["#FA9819", "Orange"], ["#D77655", "Terracotta"], ["#C6EBF7", "Baby Blue"], ["#B6C9CF", "Blue Tint"], ["#F9F5F2", "Cream"], ["#1A1A1A", "Black"], ["#FFFFFF", "White"], ["#0F0F13", "Ink"]];
+// A color control: swatch button that opens a popover with brand presets + a native picker + hex.
+// The popover is position:fixed so the inspector's overflow never clips it.
+function BrandColorField({ value, onChange, transparent, title, swatchClass }) {
+  const { useState, useRef, useEffect } = React;
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const [txt, setTxt] = useState(value || "");
+  const btnRef = useRef(null);
+  const cur = value || "#ffffff";
+  useEffect(() => { setTxt(cur); }, [cur, open]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!e.target.closest("[data-brandpop]")) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    const id = setTimeout(() => { window.addEventListener("mousedown", close); window.addEventListener("keydown", onKey); }, 0);
+    return () => { clearTimeout(id); window.removeEventListener("mousedown", close); window.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const toggle = () => {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current.getBoundingClientRect();
+    const W = 224;
+    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)), top: Math.min(r.bottom + 6, window.innerHeight - 210) });
+    setOpen(true);
+  };
+  const commit = (v) => { let h = (v || "").trim(); if (h && h[0] !== "#") h = "#" + h; setTxt(v); if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) onChange(h); };
+  return (
+    <span className="relative inline-flex" data-brandpop>
+      <button ref={btnRef} type="button" onClick={toggle} title={title || cur}
+        className={swatchClass || "relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0"}
+        style={{ background: transparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : cur }} />
+      {open && pos && <div data-brandpop className="fixed z-[90] w-[224px] rounded-[16px] bg-[#242424] border border-white/10 shadow-2xl p-3" style={{ left: pos.left, top: pos.top }}>
+        <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-2">Brand colors</div>
+        <div className="grid grid-cols-8 gap-1.5 mb-3">
+          {BRAND_COLORS.map(([hex, name]) => (
+            <button key={hex} type="button" title={name + " · " + hex} onClick={() => onChange(hex)}
+              className={"w-[22px] h-[22px] rounded-full transition hover:scale-110 " + ((cur || "").toLowerCase() === hex.toLowerCase() ? "ring-2 ring-white" : "ring-1 ring-white/25")}
+              style={{ background: hex }} />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="relative w-9 h-9 rounded-[10px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: /^#([0-9a-f]{6})$/i.test(cur) ? cur : "#ffffff" }}>
+            <input type="color" value={/^#([0-9a-f]{6})$/i.test(cur) ? cur : "#ffffff"} onChange={e => onChange(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+          </label>
+          <input value={txt} onChange={e => commit(e.target.value)} onBlur={e => setTxt(cur)} spellCheck={false}
+            className="flex-1 min-w-0 px-2.5 h-9 rounded-[10px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none focus:border-white/30" />
+        </div>
+      </div>}
+    </span>
+  );
+}
 // Seconds needed to scroll a prompt at a comfortable reading pace (~70 design px/sec), so a long
 // prompt over a short clip doesn't rush. 0 when nothing overflows. Shared by the editor + export.
 const SCROLL_READ_PXPS = 34;
@@ -3616,9 +3668,7 @@ function App() {
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
-                      <input type="color" value={insp.bgHex || "#ffffff"} onChange={e => setStyle("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={insp.bgTransparent} value={insp.bgHex} onChange={hex => setStyle("backgroundColor", hex, { bgHex: hex, bgTransparent: false })} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
                   </div>
                 </div>
@@ -3633,9 +3683,7 @@ function App() {
                 {["grid", "dots", "lines"].includes(insp.pattern) && <div>
                   <label className={LBL}>Line color</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: (insp.styleMeta || {}).color || "#ffffff" }}>
-                      <input type="color" value={(insp.styleMeta || {}).color || "#ffffff"} onChange={e => updateStyleMeta({ color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={(insp.styleMeta || {}).color || "#ffffff"} onChange={hex => updateStyleMeta({ color: hex })} />
                     <span className="text-sm text-zinc-400 flex-1">{(insp.styleMeta || {}).color || "Auto"}</span>
                   </div>
                 </div>}
@@ -3663,18 +3711,14 @@ function App() {
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.logoBg }}>
-                      <input type="color" value={insp.logoBg} onChange={e => { insp.logoApi.setBg(e.target.value); setInsp({ ...insp, logoBg: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={insp.logoBg} onChange={hex => { insp.logoApi.setBg(hex); setInsp({ ...insp, logoBg: hex }); }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.logoBg}</span>
                   </div>
                 </div>
                 {insp.logoApi.setBorder && <div>
                   <label className={LBL}>Border</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.logoBorder || "repeating-conic-gradient(#333 0 25%, #555 0 50%) 50%/12px 12px" }}>
-                      <input type="color" value={insp.logoBorder || "#e6e6e6"} onChange={e => { insp.logoApi.setBorder(e.target.value); setInsp({ ...insp, logoBorder: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={!insp.logoBorder} value={insp.logoBorder || "#e6e6e6"} onChange={hex => { insp.logoApi.setBorder(hex); setInsp({ ...insp, logoBorder: hex }); }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.logoBorder || "None"}</span>
                     <button onClick={() => { insp.logoApi.setBorder(null); setInsp({ ...insp, logoBorder: null }); }} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (!insp.logoBorder ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>None</button>
                   </div>
@@ -3711,15 +3755,13 @@ function App() {
                 {!insp.swapOn && insp.swapSvgColor != null && <div>
                   <label className={LBL}>Logo color</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.swapSvgColor }}>
-                      <input type="color" value={insp.swapSvgColor} onChange={e => {
+                    <BrandColorField value={insp.swapSvgColor} onChange={hex => {
                         const root = containerRef.current;
                         const w = root.querySelector('[data-swap="' + insp.swapKey + '"] svg');
                         if (!w) return;
-                        setStyleAt(pathOf(w.parentElement, root), "color", e.target.value);
-                        setInsp({ ...insp, swapSvgColor: e.target.value });
-                      }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                        setStyleAt(pathOf(w.parentElement, root), "color", hex);
+                        setInsp({ ...insp, swapSvgColor: hex });
+                      }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.swapSvgColor}</span>
                   </div>
                 </div>}
@@ -3743,9 +3785,7 @@ function App() {
                 <div>
                   <label className={LBL}>Label background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.pinBg || "#000000" }}>
-                      <input type="color" value={insp.pinBg || "#000000"} onChange={e => { setStyleAt(insp.pinPath, "backgroundColor", e.target.value); setInsp({ ...insp, pinBg: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={insp.pinBg || "#000000"} onChange={hex => { setStyleAt(insp.pinPath, "backgroundColor", hex); setInsp({ ...insp, pinBg: hex }); }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.pinBg || "Default"}</span>
                     <button onClick={() => { setStyleAt(insp.pinPath, "backgroundColor", ""); setStyleAt(insp.pinPath, "backgroundImage", ""); setInsp({ ...insp, pinBg: null }); }} className="px-2.5 py-1 text-xs rounded-[30px] bg-white/10 text-zinc-300 hover:bg-white/15 transition">Reset</button>
                   </div>
@@ -3770,9 +3810,7 @@ function App() {
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
-                      <input type="color" value={insp.bgHex} onChange={e => setAp("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={insp.bgTransparent} value={insp.bgHex} onChange={hex => setAp("backgroundColor", hex, { bgHex: hex, bgTransparent: false })} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
                     <button onClick={() => setAp("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (insp.bgTransparent ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>Clear</button>
                   </div>
@@ -3780,9 +3818,7 @@ function App() {
                 <div>
                   <label className={LBL}>Border</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.borderW > 0 ? insp.borderHex : "repeating-conic-gradient(#333 0 25%, #555 0 50%) 50%/12px 12px" }}>
-                      <input type="color" value={insp.borderHex || "#e6e6e6"} onChange={e => { setAp("borderStyle", "solid"); if (!(insp.borderW > 0)) setAp("borderWidth", "2px"); setAp("borderColor", e.target.value, { borderHex: e.target.value, borderW: insp.borderW > 0 ? insp.borderW : 2 }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={!(insp.borderW > 0)} value={insp.borderHex || "#e6e6e6"} onChange={hex => { setAp("borderStyle", "solid"); if (!(insp.borderW > 0)) setAp("borderWidth", "2px"); setAp("borderColor", hex, { borderHex: hex, borderW: insp.borderW > 0 ? insp.borderW : 2 }); }} />
                     <input type="number" min="0" max="30" value={insp.borderW || 0} style={{ width: 76 }}
                       onChange={e => { const w = Math.max(0, +e.target.value); setAp("borderStyle", "solid"); setAp("borderWidth", w + "px", { borderW: w }); }}
                       className="px-3 py-2 rounded-[30px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none" />
@@ -3836,9 +3872,7 @@ function App() {
                   <div>
                     <label className={LBL}>Line color</label>
                     <div className="flex items-center gap-2">
-                      <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: (insp.styleMeta || {}).color || "#ffffff" }}>
-                        <input type="color" value={(insp.styleMeta || {}).color || "#ffffff"} onChange={e => updateStyleMeta({ color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      </label>
+                      <BrandColorField value={(insp.styleMeta || {}).color || "#ffffff"} onChange={hex => updateStyleMeta({ color: hex })} />
                       <span className="text-sm text-zinc-400 flex-1">{(insp.styleMeta || {}).color || "Auto"}</span>
                       {(insp.styleMeta || {}).color && <button onClick={() => updateStyleMeta({ color: null })} className="px-2.5 py-1 text-xs rounded-[30px] bg-white/10 text-zinc-300 hover:bg-white/15 transition">Auto</button>}
                     </div>
@@ -3907,9 +3941,7 @@ function App() {
                 <div>
                   <label className={LBL}>Color</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.color }}>
-                      <input type="color" value={insp.color} onChange={e => setStyle("color", e.target.value, { color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={insp.color} onChange={hex => setStyle("color", hex, { color: hex })} />
                     <span className="text-sm text-zinc-400">{insp.color}</span>
                   </div>
                 </div>
