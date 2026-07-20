@@ -2224,9 +2224,19 @@ function App() {
       ov.__groupBase[key] = { center: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }, members };
     }
     pushHistory();
-    const base = ov.__groupBase[key], Gc = base.center;
-    grp.paths.forEach(p => {
-      const el = nodeAt(root, p), mb = base.members[p]; if (!el || !mb) return;
+    ov.__groupScale[key] = s;
+    applyGroupScaleTransforms(key);
+    setInsp(i => (i ? { ...i, groupScale: s } : i));
+  }
+  // (re)apply a stored group scale to its members from the captured baseline — used by the slider and
+  // on load, so a saved scale always renders as a clean uniform scale about the group centre
+  function applyGroupScaleTransforms(key) {
+    const root = containerRef.current; if (!root) return;
+    const ov = ovFor(sel); const base = (ov.__groupBase || {})[key]; const s = (ov.__groupScale || {})[key];
+    if (!base || s == null) return;
+    const Gc = base.center;
+    for (const p in base.members) {
+      const el = nodeAt(root, p), mb = base.members[p]; if (!el) continue;
       // transform-origin:center pivots on the element's LAID-OUT centre, so subtract the base
       // translate from its visual centre to get the true pivot (moved elements drift otherwise)
       let bx = 0, by = 0;
@@ -2238,9 +2248,7 @@ function App() {
       ensureBase(p, el, ["transform"]);
       el.style.transformOrigin = "center"; el.style.transform = nt;
       const rec = ov[p] = ov[p] || {}; rec.style = rec.style || {}; rec.style.transform = nt;
-    });
-    ov.__groupScale[key] = s;
-    setInsp(i => (i ? { ...i, groupScale: s } : i));
+    }
   }
   function startResizeDrag(e, corner) {
     e.preventDefault(); e.stopPropagation();
@@ -3791,6 +3799,16 @@ function App() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [sel]);
+  // re-apply saved group scales after a creative loads so they render as a clean uniform scale
+  // (also self-heals scales saved by earlier, buggier versions)
+  useEffect(() => {
+    if (!sel) return;
+    const t = setTimeout(() => {
+      const gs = ovFor(sel).__groupScale; if (!gs) return;
+      for (const key in gs) applyGroupScaleTransforms(key);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [sel, demosLoaded]);
   // cmd/ctrl+g group the current selection, shift+cmd/ctrl+g ungroup
   useEffect(() => {
     if (!sel) return;
