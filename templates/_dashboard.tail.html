@@ -423,6 +423,10 @@ async function downloadUrl(url, name) {
 function htmlOverrideUnsafe(el) {
   return !!(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"));
 }
+// strip the editor's transient selection outline so it never bakes into saved/exported html
+function stripSelOutline(html) {
+  return typeof html === "string" ? html.replace(/outline(-offset)?:\s*[^;"']*;?/gi, "") : html;
+}
 function syncCustomLayersIn(frame, layers) {
   if (!frame) return;
   let wrap = frame.querySelector(":scope > [data-custom]");
@@ -509,7 +513,7 @@ function useDemoOverrides(ref, rec) {
         const el = nodeAt(base, path); if (!el) continue;
         const o = rec.overrides[path];
         if (el.tagName === "INPUT") { if (o.text != null) { el.value = o.text; el.setAttribute("value", o.text); } }
-        else if (o.html != null && o.text == null && !htmlOverrideUnsafe(el)) el.innerHTML = o.html;
+        else if (o.html != null && o.text == null && !htmlOverrideUnsafe(el)) el.innerHTML = stripSelOutline(o.html);
         else if (o.text != null) el.textContent = o.text;
         if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
       }
@@ -1800,7 +1804,7 @@ function App() {
       if (o.html != null && (o.text != null || htmlOverrideUnsafe(el))) delete o.html;   // corrupt/dangerous html snapshots self-clean
       // the scroll tick owns the inner paragraph's transform — a recorded one fights it every frame
       if (o.style && o.style.transform && el.parentElement && el.parentElement.hasAttribute("data-scrolltext")) delete o.style.transform;
-      if (o.html != null && el.tagName !== "INPUT" && el !== active) { if (el.__aoHtml !== o.html) { el.innerHTML = o.html; el.__aoHtml = o.html; } }
+      if (o.html != null && el.tagName !== "INPUT" && el !== active) { const clean = stripSelOutline(o.html); if (el.__aoHtml !== clean) { el.innerHTML = clean; el.__aoHtml = clean; } }
       else if (o.text != null && el.tagName !== "INPUT" && el !== active) { if (el.textContent !== o.text) el.textContent = o.text; }
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
     }
@@ -2428,7 +2432,7 @@ function App() {
     // rich text (spans with their own classes, e.g. two-tone headlines) must inherit the new value
     if (["fontSize", "color", "fontWeight", "fontStyle", "fontFamily", "letterSpacing", "textDecoration"].includes(prop) && el.querySelector("span")) {
       el.querySelectorAll("span").forEach(sp => { sp.style[prop] = "inherit"; });
-      rec.html = el.innerHTML; el.__aoHtml = rec.html;
+      rec.html = stripSelOutline(el.innerHTML); el.__aoHtml = rec.html;
     }
     setInsp({ ...insp, ...(patch || {}) });
   }
@@ -2438,7 +2442,7 @@ function App() {
     if (!el || el.tagName === "INPUT") return;
     pushHistory();
     const rec = ovFor(sel)[activeRef.current.path] = ovFor(sel)[activeRef.current.path] || {};
-    if (el.children.length) { rec.html = el.innerHTML; delete rec.text; }
+    if (el.children.length) { rec.html = stripSelOutline(el.innerHTML); delete rec.text; }
     else { rec.text = el.textContent; delete rec.html; }
     // keep the selection/resize box hugging the text as it grows or shrinks while typing
     requestAnimationFrame(syncHandle);
@@ -2451,7 +2455,7 @@ function App() {
     const path = pathOf(el, root);
     ensureBase(path, el, [], true);
     const rec = ovFor(sel)[path] = ovFor(sel)[path] || {};
-    rec.html = el.innerHTML; delete rec.text;
+    rec.html = stripSelOutline(el.innerHTML); delete rec.text;
   }
   // the editable text element that currently holds the (non-collapsed) selection, or null
   function selectionEditable() {

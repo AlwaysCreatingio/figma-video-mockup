@@ -89,7 +89,7 @@ function finalize(){
   // apply text + style overrides
   for(const p in X.overrides){ const el=pathAt(base,p); if(!el)continue; const o=X.overrides[p];
     if(el.tagName==="INPUT"){ if(o.text!=null){ el.value=o.text; el.setAttribute("value",o.text); } }
-    else if(o.html!=null && o.text==null && !(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"))) el.innerHTML=o.html;
+    else if(o.html!=null && o.text==null && !(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"))) el.innerHTML=String(o.html).replace(/outline(-offset)?:\s*[^;"']*;?/gi, "");
     else if(o.text!=null) el.textContent=o.text;
     if(o.style) for(const k of SP) if(o.style[k]!=null) el.style[k]=o.style[k];
   }
