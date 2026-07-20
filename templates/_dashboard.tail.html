@@ -70,7 +70,59 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "filter", "lineHeight"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "boxSizing", "boxShadow", "filter", "lineHeight"];
+// Agent Opus brand palette (from the brand guidelines) — presets for every color control.
+const BRAND_COLORS = [["#FA9819", "Orange"], ["#D77655", "Terracotta"], ["#C6EBF7", "Baby Blue"], ["#B6C9CF", "Blue Tint"], ["#F9F5F2", "Cream"], ["#1A1A1A", "Black"], ["#FFFFFF", "White"], ["#0F0F13", "Ink"]];
+// A color control: swatch button that opens a popover with brand presets + a native picker + hex.
+// The popover is position:fixed so the inspector's overflow never clips it.
+function BrandColorField({ value, onChange, transparent, title, swatchClass }) {
+  const { useState, useRef, useEffect } = React;
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const [txt, setTxt] = useState(value || "");
+  const btnRef = useRef(null);
+  const cur = value || "#ffffff";
+  useEffect(() => { setTxt(cur); }, [cur, open]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!e.target.closest("[data-brandpop]")) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    const id = setTimeout(() => { window.addEventListener("mousedown", close); window.addEventListener("keydown", onKey); }, 0);
+    return () => { clearTimeout(id); window.removeEventListener("mousedown", close); window.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const toggle = () => {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current.getBoundingClientRect();
+    const W = 224;
+    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)), top: Math.min(r.bottom + 6, window.innerHeight - 210) });
+    setOpen(true);
+  };
+  const commit = (v) => { let h = (v || "").trim(); if (h && h[0] !== "#") h = "#" + h; setTxt(v); if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) onChange(h); };
+  return (
+    <span className="relative inline-flex" data-brandpop>
+      <button ref={btnRef} type="button" onClick={toggle} title={title || cur}
+        className={swatchClass || "relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0"}
+        style={{ background: transparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : cur }} />
+      {open && pos && <div data-brandpop className="fixed z-[90] w-[224px] rounded-[16px] bg-[#242424] border border-white/10 shadow-2xl p-3" style={{ left: pos.left, top: pos.top }}>
+        <div className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold mb-2">Brand colors</div>
+        <div className="grid grid-cols-8 gap-1.5 mb-3">
+          {BRAND_COLORS.map(([hex, name]) => (
+            <button key={hex} type="button" title={name + " · " + hex} onClick={() => onChange(hex)}
+              className={"w-[22px] h-[22px] rounded-full transition hover:scale-110 " + ((cur || "").toLowerCase() === hex.toLowerCase() ? "ring-2 ring-white" : "ring-1 ring-white/25")}
+              style={{ background: hex }} />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="relative w-9 h-9 rounded-[10px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: /^#([0-9a-f]{6})$/i.test(cur) ? cur : "#ffffff" }}>
+            <input type="color" value={/^#([0-9a-f]{6})$/i.test(cur) ? cur : "#ffffff"} onChange={e => onChange(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+          </label>
+          <input value={txt} onChange={e => commit(e.target.value)} onBlur={e => setTxt(cur)} spellCheck={false}
+            className="flex-1 min-w-0 px-2.5 h-9 rounded-[10px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none focus:border-white/30" />
+        </div>
+      </div>}
+    </span>
+  );
+}
 // Seconds needed to scroll a prompt at a comfortable reading pace (~70 design px/sec), so a long
 // prompt over a short clip doesn't rush. 0 when nothing overflows. Shared by the editor + export.
 const SCROLL_READ_PXPS = 34;
@@ -371,6 +423,65 @@ async function downloadUrl(url, name) {
 function htmlOverrideUnsafe(el) {
   return !!(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"));
 }
+// strip the editor's transient selection outline so it never bakes into saved/exported html
+function stripSelOutline(html) {
+  return typeof html === "string" ? html.replace(/outline(-offset)?:\s*[^;"']*;?/gi, "") : html;
+}
+// parse an inset box-shadow ring (our media "border") from inline or computed form -> {w,color}
+function parseInset(bsh) {
+  if (!bsh || bsh === "none") return null;
+  let m = bsh.match(/inset\s+\S+\s+\S+\s+([\d.]+)px\s+(#[0-9a-fA-F]+|rgba?\([^)]+\))/);
+  if (m) return { w: Math.round(parseFloat(m[1])), color: m[2] };
+  m = bsh.match(/(#[0-9a-fA-F]+|rgba?\([^)]+\))\s+[\d.]+px\s+[\d.]+px\s+[\d.]+px\s+([\d.]+)px\s+inset/);
+  if (m) return { w: Math.round(parseFloat(m[2])), color: m[1] };
+  return null;
+}
+// #rrggbb + alpha -> rgba() string
+function hexA(hex, a) {
+  const m = String(hex || "#000000").replace("#", "").match(/.{2}/g) || ["00", "00", "00"];
+  const [r, g, b] = m.map(x => parseInt(x, 16));
+  return `rgba(${r},${g},${b},${a})`;
+}
+// keep a per-slot gradient overlay (a [data-grad] child) in sync with its config
+function applySlotGradient(slot, grad) {
+  if (!slot) return;
+  let ov = slot.querySelector(":scope > [data-grad]");
+  if (!grad || !grad.on) { if (ov) ov.remove(); return; }
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.setAttribute("data-grad", "1");
+    ov.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:4;border-radius:inherit;";
+    slot.appendChild(ov);
+  } else if (slot.lastElementChild !== ov) slot.appendChild(ov);
+  const color = grad.color || "#000000";
+  const dir = grad.dir || "to top";
+  const op = grad.opacity != null ? grad.opacity : 0.6;
+  ov.style.background = `linear-gradient(${dir}, ${hexA(color, op)} 0%, ${hexA(color, 0)} 70%)`;
+}
+// progressive blur overlay: a backdrop-filter blur masked by a gradient so it fades in from one side
+function applySlotBlur(slot, blur) {
+  if (!slot) return;
+  let ov = slot.querySelector(":scope > [data-blur]");
+  if (!blur || !blur.on) { if (ov) ov.remove(); return; }
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.setAttribute("data-blur", "1");
+    slot.appendChild(ov);
+  } else if (slot.lastElementChild !== ov && !slot.querySelector(":scope > [data-grad]")) slot.appendChild(ov);
+  const amt = blur.amount || 8;
+  const dir = blur.dir || "to top";
+  const mask = `linear-gradient(${dir}, #000 0%, #000 25%, transparent 75%)`;
+  ov.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:3;border-radius:inherit;` +
+    `-webkit-backdrop-filter:blur(${amt}px);backdrop-filter:blur(${amt}px);` +
+    `-webkit-mask-image:${mask};mask-image:${mask};`;
+}
+// a bubble caption hidden without the intentional-hide marker is a legacy artifact — make it visible
+function healBubbleCaptions(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('[data-bubble] span').forEach(s => {
+    if (s.style.display === "none" && !s.hasAttribute("data-caphide")) s.style.display = "inline-block";
+  });
+}
 function syncCustomLayersIn(frame, layers) {
   if (!frame) return;
   let wrap = frame.querySelector(":scope > [data-custom]");
@@ -394,6 +505,15 @@ function syncCustomLayersIn(frame, layers) {
       wrap.insertBefore(el, wrap.children[i] || null);
     } else if (cl.img && el.getAttribute("src") !== cl.img) {
       el.setAttribute("src", cl.img);
+    }
+    // text layers hug their content but wrap to new lines once they'd run past the frame edge
+    if (!cl.img && el) {
+      el.style.whiteSpace = "pre-wrap";
+      el.style.wordBreak = "break-word";
+      if (!el.style.width || el.style.width === "auto") el.style.width = "max-content";
+      const leftPx = parseFloat(el.style.left) || 0;
+      const fw = frame.clientWidth || frame.offsetWidth || 1080;
+      el.style.maxWidth = Math.max(80, Math.round(fw - leftPx - 8)) + "px";
     }
   });
   while (wrap.children.length > layers.length) wrap.lastElementChild.remove();
@@ -448,10 +568,11 @@ function useDemoOverrides(ref, rec) {
         const el = nodeAt(base, path); if (!el) continue;
         const o = rec.overrides[path];
         if (el.tagName === "INPUT") { if (o.text != null) { el.value = o.text; el.setAttribute("value", o.text); } }
-        else if (o.html != null && o.text == null && !htmlOverrideUnsafe(el)) el.innerHTML = o.html;
+        else if (o.html != null && o.text == null && !htmlOverrideUnsafe(el)) el.innerHTML = stripSelOutline(o.html);
         else if (o.text != null) el.textContent = o.text;
         if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
       }
+      healBubbleCaptions(base);
       if (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on) {
         const frame = base.firstElementChild;
         const media = base.querySelector("[data-vslot] video, [data-vslot] img");
@@ -1451,9 +1572,13 @@ function App() {
 
   const [handle, setHandle] = useState(null);   // move-handle position (main-relative) for the selected element
   const [guides, setGuides] = useState(null); // {x,y} crosshair guide lines while dragging (design px)
+  const [bubbleTb, setBubbleTb] = useState(null); // {x,y} viewport pos of the "Image bubble" toolbar over a text selection
+  const bubbleRangeRef = useRef(null);            // saved selection Range while the image file picker is open
   const mainRef = useRef(null);
   const overrides = useRef({});
   const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
+  const zoomSeenRef = useRef({});      // per-template: { slot: lastMediaSrc } — tracks which media got the auto-zoom
+  const suppressZoomUntilRef = useRef(0); // don't auto-zoom media injected from a saved demo/asset (keeps its saved zoom)
   const customLayers = useRef({});     // per-template user-added layers: [{ id, text, style }]
   const histRef = useRef({});          // undo stacks per template
   const redoRef = useRef({});
@@ -1627,7 +1752,11 @@ function App() {
   const applyXf = (root, id) => {
     const xf = xfFor(id);
     for (const k in xf) {
+      const slotEl0 = root.querySelector('[data-vslot="' + k + '"]');
+      applySlotGradient(slotEl0, xf[k].grad);
+      applySlotBlur(slotEl0, xf[k].blur);
       const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
+      if (m && m.tagName === "VIDEO") { try { m.playbackRate = xf[k].speed || 1; } catch (e) {} }
       if (m) {
         const t = xf[k];
         const s2 = t.s || 1;
@@ -1647,10 +1776,38 @@ function App() {
           m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${s2})`;
         }
         m.style.transformOrigin = "center"; m.draggable = false;
+        m.style.filter = "";   // blur is now a progressive overlay, not a filter on the media
       }
     }
   };
 
+  // fresh media dropped into a slot defaults to 102% zoom. Self-healing: applies whenever a
+  // populated slot has no explicit zoom yet or its source just changed, so it survives the async
+  // template-default seeding that can wipe mediaXf. While a saved demo/asset injects its media
+  // (suppression window) we instead lock in its saved/implicit zoom so existing records are untouched.
+  function autoZoomNewMedia(root) {
+    const seen = zoomSeenRef.current[sel] = zoomSeenRef.current[sel] || {};
+    const suppressed = Date.now() < suppressZoomUntilRef.current;
+    root.querySelectorAll("[data-vslot]").forEach(slotEl => {
+      const k = slotEl.getAttribute("data-vslot");
+      const m = slotEl.querySelector("video, img");
+      const src = m ? (m.currentSrc || m.getAttribute("src") || m.src || "") : "";
+      if (!src) { delete seen[k]; return; }          // slot emptied
+      const srcChanged = seen[k] !== src;
+      seen[k] = src;
+      const xf = xfFor(sel);
+      const t = xf[k];
+      const hasZoom = t && typeof t.s === "number";
+      if (suppressed) {                              // media from a saved record: keep its zoom (default 100%)
+        if (!hasZoom) (xf[k] = t || { x: 0, y: 0 }).s = 1;
+        return;
+      }
+      if (srcChanged || !hasZoom) {                  // fresh insert / replace: default to 102%
+        (xf[k] = t || { x: 0, y: 0 }).s = 1.02;
+        setInsp(i => (i && i.isMedia && i.slot === k ? { ...i, mediaScale: 1.02, hasMedia: true } : i));
+      }
+    });
+  }
   function solidifyEmptySlots(root) {
     root.querySelectorAll("[data-vslot]").forEach(el => {
       if (el.querySelector("video, img")) { if (el.dataset.opq) { el.style.backgroundColor = ""; delete el.dataset.opq; } return; }
@@ -1708,10 +1865,12 @@ function App() {
       if (o.html != null && (o.text != null || htmlOverrideUnsafe(el))) delete o.html;   // corrupt/dangerous html snapshots self-clean
       // the scroll tick owns the inner paragraph's transform — a recorded one fights it every frame
       if (o.style && o.style.transform && el.parentElement && el.parentElement.hasAttribute("data-scrolltext")) delete o.style.transform;
-      if (o.html != null && el.tagName !== "INPUT" && el !== active) { if (el.__aoHtml !== o.html) { el.innerHTML = o.html; el.__aoHtml = o.html; } }
+      if (o.html != null && el.tagName !== "INPUT" && el !== active) { const clean = stripSelOutline(o.html); if (el.__aoHtml !== clean) { el.innerHTML = clean; el.__aoHtml = clean; } }
       else if (o.text != null && el.tagName !== "INPUT" && el !== active) { if (el.textContent !== o.text) el.textContent = o.text; }
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
     }
+    healBubbleCaptions(root);
+    autoZoomNewMedia(root);
     applyXf(root, sel);
     solidifyEmptySlots(root);
     syncAmbient();
@@ -1816,7 +1975,7 @@ function App() {
     applyAll(); force(x => x + 1);
     setTimeout(() => {
       const el2 = containerRef.current && containerRef.current.querySelector('[data-cl="' + id2 + '"]');
-      if (el2) selectEl(el2, true);
+      if (el2) selectEl(el2, true, true);   // new text layers open ready to type
     }, 80);
   }
   // save the current drawing as one full-frame image layer (replaces any prior drawing)
@@ -1961,6 +2120,53 @@ function App() {
     clearMulti();
     setHandle(null);
   }
+  // ---- persistent layer groups (per template/demo), stored in overrides.__groups ----
+  const groupsFor = () => (ovFor(sel).__groups = ovFor(sel).__groups || []);
+  const groupOfPath = (path) => groupsFor().find(g => g.indexOf(path) >= 0) || null;
+  function selectedPaths() {
+    const ps = [];
+    if (activeRef.current && activeRef.current.path != null) ps.push(activeRef.current.path);
+    multiRef.current.forEach(m => { if (ps.indexOf(m.path) < 0) ps.push(m.path); });
+    return ps.filter(p => p !== "" && p !== "0" && p != null);
+  }
+  function groupSelection() {
+    const ps = selectedPaths();
+    if (ps.length < 2) { if (window.__toast) window.__toast("Select 2+ layers to group (shift-click)"); return; }
+    pushHistory(true);
+    const groups = groupsFor();
+    // a layer belongs to at most one group: drop these paths from any existing group first
+    for (let i = groups.length - 1; i >= 0; i--) {
+      groups[i] = groups[i].filter(p => ps.indexOf(p) < 0);
+      if (groups[i].length < 2) groups.splice(i, 1);
+    }
+    groups.push(ps.slice());
+    force(x => x + 1);
+    if (window.__toast) window.__toast("Grouped " + ps.length + " layers");
+  }
+  function ungroupPaths(ps) {
+    const groups = groupsFor();
+    let changed = false;
+    for (let i = groups.length - 1; i >= 0; i--) {
+      if (groups[i].some(p => ps.indexOf(p) >= 0)) { if (!changed) pushHistory(true); groups.splice(i, 1); changed = true; }
+    }
+    if (changed) { force(x => x + 1); if (window.__toast) window.__toast("Ungrouped"); }
+    return changed;
+  }
+  function ungroupSelection() { ungroupPaths(selectedPaths()); }
+  // when a grouped layer is selected, pull its group-mates into the multi-selection so the group moves as one
+  function expandGroupSelection() {
+    const a = activeRef.current; if (!a || a.path == null) return;
+    const g = groupOfPath(a.path); if (!g) return;
+    const root = containerRef.current; if (!root) return;
+    g.forEach(p => {
+      if (p === a.path || multiRef.current.some(m => m.path === p)) return;
+      const el = nodeAt(root, p); if (!el) return;
+      const rec = ovFor(sel)[p];
+      if (rec && (rec.deleted || (rec.style && rec.style.display === "none"))) return;
+      el.style.outline = "2px solid #2563eb"; el.style.outlineOffset = "1px";
+      multiRef.current.push({ el, path: p });
+    });
+  }
   function startResizeDrag(e, corner) {
     e.preventDefault(); e.stopPropagation();
     const rec0 = activeRef.current; if (!rec0 || !insp) return;
@@ -2065,6 +2271,16 @@ function App() {
       const bcs = getComputedStyle(bel);
       return { path: m.path, el: bel, base: bcs.transform === "none" ? "" : bcs.transform + " " };
     }).filter(Boolean);
+    // combined bounding box of the moving set (leader + buddies) — snapping targets this box so a
+    // whole group aligns by its outer edges/center, not just the clicked leader
+    let gx = bx, gy = by, gr = bx + ew, gb = by + eh;
+    buddies.forEach(bd => {
+      const r = bd.el.getBoundingClientRect();
+      const L = (r.left - cont.left) / sc0, T = (r.top - cont.top) / sc0;
+      gx = Math.min(gx, L); gy = Math.min(gy, T);
+      gr = Math.max(gr, L + r.width / sc0); gb = Math.max(gb, T + r.height / sc0);
+    });
+    const gw = gr - gx, gh = gb - gy;
     // alignment targets: edges + centers of every other visible element on the canvas
     const rootC = containerRef.current;
     const skip = new Set([el, rec0.outEl, ...buddies.map(b2 => b2.el)]);
@@ -2100,12 +2316,12 @@ function App() {
       let cSnapX = false, cSnapY = false;
       let guideX = null, guideY = null;
       if (!ev.altKey) {
-        dx = Math.round((bx + dx) / GRID) * GRID - bx;
-        dy = Math.round((by + dy) / GRID) * GRID - by;
-        // align to other elements' edges and centers (beats the grid)
+        dx = Math.round((gx + dx) / GRID) * GRID - gx;
+        dy = Math.round((gy + dy) / GRID) * GRID - gy;
+        // align the group box's edges and centers to other elements (beats the grid)
         let bestX = null, bestY = null;
-        const myXs = [bx + dx, bx + dx + ew / 2, bx + dx + ew];
-        const myYs = [by + dy, by + dy + eh / 2, by + dy + eh];
+        const myXs = [gx + dx, gx + dx + gw / 2, gx + dx + gw];
+        const myYs = [gy + dy, gy + dy + gh / 2, gy + dy + gh];
         aligns.forEach(a => {
           a.xs.forEach(axv => myXs.forEach(mx => { const d = axv - mx; if (Math.abs(d) < SNAP && (bestX == null || Math.abs(d) < Math.abs(bestX.d))) bestX = { d, at: axv }; }));
           a.ys.forEach(ayv => myYs.forEach(my => { const d = ayv - my; if (Math.abs(d) < SNAP && (bestY == null || Math.abs(d) < Math.abs(bestY.d))) bestY = { d, at: ayv }; }));
@@ -2113,13 +2329,13 @@ function App() {
         if (bestX) { dx += bestX.d; guideX = bestX.at; }
         if (bestY) { dy += bestY.d; guideY = bestY.at; }
         // canvas-center snapping takes priority over everything
-        const cx = bx + dx + ew / 2, cy = by + dy + eh / 2;
+        const cx = gx + dx + gw / 2, cy = gy + dy + gh / 2;
         if (Math.abs(cx - CVW / 2) < 8) { dx += CVW / 2 - cx; cSnapX = true; guideX = null; }
         if (Math.abs(cy - CVH / 2) < 8) { dy += CVH / 2 - cy; cSnapY = true; guideY = null; }
       }
       setGuides({
-        x: guideX != null ? guideX : bx + dx + ew / 2,
-        y: guideY != null ? guideY : by + dy + eh / 2,
+        x: guideX != null ? guideX : gx + dx + gw / 2,
+        y: guideY != null ? guideY : gy + dy + gh / 2,
         cx: cSnapX, cy: cSnapY, ax: guideX != null, ay: guideY != null,
       });
       const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
@@ -2150,7 +2366,32 @@ function App() {
     window.addEventListener("pointercancel", up);
     window.addEventListener("blur", up);
   }
-  function selectEl(el, forceText) {
+  // nudge one element by (dx,dy) design px, composing onto a translate we own at the end of its transform
+  function nudgeEl(path, el, dx, dy) {
+    if (!el || path == null) return;
+    ensureBase(path, el, ["transform"]);
+    const rec = ovFor(sel)[path] = ovFor(sel)[path] || {}; rec.style = rec.style || {};
+    let tf = rec.style.transform;
+    if (tf == null || tf === "") { const cs = getComputedStyle(el).transform; tf = (cs && cs !== "none") ? cs + " " : ""; }
+    const m = /translate\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*\)\s*$/.exec(tf);
+    let base = tf, x = 0, y = 0;
+    if (m) { base = tf.slice(0, m.index); x = parseFloat(m[1]); y = parseFloat(m[2]); }
+    x = Math.round(x + dx); y = Math.round(y + dy);
+    const nt = base + `translate(${x}px, ${y}px)`;
+    el.style.transform = nt; rec.style.transform = nt;
+  }
+  // arrow-key nudge: move the current selection (and its buddies) by 1px, or 10px with Shift
+  function nudgeSelection(dx, dy) {
+    const a = activeRef.current, root = containerRef.current; if (!a || !root) return;
+    if (a.bubble || a.path === "" || a.path === "0") return;   // background / inline bubbles don't nudge
+    pushHistory();
+    const primary = (a.outEl && a.outEl.isConnected && a.outPath != null) ? { path: a.outPath, el: a.outEl } : { path: a.path, el: (a.el && a.el.isConnected) ? a.el : nodeAt(root, a.path) };
+    nudgeEl(primary.path, primary.el, dx, dy);
+    multiRef.current.forEach(mm => nudgeEl(mm.path, (mm.el && mm.el.isConnected) ? mm.el : nodeAt(root, mm.path), dx, dy));
+    requestAnimationFrame(syncHandle);
+    setInsp(i => (i ? { ...i, moved: true } : i));
+  }
+  function selectEl(el, forceText, startEdit) {
     const root = containerRef.current; if (!el || !root.contains(el)) return;
     // non-text clicks inside a label pill select the pill itself, so moving and the layer row
     // always target the same box
@@ -2175,7 +2416,9 @@ function App() {
     const path = pathOf(el, root);
     const text = forceText || isTextLeaf(el);
     const slotEl = el.closest(".cursor-pointer");
-    if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = "true"; el.focus(); }
+    // text layers select (movable) on a single click; editing (caret/focus) is entered on
+    // double-click so dragging the body still moves the layer
+    if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = startEdit ? "true" : "false"; if (startEdit) el.focus(); }
     const outEl = (el.closest && el.closest("[data-scrolltext]")) || el;
     outEl.style.outline = "2px solid #2563eb";
     outEl.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
@@ -2235,6 +2478,7 @@ function App() {
       italic: (ovs.fontStyle || cs.fontStyle) === "italic",
       underline: (ovs.textDecoration || cs.textDecorationLine || "").includes("underline"),
     });
+    expandGroupSelection();
   }
   function setStyle(prop, val, patch) {
     let el = activeRef.current && activeRef.current.el; if (!el || !insp) return;
@@ -2250,7 +2494,7 @@ function App() {
     // rich text (spans with their own classes, e.g. two-tone headlines) must inherit the new value
     if (["fontSize", "color", "fontWeight", "fontStyle", "fontFamily", "letterSpacing", "textDecoration"].includes(prop) && el.querySelector("span")) {
       el.querySelectorAll("span").forEach(sp => { sp.style[prop] = "inherit"; });
-      rec.html = el.innerHTML; el.__aoHtml = rec.html;
+      rec.html = stripSelOutline(el.innerHTML); el.__aoHtml = rec.html;
     }
     setInsp({ ...insp, ...(patch || {}) });
   }
@@ -2260,8 +2504,77 @@ function App() {
     if (!el || el.tagName === "INPUT") return;
     pushHistory();
     const rec = ovFor(sel)[activeRef.current.path] = ovFor(sel)[activeRef.current.path] || {};
-    if (el.children.length) { rec.html = el.innerHTML; delete rec.text; }
+    if (el.children.length) { rec.html = stripSelOutline(el.innerHTML); delete rec.text; }
     else { rec.text = el.textContent; delete rec.html; }
+    // keep the selection/resize box hugging the text as it grows or shrinks while typing
+    requestAnimationFrame(syncHandle);
+    // mirror the live text into the inspector's Content field
+    setInsp(i => (i && i.isText && i.textValue != null ? { ...i, textValue: el.innerText } : i));
+  }
+  // save a text element's rich html into its override so bubbles/inline nodes persist + export
+  function persistTextHtml(el) {
+    const root = containerRef.current; if (!root || !el || !el.isConnected) return;
+    const path = pathOf(el, root);
+    ensureBase(path, el, [], true);
+    const rec = ovFor(sel)[path] = ovFor(sel)[path] || {};
+    rec.html = stripSelOutline(el.innerHTML); delete rec.text;
+  }
+  // the editable text element that currently holds the (non-collapsed) selection, or null
+  function selectionEditable() {
+    const s = window.getSelection && window.getSelection();
+    const root = containerRef.current;
+    if (!editMode || !s || s.isCollapsed || !s.rangeCount || !root) return null;
+    const anc = s.getRangeAt(0).commonAncestorContainer;
+    const host = anc.nodeType === 3 ? anc.parentElement : anc;
+    const editable = host && host.closest && host.closest('[contenteditable="true"]');
+    return (editable && root.contains(editable)) ? editable : null;
+  }
+  // highlight text -> replace the selection with an inline pill: image + the highlighted text
+  function startTextBubble(e) {
+    e.preventDefault(); e.stopPropagation();   // keep the selection alive across the click
+    const editable = selectionEditable(); if (!editable) return;
+    bubbleRangeRef.current = window.getSelection().getRangeAt(0).cloneRange();
+    const i = document.createElement("input"); i.type = "file"; i.accept = "image/*";
+    i.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+    document.body.appendChild(i);
+    i.onchange = () => {
+      const f = i.files && i.files[0]; i.remove();
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => insertTextBubble(String(rd.result));
+      rd.readAsDataURL(f);
+    };
+    i.click();
+  }
+  function insertTextBubble(src) {
+    const range = bubbleRangeRef.current; bubbleRangeRef.current = null;
+    const root = containerRef.current; if (!range || !root) return;
+    const anc = range.commonAncestorContainer;
+    const host = anc.nodeType === 3 ? anc.parentElement : anc;
+    const editable = host && host.closest && host.closest('[contenteditable="true"]');
+    if (!editable || !root.contains(editable)) { setBubbleTb(null); return; }
+    pushHistory(true);
+    const text = range.toString();
+    const pill = document.createElement("span");
+    pill.setAttribute("data-bubble", "1");
+    pill.setAttribute("contenteditable", "false");
+    pill.style.cssText = "display:inline-flex;align-items:center;gap:.35em;vertical-align:middle;padding:.14em .6em .14em .18em;margin:0 .12em;border-radius:9999px;background:rgba(128,128,128,.22);line-height:1;white-space:nowrap;";
+    const img = document.createElement("img");
+    img.src = src; img.setAttribute("alt", "");
+    img.style.cssText = "height:1.2em;width:1.2em;object-fit:cover;border-radius:9999px;display:inline-block;flex:none;";
+    pill.appendChild(img);
+    if (text.trim()) { const cap = document.createElement("span"); cap.textContent = text; cap.style.cssText = "display:inline-block;"; pill.appendChild(cap); }
+    range.deleteContents();
+    range.insertNode(pill);
+    // a zero-width text node after the pill so the caret has somewhere to land
+    const zw = document.createTextNode("​");
+    if (pill.parentNode) pill.parentNode.insertBefore(zw, pill.nextSibling);
+    const s = window.getSelection(); s.removeAllRanges();
+    const nr = document.createRange(); nr.setStartAfter(zw); nr.collapse(true); s.addRange(nr);
+    persistTextHtml(editable);
+    setBubbleTb(null);
+    requestAnimationFrame(syncHandle);
+    if (window.__toast) window.__toast("Bubble added");
   }
   function onEditorClick(e) {
     if (!editMode || suppressRef.current) return;
@@ -2288,15 +2601,118 @@ function App() {
       if (onClick) onClick({ stopPropagation() {}, preventDefault() {} });
       return;
     }
+    // an image bubble selects as its own element (edit its background / image / remove it)
+    const bub = el.closest && el.closest("[data-bubble]");
+    if (bub && containerRef.current.contains(bub)) { e.preventDefault(); e.stopPropagation(); selectBubble(bub); return; }
     const unit = textUnit(el);
     if (unit && containerRef.current.contains(unit) && isTextLeaf(unit)) {
       if (unit.tagName !== "INPUT") e.preventDefault();
       e.stopPropagation();
-      selectEl(unit);
+      const path = pathOf(unit, containerRef.current);
+      const already = activeRef.current && activeRef.current.path === path;
+      const editing = already && activeRef.current.el && activeRef.current.el.isContentEditable && document.activeElement === activeRef.current.el;
+      // first click selects (movable); clicking an already-selected text again starts editing
+      if (unit.tagName !== "INPUT" && already && !editing) enterTextEdit(unit, e);
+      else selectEl(unit);
       return;
     }
     e.preventDefault(); e.stopPropagation();
     selectEl(el);
+  }
+  // enter text-edit mode: focus the element for typing and drop the caret where the user clicked
+  // (optionally selecting the word under the pointer, for double-click)
+  function enterTextEdit(el, e, selectWord) {
+    const root = containerRef.current; if (!el || !root.contains(el)) return;
+    if (!activeRef.current || activeRef.current.el !== el) selectEl(el, true, true);
+    el.contentEditable = "true"; el.focus();
+    try {
+      const s = window.getSelection();
+      if (e && document.caretRangeFromPoint) {
+        const r = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (r) { s.removeAllRanges(); s.addRange(r); }
+      }
+      if (selectWord && s.modify) { s.modify("move", "backward", "word"); s.modify("extend", "forward", "word"); }
+    } catch (err) {}
+    requestAnimationFrame(syncHandle);
+  }
+  function onEditorDblClick(e) {
+    if (!editMode || suppressRef.current) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+    const unit = textUnit(e.target);
+    if (!unit || !containerRef.current.contains(unit) || !isTextLeaf(unit) || unit.tagName === "INPUT") return;
+    e.preventDefault(); e.stopPropagation();
+    enterTextEdit(unit, e, true);
+  }
+  // ---- image bubbles (inline image+text pills inside a text layer) ----
+  function bubbleParent() {
+    const a = activeRef.current; if (!a) return null;
+    return (a.parentEl && a.parentEl.isConnected) ? a.parentEl : (a.el && a.el.closest("[data-cl], p, h1, h2, h3"));
+  }
+  function selectBubble(bub) {
+    const root = containerRef.current; if (!bub || !root.contains(bub)) return;
+    clearActive();
+    bub.style.outline = "2px solid #2563eb"; bub.style.outlineOffset = "2px";
+    const img = bub.querySelector("img");
+    const cap = bub.querySelector("span");
+    const bcs = getComputedStyle(bub);
+    const bg = parseColor(bcs.backgroundColor);
+    const bd = parseColor(bub.style.borderColor || bcs.borderTopColor);
+    activeRef.current = { el: bub, path: pathOf(bub, root), bubble: true, parentEl: bub.closest("[data-cl], p, h1, h2, h3") };
+    setOpenSec("Bubble");
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex });
+  }
+  function setBubbleBg(hex) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    pushHistory();
+    bub.style.background = hex;
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, bgHex: hex, bgTransparent: false }));
+  }
+  function setBubbleBorder(w, color) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    pushHistory();
+    const hex = color != null ? color : (insp.bubbleBorderHex || "#000000");
+    const px = w != null ? w : (insp.bubbleBorderW || 0);
+    bub.style.border = px > 0 ? (px + "px solid " + hex) : "";
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, bubbleBorderW: px, bubbleBorderHex: hex }));
+  }
+  function setBubbleText(show) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    const cap = bub.querySelector("span"); if (!cap) return;
+    pushHistory(true);
+    // mark intentional hides so legacy display:none (an old artifact) can still be auto-healed to visible
+    if (show) { cap.style.display = "inline-block"; cap.removeAttribute("data-caphide"); }
+    else { cap.style.display = "none"; cap.setAttribute("data-caphide", "1"); }
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, textShown: show }));
+  }
+  function setBubbleImgFit(full) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    const img = bub.querySelector("img"); if (!img) return;
+    pushHistory(true);
+    if (full) { img.style.width = "auto"; img.style.height = "1.2em"; img.style.maxWidth = "8em"; img.style.objectFit = "contain"; img.style.borderRadius = ".3em"; }
+    else { img.style.width = "1.2em"; img.style.height = "1.2em"; img.style.maxWidth = ""; img.style.objectFit = "cover"; img.style.borderRadius = "9999px"; }
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, bubbleFull: full }));
+  }
+  function replaceBubbleImg() {
+    const bub = activeRef.current && activeRef.current.el; if (!bub) return;
+    const img = bub.querySelector("img"); if (!img) return;
+    const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+    document.body.appendChild(i);
+    i.onchange = () => { const f = i.files && i.files[0]; i.remove(); if (!f) return; const rd = new FileReader(); rd.onload = () => { pushHistory(true); img.src = String(rd.result); const p = bubbleParent(); if (p) persistTextHtml(p); }; rd.readAsDataURL(f); };
+    i.click();
+  }
+  function removeBubble() {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    pushHistory(true);
+    const p = bubbleParent();
+    const cap = bub.querySelector("span");
+    bub.replaceWith(document.createTextNode(cap ? cap.textContent : ""));
+    if (p) persistTextHtml(p);
+    deselect(); force(x => x + 1);
+    if (window.__toast) window.__toast("Bubble removed");
   }
   function selectParent() { const el = activeRef.current && activeRef.current.el; if (el && el.parentElement && containerRef.current.contains(el.parentElement) && el.parentElement !== containerRef.current) selectEl(el.parentElement); }
   function uploadIntoSlot() {
@@ -2335,7 +2751,12 @@ function App() {
     const tt = xfFor(sel)[kk] || {};
     setOpenSec("Fit");
     const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
-    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video") });
+    const __ins = parseInset((__mo.style || {}).boxShadow || getComputedStyle(slot).boxShadow);
+    const __bw = __ins ? __ins.w : Math.round(parseFloat((__mo.style || {}).borderWidth) || 0);
+    const __bd = parseColor(__ins ? __ins.color : ((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor));
+    const __grad = tt.grad || {};
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: __bw, borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top" });
+    expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
   function layerList() {
@@ -2358,7 +2779,8 @@ function App() {
       items.push({ label: (t || "Text").slice(0, 24), kind: "text", el });
     });
     root.querySelectorAll("img").forEach(el => {
-      if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot]") || el.hasAttribute("data-ambient")) return;
+      if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot], [data-bubble]") || el.hasAttribute("data-ambient")) return;
+      if (el.closest("p, h1, h2, h3")) return;   // inline images inside a text layer belong to that layer
       items.push({ label: el.alt || "Image", kind: "image", el });
     });
     const shown = items.filter(it => {
@@ -2430,6 +2852,60 @@ function App() {
     }
     selectEl(it.el, it.kind === "text" && it.el.tagName !== "INPUT" ? true : undefined);
   }
+  // group-aware view of the layer list: contiguous group members collapse under a group header
+  function layerTree() {
+    const items = layerList();
+    const groups = (ovFor(sel).__groups || []);
+    const byPath = {}; items.forEach(it => { byPath[it.path] = it; });
+    const used = {}, emitted = {}, units = [];
+    items.forEach(it => {
+      if (used[it.path]) return;
+      const gi = groups.findIndex(g => g.indexOf(it.path) >= 0);
+      if (gi >= 0 && !emitted[gi]) {
+        const members = groups[gi].map(p => byPath[p]).filter(Boolean);
+        if (members.length >= 2) {
+          members.forEach(m => { used[m.path] = 1; }); emitted[gi] = 1;
+          units.push({ type: "group", gi, members }); return;
+        }
+      }
+      used[it.path] = 1; units.push({ type: "item", item: it });
+    });
+    return units;
+  }
+  function renderLayerRow(it, key, indent) {
+    const active = (activeRef.current && insp && activeRef.current.path === it.path) || multiRef.current.some(m => m.path === it.path)
+      || (insp && insp.isLogo && insp.logoApi && insp.logoApi.k != null && it.el && it.el.getAttribute && it.el.getAttribute("data-lslot") === insp.logoApi.k);
+    return (
+      <button key={key} onClick={(e) => {
+        if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current && it.kind !== "bg" && it.kind !== "logo") {
+          const root = containerRef.current;
+          const el = it.el && it.el.isConnected ? it.el : nodeAt(root, it.path);
+          if (el) toggleMulti(el);
+          return;
+        }
+        selectLayer(it);
+      }}
+        style={indent ? { paddingLeft: 22 } : undefined}
+        className={"group/layer w-full flex items-center gap-2.5 px-3 py-2 rounded-[14px] text-sm hover:bg-white/10 hover:text-white transition text-left " +
+          (active ? "bg-[#2F2F2F] text-white " : (layerHidden(it) ? "text-zinc-600 " : "text-zinc-300 "))}>
+        <span className="shrink-0 text-zinc-500">
+          {it.kind === "bg" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>}
+          {it.kind === "video" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>}
+          {it.kind === "logo" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>}
+          {it.kind === "label" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12l-8 8-9-9V4h7l10 8z"/></svg>}
+          {it.kind === "text" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>}
+          {it.kind === "image" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
+        </span>
+        <span className="truncate flex-1">{it.label}</span>
+        {it.kind !== "bg" && <span onClick={(e) => { e.stopPropagation(); toggleLayerHidden(it); }} title={layerHidden(it) ? "Show layer" : "Hide layer"}
+          className={"shrink-0 cursor-pointer transition " + (layerHidden(it) ? "text-zinc-500 hover:text-white" : "text-zinc-500 opacity-0 group-hover/layer:opacity-100 hover:text-white")}>
+          {layerHidden(it)
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><path d="M14.12 14.12a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+        </span>}
+      </button>
+    );
+  }
   // drag-to-pan media inside its slot (mousedown+move on a filled slot); a real drag suppresses the click
   function onMediaDragStart(e) {
     if (!editMode) return;
@@ -2438,6 +2914,10 @@ function App() {
     if (!slot || !containerRef.current.contains(slot)) {
       // not on media: direct-drag the selected element from anywhere on it (text keeps the ✥ handle)
       const a = activeRef.current;
+      // while a text layer is focused for editing, let a drag highlight text instead of moving it (move via the ✥ handle)
+      if (a && a.text && a.el && document.activeElement === a.el) return;
+      if (a && a.bubble) return;   // bubbles are inline; don't drag-move them
+      if (insp && insp.isBubble) return;
       if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isSlot && insp.path !== "" && insp.path !== "0" &&
           !a.el.hasAttribute("data-vslot") && (e.target === a.el || a.el.contains(e.target) ||
             multiRef.current.some(m => m.el && m.el.isConnected && (e.target === m.el || m.el.contains(e.target))))) startMoveDrag(e, false);
@@ -2525,6 +3005,49 @@ function App() {
     rec.style = rec.style || {}; rec.style.borderRadius = px + "px";
     el.style.borderRadius = px + "px";
     setInsp(i => ({ ...i, mediaRadius: px }));
+  }
+  // playback speed lives in mediaXf so it flows into demos + the export spec
+  function setMediaSpeed(k, v) {
+    pushHistory();
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.speed = v;
+    const m = containerRef.current.querySelector('[data-vslot="' + k + '"] video');
+    if (m) { try { m.playbackRate = v || 1; } catch (e) {} }
+    setInsp(i => ({ ...i, mediaSpeed: v }));
+  }
+  // gradient overlay lives in mediaXf; the overlay div is (re)built by applySlotGradient
+  function setMediaGrad(k, patch) {
+    pushHistory(patch.opacity == null);   // slider scrubs throttle; toggles/colors snapshot immediately
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.grad = { on: true, color: "#000000", dir: "to top", opacity: 0.6, ...(t.grad || {}), ...patch };
+    applySlotGradient(containerRef.current.querySelector('[data-vslot="' + k + '"]'), t.grad);
+    setInsp(i => ({ ...i, gradOn: !!t.grad.on, gradColor: t.grad.color, gradDir: t.grad.dir, gradOpacity: t.grad.opacity }));
+  }
+  // blur the media inside a slot (frosted look); lives in mediaXf, applied by applyXf
+  function setMediaBlur(k, patch) {
+    pushHistory(patch.amount == null);
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.blur = { on: true, amount: 8, dir: "to top", ...(t.blur || {}), ...patch };
+    applyXf(containerRef.current, sel);
+    setInsp(i => ({ ...i, blurOn: !!t.blur.on, blurAmount: t.blur.amount, blurDir: t.blur.dir }));
+  }
+  // border is an inset box-shadow ring on the slot (drawn on top of the video, following the corner
+  // radius) so a cover/zoomed clip can't bleed past it; stored as a style override for demos + exports
+  function setMediaBorder(k, w, color) {
+    const root = containerRef.current;
+    const el = root.querySelector('[data-vslot="' + k + '"]'); if (!el) return;
+    const p = pathOf(el, root);
+    pushHistory();
+    ensureBase(p, el, ["boxShadow", "borderStyle", "borderWidth"]);
+    const rec = ovFor(sel)[p] = ovFor(sel)[p] || {}; rec.style = rec.style || {};
+    const hex = color != null ? color : (insp && insp.borderHex) || "#ffffff";
+    const px = w != null ? w : (insp && insp.borderW) || 0;
+    const val = px > 0 ? `inset 0 0 0 ${px}px ${hex}` : "none";
+    // clear any legacy CSS border (older records used a real border that could bleed)
+    rec.style.borderStyle = "none"; rec.style.borderWidth = "0px";
+    rec.style.boxShadow = val;
+    el.style.borderStyle = "none"; el.style.borderWidth = "0px"; el.style.boxShadow = val;
+    setInsp(i => ({ ...i, borderW: px, borderHex: hex }));
   }
   // subtle background patterns drawn with CSS gradients; line color adapts to the bg luminance
   // CSS for a style kind + its settings, derived from the element's background color
@@ -2676,6 +3199,7 @@ function App() {
       const api = window.__slotAPI;
       if (!api || !api.setVids) { if (tries++ < 50) return setTimeout(inject, 100); return; }
       if (!(opts && opts.skipVids) && rec.vids && Object.keys(rec.vids).length) {
+        suppressZoomUntilRef.current = Date.now() + 2500;   // this media carries its own saved zoom
         const v = {}; for (const k in rec.vids) v[k] = { url: rec.vids[k].url, img: rec.vids[k].img };
         api.setVids(v);
       }
@@ -3152,6 +3676,55 @@ function App() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [sel]);
+  // show the "Image bubble" toolbar whenever text is highlighted inside an editable text layer
+  useEffect(() => {
+    if (!sel) { setBubbleTb(null); return; }
+    const upd = () => {
+      const editable = selectionEditable();
+      if (!editable) { setBubbleTb(null); return; }
+      const r = window.getSelection().getRangeAt(0).getBoundingClientRect();
+      if (!r || (!r.width && !r.height)) { setBubbleTb(null); return; }
+      setBubbleTb({ x: r.left + r.width / 2, y: r.top });
+    };
+    const h = () => requestAnimationFrame(upd);
+    document.addEventListener("selectionchange", h);
+    window.addEventListener("scroll", h, true);
+    window.addEventListener("resize", h);
+    return () => { document.removeEventListener("selectionchange", h); window.removeEventListener("scroll", h, true); window.removeEventListener("resize", h); };
+  }, [sel, editMode]);
+  // arrow keys nudge the selected layer(s) — 1px, or 10px with Shift
+  useEffect(() => {
+    if (!sel) return;
+    const h = (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const a = activeRef.current; if (!a) return;
+      if (a.el && a.el.isContentEditable && document.activeElement === a.el) return;   // typing on canvas
+      const step = e.shiftKey ? 10 : 1;
+      let dx = 0, dy = 0;
+      if (e.key === "ArrowLeft") dx = -step; else if (e.key === "ArrowRight") dx = step;
+      else if (e.key === "ArrowUp") dy = -step; else dy = step;
+      e.preventDefault();
+      nudgeSelection(dx, dy);
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [sel]);
+  // cmd/ctrl+g group the current selection, shift+cmd/ctrl+g ungroup
+  useEffect(() => {
+    if (!sel) return;
+    const h = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "g") return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      if (e.shiftKey) ungroupSelection(); else groupSelection();
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [sel]);
 
   // warn before leaving the editor only when the session differs from the last saved/opened state
   const cleanSigRef = useRef(null);
@@ -3204,48 +3777,36 @@ function App() {
             <div className="space-y-0.5 mb-4">
               <div className="flex items-center justify-between py-1.5">
                 <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">Layers</span>
-                <button onClick={() => {
-                  const frame = containerRef.current && containerRef.current.firstElementChild;
-                  const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
-                  const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
-                  const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
-                  addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff", whiteSpace: "nowrap" } });
-                }} title="Add text layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                </button>
+                <div className="flex items-center gap-1">
+                  {selectedPaths().length >= 2 && <button onClick={groupSelection} title="Group selected layers (⌘G)" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="12" height="12" rx="2"/><path d="M9 3h9a2 2 0 012 2v9"/></svg>
+                  </button>}
+                  <button onClick={() => {
+                    const frame = containerRef.current && containerRef.current.firstElementChild;
+                    const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
+                    const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
+                    const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
+                    addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff" } });
+                  }} title="Add text layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </div>
               </div>
-              {layerList().map((it, i) => (
-                <button key={i} onClick={(e) => {
-                  if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current && it.kind !== "bg" && it.kind !== "logo") {
-                    const root = containerRef.current;
-                    const el = it.el && it.el.isConnected ? it.el : nodeAt(root, it.path);
-                    if (el) toggleMulti(el);
-                    return;
-                  }
-                  selectLayer(it);
-                }}
-                  className={"group/layer w-full flex items-center gap-2.5 px-3 py-2 rounded-[14px] text-sm hover:bg-white/10 hover:text-white transition text-left " +
-                    ((activeRef.current && insp && activeRef.current.path === it.path) || multiRef.current.some(m => m.path === it.path)
-                      || (insp && insp.isLogo && insp.logoApi && insp.logoApi.k != null && it.el && it.el.getAttribute && it.el.getAttribute("data-lslot") === insp.logoApi.k)
-                      ? "bg-[#2F2F2F] text-white "
-                      : (layerHidden(it) ? "text-zinc-600 " : "text-zinc-300 "))}>
-                  <span className="shrink-0 text-zinc-500">
-                    {it.kind === "bg" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>}
-                    {it.kind === "video" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg>}
-                    {it.kind === "logo" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>}
-                    {it.kind === "label" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12l-8 8-9-9V4h7l10 8z"/></svg>}
-                    {it.kind === "text" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>}
-                    {it.kind === "image" && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
-                  </span>
-                  <span className="truncate flex-1">{it.label}</span>
-                  {it.kind !== "bg" && <span onClick={(e) => { e.stopPropagation(); toggleLayerHidden(it); }} title={layerHidden(it) ? "Show layer" : "Hide layer"}
-                    className={"shrink-0 cursor-pointer transition " + (layerHidden(it) ? "text-zinc-500 hover:text-white" : "text-zinc-500 opacity-0 group-hover/layer:opacity-100 hover:text-white")}>
-                    {layerHidden(it)
-                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><path d="M14.12 14.12a3 3 0 11-4.24-4.24"/><path d="M1 1l22 22"/></svg>
-                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
-                  </span>}
-                </button>
-              ))}
+              {layerTree().map((u, i) => u.type === "group" ? (
+                <div key={"g" + u.gi} className="mb-0.5">
+                  <div onClick={() => { if (u.members[0]) selectLayer(u.members[0]); }}
+                    className={"group/gh w-full flex items-center gap-2.5 px-3 py-2 rounded-[14px] text-sm cursor-pointer hover:bg-white/10 hover:text-white transition " +
+                      (u.members.some(m => (activeRef.current && activeRef.current.path === m.path) || multiRef.current.some(x => x.path === m.path)) ? "text-white" : "text-zinc-300")}>
+                    <span className="shrink-0 text-zinc-500"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="12" height="12" rx="2"/><path d="M9 3h9a2 2 0 012 2v9"/></svg></span>
+                    <span className="truncate flex-1 font-medium">Group {u.gi + 1}</span>
+                    <span onClick={(e) => { e.stopPropagation(); pushHistory(true); groupsFor().splice(u.gi, 1); force(x => x + 1); if (window.__toast) window.__toast("Ungrouped"); }}
+                      title="Ungroup" className="shrink-0 text-[11px] text-zinc-500 opacity-0 group-hover/gh:opacity-100 hover:text-white transition">Ungroup</span>
+                  </div>
+                  <div className="ml-[18px] pl-1 border-l border-white/10 flex flex-col">
+                    {u.members.map((m, j) => renderLayerRow(m, "g" + u.gi + "-" + j, true))}
+                  </div>
+                </div>
+              ) : renderLayerRow(u.item, i, false))}
             </div>
             {window.__slotAPI && window.__slotAPI.setArrowOn && <Sec open={openSec === "Advanced"} onToggle={toggleSec} title="Advanced">
               <div>
@@ -3334,7 +3895,7 @@ function App() {
 
         <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
-            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
+            <div ref={containerRef} onClickCapture={onEditorClick} onDoubleClick={onEditorDblClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
               onPaste={(e) => {
                 const t2 = e.target;
                 if (!t2 || !t2.isContentEditable) return;
@@ -3358,6 +3919,13 @@ function App() {
               <div className="absolute left-0 right-0 h-px" style={{ top: guides.y * s, background: (guides.cy || guides.ay) ? "#f45f00" : "rgba(37,99,235,.8)" }} />
             </div>}
           </div>
+          {bubbleTb && <div className="fixed z-[85] -translate-x-1/2 -translate-y-full" style={{ left: bubbleTb.x, top: bubbleTb.y - 10 }}>
+            <button onMouseDown={startTextBubble}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2b2b2b] text-white text-[13px] font-medium shadow-2xl border border-white/10 hover:bg-[#3a3a3a] transition whitespace-nowrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+              Image bubble
+            </button>
+          </div>}
           {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
             [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1], ["n", 0.5, 0], ["s", 0.5, 1], ["w", 0, 0.5], ["e", 1, 0.5]].map(([c, fx, fy]) => (
               <button key={c} onPointerDown={(e) => startResizeDrag(e, c)} title="Drag to resize"
@@ -3430,7 +3998,7 @@ function App() {
         {/* settings column for the current selection */}
         <div className="w-[300px] shrink-0 h-screen flex flex-col border-l border-white/5 bg-[#1A1A1A] overflow-hidden">
           <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{!insp ? "Design" : (insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element") + (multiRef.current.length > 0 ? " · +" + multiRef.current.length + " selected" : "")}</span>
+            <span className="text-[11px] uppercase tracking-wider text-neutral-400 font-semibold">{!insp ? "Design" : (insp.isBubble ? "Bubble" : insp.isMedia ? "Video" : insp.isLogo ? "Logo" : insp.isText ? "Text" : "Element") + (multiRef.current.length > 0 ? " · +" + multiRef.current.length + " selected" : "")}</span>
             {insp && <button onClick={deselect} title="Close" className="w-7 h-7 flex items-center justify-center text-xs rounded-[30px] text-zinc-400 bg-white/10 hover:bg-white/15 transition">✕</button>}
           </div>
           <div className="vscroll overflow-y-auto px-4 pb-4 flex-1">
@@ -3464,12 +4032,59 @@ function App() {
                     onChange={e => setMediaScale(insp.slot, +e.target.value / 100)}
                     className="w-full accent-white" />
                 </div>}
+                {insp.hasMedia && insp.isVideo && <div>
+                  <label className={LBL}>Speed · {(insp.mediaSpeed || 1).toFixed(2)}×</label>
+                  <input type="range" min="25" max="300" value={Math.round((insp.mediaSpeed || 1) * 100)}
+                    onChange={e => setMediaSpeed(insp.slot, +e.target.value / 100)}
+                    className="w-full accent-white" />
+                </div>}
+                <div>
+                  <label className={LBL}>Border</label>
+                  <div className="flex items-center gap-2">
+                    <BrandColorField transparent={!(insp.borderW > 0)} value={insp.borderHex || "#ffffff"} onChange={hex => setMediaBorder(insp.slot, insp.borderW > 0 ? insp.borderW : 2, hex)} />
+                    <input type="number" min="0" max="40" value={insp.borderW || 0} style={{ width: 76 }}
+                      onChange={e => setMediaBorder(insp.slot, Math.max(0, +e.target.value), insp.borderHex || "#ffffff")}
+                      className="px-3 py-2 rounded-[30px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none" />
+                    <button onClick={() => setMediaBorder(insp.slot, 0, insp.borderHex || "#ffffff")} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (!(insp.borderW > 0) ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>None</button>
+                  </div>
+                </div>
+                <div>
+                  <label className={LBL}>Gradient overlay</label>
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max mb-2">
+                    <button onClick={() => setMediaGrad(insp.slot, { on: true })} className={insp.gradOn ? SEG_ON : SEG}>On</button>
+                    <button onClick={() => setMediaGrad(insp.slot, { on: false })} className={!insp.gradOn ? SEG_ON : SEG}>Off</button>
+                  </div>
+                  {insp.gradOn && <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <BrandColorField value={insp.gradColor} onChange={hex => setMediaGrad(insp.slot, { color: hex })} />
+                      <select value={insp.gradDir} onChange={e => setMediaGrad(insp.slot, { dir: e.target.value })} className={FIELD} style={SELECT_STYLE}>
+                        {[["to top", "From bottom"], ["to bottom", "From top"], ["to right", "From left"], ["to left", "From right"]].map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
+                      </select>
+                    </div>
+                    <label className={LBL}>Strength · {Math.round((insp.gradOpacity != null ? insp.gradOpacity : 0.6) * 100)}%</label>
+                    <input type="range" min="0" max="100" value={Math.round((insp.gradOpacity != null ? insp.gradOpacity : 0.6) * 100)}
+                      onChange={e => setMediaGrad(insp.slot, { opacity: +e.target.value / 100 })} className="w-full accent-white" />
+                  </div>}
+                </div>
+                {insp.hasMedia && <div>
+                  <label className={LBL}>Blur overlay</label>
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max mb-2">
+                    <button onClick={() => setMediaBlur(insp.slot, { on: true })} className={insp.blurOn ? SEG_ON : SEG}>On</button>
+                    <button onClick={() => setMediaBlur(insp.slot, { on: false })} className={!insp.blurOn ? SEG_ON : SEG}>Off</button>
+                  </div>
+                  {insp.blurOn && <div className="space-y-2">
+                    <select value={insp.blurDir || "to top"} onChange={e => setMediaBlur(insp.slot, { dir: e.target.value })} className={FIELD} style={SELECT_STYLE}>
+                      {[["to top", "From bottom"], ["to bottom", "From top"], ["to right", "From left"], ["to left", "From right"]].map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
+                    </select>
+                    <label className={LBL}>Amount · {insp.blurAmount || 8}px</label>
+                    <input type="range" min="1" max="40" value={insp.blurAmount || 8}
+                      onChange={e => setMediaBlur(insp.slot, { amount: +e.target.value })} className="w-full accent-white" />
+                  </div>}
+                </div>}
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
-                      <input type="color" value={insp.bgHex || "#ffffff"} onChange={e => setStyle("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={insp.bgTransparent} value={insp.bgHex} onChange={hex => setStyle("backgroundColor", hex, { bgHex: hex, bgTransparent: false })} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
                   </div>
                 </div>
@@ -3484,9 +4099,7 @@ function App() {
                 {["grid", "dots", "lines"].includes(insp.pattern) && <div>
                   <label className={LBL}>Line color</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: (insp.styleMeta || {}).color || "#ffffff" }}>
-                      <input type="color" value={(insp.styleMeta || {}).color || "#ffffff"} onChange={e => updateStyleMeta({ color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={(insp.styleMeta || {}).color || "#ffffff"} onChange={hex => updateStyleMeta({ color: hex })} />
                     <span className="text-sm text-zinc-400 flex-1">{(insp.styleMeta || {}).color || "Auto"}</span>
                   </div>
                 </div>}
@@ -3514,18 +4127,14 @@ function App() {
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.logoBg }}>
-                      <input type="color" value={insp.logoBg} onChange={e => { insp.logoApi.setBg(e.target.value); setInsp({ ...insp, logoBg: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={insp.logoBg} onChange={hex => { insp.logoApi.setBg(hex); setInsp({ ...insp, logoBg: hex }); }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.logoBg}</span>
                   </div>
                 </div>
                 {insp.logoApi.setBorder && <div>
                   <label className={LBL}>Border</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.logoBorder || "repeating-conic-gradient(#333 0 25%, #555 0 50%) 50%/12px 12px" }}>
-                      <input type="color" value={insp.logoBorder || "#e6e6e6"} onChange={e => { insp.logoApi.setBorder(e.target.value); setInsp({ ...insp, logoBorder: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={!insp.logoBorder} value={insp.logoBorder || "#e6e6e6"} onChange={hex => { insp.logoApi.setBorder(hex); setInsp({ ...insp, logoBorder: hex }); }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.logoBorder || "None"}</span>
                     <button onClick={() => { insp.logoApi.setBorder(null); setInsp({ ...insp, logoBorder: null }); }} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (!insp.logoBorder ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>None</button>
                   </div>
@@ -3551,7 +4160,43 @@ function App() {
               {insp.logoApi.remove && <button onClick={() => { insp.logoApi.remove(); deselect(); }} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition">Remove this logo</button>}
             </div>}
 
-            {insp && !insp.isLogo && !insp.isMedia && <div className="space-y-5">
+            {insp && insp.isBubble && <div className="space-y-5">
+              <div>
+                <label className={LBL}>Bubble background</label>
+                <div className="flex items-center gap-2">
+                  <BrandColorField transparent={insp.bgTransparent} value={insp.bgHex} onChange={setBubbleBg} />
+                  <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
+                </div>
+              </div>
+              <div>
+                <label className={LBL}>Border</label>
+                <div className="flex items-center gap-2">
+                  <BrandColorField transparent={!(insp.bubbleBorderW > 0)} value={insp.bubbleBorderHex || "#000000"} onChange={hex => setBubbleBorder(insp.bubbleBorderW > 0 ? insp.bubbleBorderW : 2, hex)} />
+                  <input type="number" min="0" max="20" value={insp.bubbleBorderW || 0} style={{ width: 76 }}
+                    onChange={e => setBubbleBorder(Math.max(0, +e.target.value), insp.bubbleBorderHex || "#000000")}
+                    className="px-3 py-2 rounded-[30px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none" />
+                  <button onClick={() => setBubbleBorder(0, insp.bubbleBorderHex || "#000000")} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (!(insp.bubbleBorderW > 0) ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>None</button>
+                </div>
+              </div>
+              <div>
+                <label className={LBL}>Image</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => setBubbleImgFit(false)} className={!insp.bubbleFull ? SEG_ON : SEG}>Circle</button>
+                  <button onClick={() => setBubbleImgFit(true)} className={insp.bubbleFull ? SEG_ON : SEG}>Full</button>
+                </div>
+              </div>
+              {insp.hasCaption && <div>
+                <label className={LBL}>Text</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => setBubbleText(true)} className={insp.textShown ? SEG_ON : SEG}>Show</button>
+                  <button onClick={() => setBubbleText(false)} className={!insp.textShown ? SEG_ON : SEG}>Hide</button>
+                </div>
+              </div>}
+              <button onClick={replaceBubbleImg} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Replace image…</button>
+              <button onClick={removeBubble} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition">Remove bubble</button>
+            </div>}
+
+            {insp && !insp.isLogo && !insp.isMedia && !insp.isBubble && <div className="space-y-5">
               {insp.isSlot && <button onClick={uploadIntoSlot} className="w-full px-3 py-2.5 rounded-[30px] bg-white hover:bg-zinc-200 text-zinc-900 text-sm font-medium shadow-sm transition">Upload media into slot</button>}
 
               {insp.swapKey != null && <Sec open={openSec === "Label content"} onToggle={toggleSec} title="Label content">
@@ -3562,15 +4207,13 @@ function App() {
                 {!insp.swapOn && insp.swapSvgColor != null && <div>
                   <label className={LBL}>Logo color</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.swapSvgColor }}>
-                      <input type="color" value={insp.swapSvgColor} onChange={e => {
+                    <BrandColorField value={insp.swapSvgColor} onChange={hex => {
                         const root = containerRef.current;
                         const w = root.querySelector('[data-swap="' + insp.swapKey + '"] svg');
                         if (!w) return;
-                        setStyleAt(pathOf(w.parentElement, root), "color", e.target.value);
-                        setInsp({ ...insp, swapSvgColor: e.target.value });
-                      }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                        setStyleAt(pathOf(w.parentElement, root), "color", hex);
+                        setInsp({ ...insp, swapSvgColor: hex });
+                      }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.swapSvgColor}</span>
                   </div>
                 </div>}
@@ -3594,9 +4237,7 @@ function App() {
                 <div>
                   <label className={LBL}>Label background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.pinBg || "#000000" }}>
-                      <input type="color" value={insp.pinBg || "#000000"} onChange={e => { setStyleAt(insp.pinPath, "backgroundColor", e.target.value); setInsp({ ...insp, pinBg: e.target.value }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={insp.pinBg || "#000000"} onChange={hex => { setStyleAt(insp.pinPath, "backgroundColor", hex); setInsp({ ...insp, pinBg: hex }); }} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.pinBg || "Default"}</span>
                     <button onClick={() => { setStyleAt(insp.pinPath, "backgroundColor", ""); setStyleAt(insp.pinPath, "backgroundImage", ""); setInsp({ ...insp, pinBg: null }); }} className="px-2.5 py-1 text-xs rounded-[30px] bg-white/10 text-zinc-300 hover:bg-white/15 transition">Reset</button>
                   </div>
@@ -3621,9 +4262,7 @@ function App() {
                 <div>
                   <label className={LBL}>Background</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.bgTransparent ? "repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 50%/12px 12px" : insp.bgHex }}>
-                      <input type="color" value={insp.bgHex} onChange={e => setAp("backgroundColor", e.target.value, { bgHex: e.target.value, bgTransparent: false })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={insp.bgTransparent} value={insp.bgHex} onChange={hex => setAp("backgroundColor", hex, { bgHex: hex, bgTransparent: false })} />
                     <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
                     <button onClick={() => setAp("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (insp.bgTransparent ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>Clear</button>
                   </div>
@@ -3631,9 +4270,7 @@ function App() {
                 <div>
                   <label className={LBL}>Border</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.borderW > 0 ? insp.borderHex : "repeating-conic-gradient(#333 0 25%, #555 0 50%) 50%/12px 12px" }}>
-                      <input type="color" value={insp.borderHex || "#e6e6e6"} onChange={e => { setAp("borderStyle", "solid"); if (!(insp.borderW > 0)) setAp("borderWidth", "2px"); setAp("borderColor", e.target.value, { borderHex: e.target.value, borderW: insp.borderW > 0 ? insp.borderW : 2 }); }} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField transparent={!(insp.borderW > 0)} value={insp.borderHex || "#e6e6e6"} onChange={hex => { setAp("borderStyle", "solid"); if (!(insp.borderW > 0)) setAp("borderWidth", "2px"); setAp("borderColor", hex, { borderHex: hex, borderW: insp.borderW > 0 ? insp.borderW : 2 }); }} />
                     <input type="number" min="0" max="30" value={insp.borderW || 0} style={{ width: 76 }}
                       onChange={e => { const w = Math.max(0, +e.target.value); setAp("borderStyle", "solid"); setAp("borderWidth", w + "px", { borderW: w }); }}
                       className="px-3 py-2 rounded-[30px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none" />
@@ -3687,9 +4324,7 @@ function App() {
                   <div>
                     <label className={LBL}>Line color</label>
                     <div className="flex items-center gap-2">
-                      <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: (insp.styleMeta || {}).color || "#ffffff" }}>
-                        <input type="color" value={(insp.styleMeta || {}).color || "#ffffff"} onChange={e => updateStyleMeta({ color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      </label>
+                      <BrandColorField value={(insp.styleMeta || {}).color || "#ffffff"} onChange={hex => updateStyleMeta({ color: hex })} />
                       <span className="text-sm text-zinc-400 flex-1">{(insp.styleMeta || {}).color || "Auto"}</span>
                       {(insp.styleMeta || {}).color && <button onClick={() => updateStyleMeta({ color: null })} className="px-2.5 py-1 text-xs rounded-[30px] bg-white/10 text-zinc-300 hover:bg-white/15 transition">Auto</button>}
                     </div>
@@ -3758,9 +4393,7 @@ function App() {
                 <div>
                   <label className={LBL}>Color</label>
                   <div className="flex items-center gap-2">
-                    <label className="relative w-9 h-9 rounded-[30px] border border-white/10 overflow-hidden cursor-pointer shrink-0" style={{ background: insp.color }}>
-                      <input type="color" value={insp.color} onChange={e => setStyle("color", e.target.value, { color: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    </label>
+                    <BrandColorField value={insp.color} onChange={hex => setStyle("color", hex, { color: hex })} />
                     <span className="text-sm text-zinc-400">{insp.color}</span>
                   </div>
                 </div>
@@ -3779,7 +4412,7 @@ function App() {
             {insp && insp.isText &&
               <button onClick={duplicateSelectedLayer}
                 className="mt-5 w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Duplicate layer</button>}
-            {insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
+            {insp && !insp.isLogo && !insp.isBubble && insp.path !== "" && insp.path !== "0" &&
               <button onClick={deleteSelectedLayer}
                 className={(insp.isText ? "mt-3" : "mt-5") + " w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition"}>Delete layer</button>}
           </div>

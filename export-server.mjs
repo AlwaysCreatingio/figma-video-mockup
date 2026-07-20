@@ -36,7 +36,7 @@ const HEAD = `<!doctype html><html><head>
 <style>html,body{margin:0;background:transparent;}#root{display:inline-block;}*{font-family:'Geist',sans-serif;} @property --ao-a { syntax:'<angle>'; initial-value:0deg; inherits:false; } @keyframes ao-rot { to { --ao-a:360deg; } } .ao-glow::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:3px;background:conic-gradient(from var(--ao-a),transparent 50%,rgba(255,255,255,.85) 74%,#fff 82%,transparent 92%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:5;}</style>
 </head><body><div id="root"></div>`;
 
-const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize","display","borderColor","borderWidth","borderStyle","filter","lineHeight"];
+const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize","display","borderColor","borderWidth","borderStyle","boxSizing","boxShadow","filter","lineHeight"];
 
 let LOGOS_JS = "";
 try { LOGOS_JS = fs.readFileSync(path.join(ROOT, "_logos.js"), "utf8"); } catch {}
@@ -89,10 +89,12 @@ function finalize(){
   // apply text + style overrides
   for(const p in X.overrides){ const el=pathAt(base,p); if(!el)continue; const o=X.overrides[p];
     if(el.tagName==="INPUT"){ if(o.text!=null){ el.value=o.text; el.setAttribute("value",o.text); } }
-    else if(o.html!=null && o.text==null && !(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"))) el.innerHTML=o.html;
+    else if(o.html!=null && o.text==null && !(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"))) el.innerHTML=String(o.html).replace(/outline(-offset)?:\s*[^;"']*;?/gi, "");
     else if(o.text!=null) el.textContent=o.text;
     if(o.style) for(const k of SP) if(o.style[k]!=null) el.style[k]=o.style[k];
   }
+  // legacy bubble captions hidden without the intentional-hide marker: make them visible
+  frame.querySelectorAll('[data-bubble] span').forEach(s => { if(s.style.display==="none" && !s.hasAttribute("data-caphide")) s.style.display="inline-block"; });
   // set logos (matched by stable data-lslot id) — background tint + per-logo scale mirror the editor
   for(const l of X.logos){ const el=frame.querySelector('[data-lslot="'+l.slot+'"]'); if(!el)continue;
     const fit=l.fit||"cover", pad=fit==="cover"?"0":"10px", sc=(l.scale!=null?l.scale:1);
@@ -147,6 +149,15 @@ function finalize(){
       rects.push({ slot:s.slot, videoId:s.videoId, x:Math.round(r.left), y:Math.round(r.top), w, h, bg:getComputedStyle(el).backgroundColor, mask:c.toDataURL("image/png") });
       // punch the hole
       el.innerHTML=''; el.style.background='transparent'; el.style.backgroundImage='none'; el.style.opacity='1';
+      // gradient overlay stays in the plate (on top of the video, inside the border)
+      const g = X.mediaXf && X.mediaXf[s.slot] && X.mediaXf[s.slot].grad;
+      if (g && g.on) {
+        const hexA = (hex,a) => { const m=String(hex||'#000000').replace('#','').match(/.{2}/g)||['00','00','00']; const c=m.map(x=>parseInt(x,16)); return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')'; };
+        const col=g.color||'#000000', dir=g.dir||'to top', op=g.opacity!=null?g.opacity:0.6;
+        const gd=document.createElement('div');
+        gd.style.cssText='position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:linear-gradient('+dir+','+hexA(col,op)+' 0%,'+hexA(col,0)+' 70%);';
+        el.appendChild(gd);
+      }
     }
     if(!ok && attempt<15){ return setTimeout(()=>measure(attempt+1), 200); }
     window.__RECTS = rects;
@@ -253,6 +264,15 @@ async function renderPlate(templateId, X, W, H, plateOut) {
   } finally { try { await page.close(); } catch {} }
 }
 
+// build an atempo filter chain for a playback-speed factor (atempo alone only spans 0.5–2.0)
+function atempoChain(s) {
+  if (!s || Math.abs(s - 1) < 0.001) return "";
+  let r = s; const parts = [];
+  while (r > 2.0) { parts.push("atempo=2.0"); r /= 2.0; }
+  while (r < 0.5) { parts.push("atempo=0.5"); r /= 0.5; }
+  parts.push("atempo=" + r.toFixed(4));
+  return "," + parts.join(",");
+}
 function cssToHex(c) {
   const m = (c || "").match(/\d+(\.\d+)?/g);
   if (!m || m.length < 3 || (m[3] != null && +m[3] === 0)) return "0x101010";
@@ -261,13 +281,13 @@ function cssToHex(c) {
 }
 
 async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate, durationSec) {
-  // bound output to the shortest clip so the looped plate/color source can't run forever
+  // default output length = the LONGEST uploaded clip; shorter clips loop to fill it
   const durs = await Promise.all(videoFiles.map(probeDur));
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
   const finite = durs.filter(d => d > 0);
-  let DUR = Math.max(0.5, Math.min(...(finite.length ? finite : [ambDur > 0 ? ambDur : 4])));
+  let DUR = Math.max(0.5, (finite.length ? Math.max(...finite) : (ambDur > 0 ? ambDur : 4)));
   const wantDur = +durationSec > 0 ? Math.min(+durationSec, 300) : 0;
-  if (wantDur) DUR = wantDur;   // chosen output length: shorter clips loop, longer ones trim
+  if (wantDur) DUR = wantDur;   // an explicit chosen length overrides: shorter clips loop, longer ones trim
   const S = SCALE;                // plate is rendered at SCALE x (deviceScaleFactor) — supersample for crisp text/edges
   const OW = W * S, OH = H * S;
   // write each slot's rounded-corner alpha mask to disk
@@ -276,7 +296,7 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   const args = ["-y"];
   rects.forEach((r, i) => {
     if (durs[i] === 0) args.push("-loop", "1");
-    else if (wantDur && durs[i] < wantDur - 0.05) args.push("-stream_loop", "-1");
+    else if (durs[i] < DUR - 0.05) args.push("-stream_loop", "-1");   // loop any clip shorter than the output
     args.push("-i", videoFiles[i]);
   }); // 0..nVid-1 videos
   maskFiles.forEach(f => { args.push("-loop", "1", "-i", f); });                                            // nVid..2n-1 masks
@@ -304,20 +324,22 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   rects.forEach((r, i) => {
     const x = r.x * S, y = r.y * S, w = r.w * S, h = r.h * S;
     const t = (mediaXf && mediaXf[r.slot]) || null;
+    const spd = t && t.speed ? Math.max(0.1, Math.min(4, t.speed)) : 1;
+    const SPTS = spd !== 1 ? `(PTS-STARTPTS)/${spd.toFixed(4)}` : "PTS-STARTPTS";
     const zs = t && t.s ? Math.max(0.25, t.s) : 1;
     const ox = t ? Math.round((t.x || 0) * S) : 0, oy = t ? Math.round((t.y || 0) * S) : 0;
     const zw = Math.round(w * zs / 2) * 2, zh = Math.round(h * zs / 2) * 2;
     if (zs < 1) {
       // shrunk below 100%: scale the WHOLE source down from its cover size (revealing more of
       // it as it shrinks), then crop any overflow and pad the rest with the slot background
-      fc.push(`[${i}:v]setpts=PTS-STARTPTS,` +
+      fc.push(`[${i}:v]setpts=${SPTS},` +
         `scale=w='trunc((${zs.toFixed(4)}*max(${w}\,${h}*iw/ih))/2)*2':h=-2,` +
         `crop=w='min(iw,${w})':h='min(ih,${h})':x='clip((iw-out_w)/2-(${ox}),0,iw-out_w)':y='clip((ih-out_h)/2-(${oy}),0,ih-out_h)',` +
         `pad=${w}:${h}:x='clip((out_w-in_w)/2+(${ox}),0,out_w-in_w)':y='clip((out_h-in_h)/2+(${oy}),0,out_h-in_h)':color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else if (t && t.fit === "fit") {
       // whole video visible: scale down to fit, pan within the letterbox, pad with the slot bg
       const sw = Math.round(w * zs / 2) * 2, sh = Math.round(h * zs / 2) * 2;
-      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${sw}:${sh}:force_original_aspect_ratio=decrease,` +
+      fc.push(`[${i}:v]setpts=${SPTS},scale=${sw}:${sh}:force_original_aspect_ratio=decrease,` +
         `crop=w='min(iw,${w})':h='min(ih,${h})':x='clip((iw-out_w)/2-(${ox}),0,iw-out_w)':y='clip((ih-out_h)/2-(${oy}),0,ih-out_h)',` +
         `pad=${w}:${h}:x='clip((out_w-in_w)/2+(${ox}),0,out_w-in_w)':y='clip((out_h-in_h)/2+(${oy}),0,out_h-in_h)':color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else if (t && t.fit === "contain") {
@@ -325,12 +347,25 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
       const pd = Math.round((t.pad != null ? t.pad : 14) * S);
       const iw = Math.max(2, Math.round((w - 2 * pd) / 2) * 2), ih = Math.max(2, Math.round((h - 2 * pd) / 2) * 2);
       const ziw = Math.round(iw * zs / 2) * 2, zih = Math.round(ih * zs / 2) * 2;
-      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${ziw}:${zih}:force_original_aspect_ratio=increase,crop=${iw}:${ih}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',pad=${w}:${h}:${(w - iw) / 2}:${(h - ih) / 2}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
+      fc.push(`[${i}:v]setpts=${SPTS},scale=${ziw}:${zih}:force_original_aspect_ratio=increase,crop=${iw}:${ih}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',pad=${w}:${h}:${(w - iw) / 2}:${(h - ih) / 2}:color=${cssToHex(r.bg)},setsar=1,format=yuva420p[vc${i}]`);
     } else {
-      fc.push(`[${i}:v]setpts=PTS-STARTPTS,scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
+      fc.push(`[${i}:v]setpts=${SPTS},scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
+    }
+    let vlbl = `vc${i}`;
+    if (t && t.blur && t.blur.on) {
+      // progressive blur: blend a fully-blurred copy over the sharp one through a directional alpha ramp
+      const sig = Math.max(1, Math.round((t.blur.amount || 8) * S));
+      const dir = t.blur.dir || "to top";
+      const d = dir === "to bottom" ? "Y/H" : dir === "to right" ? "X/W" : dir === "to left" ? "(W-X)/W" : "(H-Y)/H";
+      fc.push(`[vc${i}]split[vcs${i}][vcb${i}]`);
+      fc.push(`[vcb${i}]gblur=sigma=${sig}[vbb${i}]`);
+      fc.push(`color=c=black:s=${w}x${h}:r=30:d=${DUR.toFixed(2)},format=gray,geq=lum='255*clip((0.75-(${d}))/0.5,0,1)'[bmk${i}]`);
+      fc.push(`[vbb${i}][bmk${i}]alphamerge[vbm${i}]`);
+      fc.push(`[vcs${i}][vbm${i}]overlay=0:0[vcp${i}]`);
+      vlbl = `vcp${i}`;
     }
     fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
-    fc.push(`[vc${i}][mk${i}]alphamerge[vr${i}]`);
+    fc.push(`[${vlbl}][mk${i}]alphamerge[vr${i}]`);
     fc.push(`[${last}][vr${i}]overlay=${x}:${y}:eof_action=repeat[s${i}]`);
     last = `s${i}`;
   });
@@ -352,7 +387,7 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   const audioFlags = await Promise.all(videoFiles.map(hasAudio));
   const audible = rects.map((r, i) => (audioFlags[i] && !((mediaXf || {})[r.slot] || {}).mute) ? i : -1).filter(i => i >= 0);
   if (audible.length) {
-    audible.forEach(i => fc.push(`[${i}:a]asetpts=PTS-STARTPTS[a${i}]`));
+    audible.forEach(i => { const st = (mediaXf || {})[rects[i].slot] || {}; const sp = st.speed ? Math.max(0.1, Math.min(4, st.speed)) : 1; fc.push(`[${i}:a]asetpts=PTS-STARTPTS${atempoChain(sp)}[a${i}]`); });
     if (audible.length > 1) fc.push(audible.map(i => `[a${i}]`).join("") + `amix=inputs=${audible.length}:duration=longest[aout]`);
   }
   args.push("-filter_complex", fc.join(";"), "-map", "[out]");
