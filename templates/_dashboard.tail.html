@@ -440,12 +440,21 @@ function syncCustomLayersIn(frame, layers) {
       el = document.createElement(cl.img ? "img" : "p");
       el.setAttribute("data-cl", cl.id);
       if (cl.img) { el.setAttribute("src", cl.img); el.setAttribute("alt", cl.alt || "Drawing"); el.style.pointerEvents = "none"; el.draggable = false; }
-      else { el.textContent = cl.text || ""; el.style.pointerEvents = "auto"; el.style.cursor = "move"; el.style.width = "max-content"; }
+      else { el.textContent = cl.text || ""; el.style.pointerEvents = "auto"; el.style.cursor = "move"; }
       el.style.position = "absolute"; el.style.margin = "0";
       for (const k in (cl.style || {})) el.style[k] = cl.style[k];
       wrap.insertBefore(el, wrap.children[i] || null);
     } else if (cl.img && el.getAttribute("src") !== cl.img) {
       el.setAttribute("src", cl.img);
+    }
+    // text layers hug their content but wrap to new lines once they'd run past the frame edge
+    if (!cl.img && el) {
+      el.style.whiteSpace = "pre-wrap";
+      el.style.wordBreak = "break-word";
+      if (!el.style.width || el.style.width === "auto") el.style.width = "max-content";
+      const leftPx = parseFloat(el.style.left) || 0;
+      const fw = frame.clientWidth || frame.offsetWidth || 1080;
+      el.style.maxWidth = Math.max(80, Math.round(fw - leftPx - 8)) + "px";
     }
   });
   while (wrap.children.length > layers.length) wrap.lastElementChild.remove();
@@ -3512,7 +3521,7 @@ function App() {
                     const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
                     const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
                     const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
-                    addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff", whiteSpace: "nowrap" } });
+                    addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff" } });
                   }} title="Add text layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
                   </button>
