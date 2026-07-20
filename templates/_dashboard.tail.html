@@ -1503,6 +1503,8 @@ function App() {
 
   const [handle, setHandle] = useState(null);   // move-handle position (main-relative) for the selected element
   const [guides, setGuides] = useState(null); // {x,y} crosshair guide lines while dragging (design px)
+  const [bubbleTb, setBubbleTb] = useState(null); // {x,y} viewport pos of the "Image bubble" toolbar over a text selection
+  const bubbleRangeRef = useRef(null);            // saved selection Range while the image file picker is open
   const mainRef = useRef(null);
   const overrides = useRef({});
   const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
@@ -2407,6 +2409,71 @@ function App() {
     // mirror the live text into the inspector's Content field
     setInsp(i => (i && i.isText && i.textValue != null ? { ...i, textValue: el.innerText } : i));
   }
+  // save a text element's rich html into its override so bubbles/inline nodes persist + export
+  function persistTextHtml(el) {
+    const root = containerRef.current; if (!root || !el || !el.isConnected) return;
+    const path = pathOf(el, root);
+    ensureBase(path, el, [], true);
+    const rec = ovFor(sel)[path] = ovFor(sel)[path] || {};
+    rec.html = el.innerHTML; delete rec.text;
+  }
+  // the editable text element that currently holds the (non-collapsed) selection, or null
+  function selectionEditable() {
+    const s = window.getSelection && window.getSelection();
+    const root = containerRef.current;
+    if (!editMode || !s || s.isCollapsed || !s.rangeCount || !root) return null;
+    const anc = s.getRangeAt(0).commonAncestorContainer;
+    const host = anc.nodeType === 3 ? anc.parentElement : anc;
+    const editable = host && host.closest && host.closest('[contenteditable="true"]');
+    return (editable && root.contains(editable)) ? editable : null;
+  }
+  // highlight text -> replace the selection with an inline pill: image + the highlighted text
+  function startTextBubble(e) {
+    e.preventDefault(); e.stopPropagation();   // keep the selection alive across the click
+    const editable = selectionEditable(); if (!editable) return;
+    bubbleRangeRef.current = window.getSelection().getRangeAt(0).cloneRange();
+    const i = document.createElement("input"); i.type = "file"; i.accept = "image/*";
+    i.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+    document.body.appendChild(i);
+    i.onchange = () => {
+      const f = i.files && i.files[0]; i.remove();
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => insertTextBubble(String(rd.result));
+      rd.readAsDataURL(f);
+    };
+    i.click();
+  }
+  function insertTextBubble(src) {
+    const range = bubbleRangeRef.current; bubbleRangeRef.current = null;
+    const root = containerRef.current; if (!range || !root) return;
+    const anc = range.commonAncestorContainer;
+    const host = anc.nodeType === 3 ? anc.parentElement : anc;
+    const editable = host && host.closest && host.closest('[contenteditable="true"]');
+    if (!editable || !root.contains(editable)) { setBubbleTb(null); return; }
+    pushHistory(true);
+    const text = range.toString();
+    const pill = document.createElement("span");
+    pill.setAttribute("data-bubble", "1");
+    pill.setAttribute("contenteditable", "false");
+    pill.style.cssText = "display:inline-flex;align-items:center;gap:.35em;vertical-align:middle;padding:.14em .6em .14em .18em;margin:0 .12em;border-radius:9999px;background:rgba(128,128,128,.22);line-height:1;white-space:nowrap;";
+    const img = document.createElement("img");
+    img.src = src; img.setAttribute("alt", "");
+    img.style.cssText = "height:1.2em;width:1.2em;object-fit:cover;border-radius:9999px;display:inline-block;flex:none;";
+    pill.appendChild(img);
+    if (text.trim()) { const cap = document.createElement("span"); cap.textContent = text; cap.style.cssText = "display:inline-block;"; pill.appendChild(cap); }
+    range.deleteContents();
+    range.insertNode(pill);
+    // a zero-width text node after the pill so the caret has somewhere to land
+    const zw = document.createTextNode("​");
+    if (pill.parentNode) pill.parentNode.insertBefore(zw, pill.nextSibling);
+    const s = window.getSelection(); s.removeAllRanges();
+    const nr = document.createRange(); nr.setStartAfter(zw); nr.collapse(true); s.addRange(nr);
+    persistTextHtml(editable);
+    setBubbleTb(null);
+    requestAnimationFrame(syncHandle);
+    if (window.__toast) window.__toast("Bubble added");
+  }
   function onEditorClick(e) {
     if (!editMode || suppressRef.current) return;
     if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current) {
@@ -2503,7 +2570,8 @@ function App() {
       items.push({ label: (t || "Text").slice(0, 24), kind: "text", el });
     });
     root.querySelectorAll("img").forEach(el => {
-      if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot]") || el.hasAttribute("data-ambient")) return;
+      if (el.closest("[data-pin], [data-swap], [data-vslot], [data-lslot], [data-bubble]") || el.hasAttribute("data-ambient")) return;
+      if (el.closest("p, h1, h2, h3")) return;   // inline images inside a text layer belong to that layer
       items.push({ label: el.alt || "Image", kind: "image", el });
     });
     const shown = items.filter(it => {
@@ -2637,6 +2705,8 @@ function App() {
     if (!slot || !containerRef.current.contains(slot)) {
       // not on media: direct-drag the selected element from anywhere on it (text keeps the ✥ handle)
       const a = activeRef.current;
+      // while a text layer is focused for editing, let a drag highlight text instead of moving it (move via the ✥ handle)
+      if (a && a.text && a.el && document.activeElement === a.el) return;
       if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isSlot && insp.path !== "" && insp.path !== "0" &&
           !a.el.hasAttribute("data-vslot") && (e.target === a.el || a.el.contains(e.target) ||
             multiRef.current.some(m => m.el && m.el.isConnected && (e.target === m.el || m.el.contains(e.target))))) startMoveDrag(e, false);
@@ -3352,6 +3422,22 @@ function App() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [sel]);
+  // show the "Image bubble" toolbar whenever text is highlighted inside an editable text layer
+  useEffect(() => {
+    if (!sel) { setBubbleTb(null); return; }
+    const upd = () => {
+      const editable = selectionEditable();
+      if (!editable) { setBubbleTb(null); return; }
+      const r = window.getSelection().getRangeAt(0).getBoundingClientRect();
+      if (!r || (!r.width && !r.height)) { setBubbleTb(null); return; }
+      setBubbleTb({ x: r.left + r.width / 2, y: r.top });
+    };
+    const h = () => requestAnimationFrame(upd);
+    document.addEventListener("selectionchange", h);
+    window.addEventListener("scroll", h, true);
+    window.addEventListener("resize", h);
+    return () => { document.removeEventListener("selectionchange", h); window.removeEventListener("scroll", h, true); window.removeEventListener("resize", h); };
+  }, [sel, editMode]);
   // cmd/ctrl+g group the current selection, shift+cmd/ctrl+g ungroup
   useEffect(() => {
     if (!sel) return;
@@ -3559,6 +3645,13 @@ function App() {
               <div className="absolute left-0 right-0 h-px" style={{ top: guides.y * s, background: (guides.cy || guides.ay) ? "#f45f00" : "rgba(37,99,235,.8)" }} />
             </div>}
           </div>
+          {bubbleTb && <div className="fixed z-[85] -translate-x-1/2 -translate-y-full" style={{ left: bubbleTb.x, top: bubbleTb.y - 10 }}>
+            <button onMouseDown={startTextBubble}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2b2b2b] text-white text-[13px] font-medium shadow-2xl border border-white/10 hover:bg-[#3a3a3a] transition whitespace-nowrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+              Image bubble
+            </button>
+          </div>}
           {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
             [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1], ["n", 0.5, 0], ["s", 0.5, 1], ["w", 0, 0.5], ["e", 1, 0.5]].map(([c, fx, fy]) => (
               <button key={c} onPointerDown={(e) => startResizeDrag(e, c)} title="Drag to resize"
