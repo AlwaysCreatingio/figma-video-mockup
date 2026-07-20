@@ -1454,6 +1454,8 @@ function App() {
   const mainRef = useRef(null);
   const overrides = useRef({});
   const mediaXf = useRef({});          // per-template media pan/zoom: { slot: { x, y, s } }
+  const zoomSeenRef = useRef({});      // per-template: { slot: lastMediaSrc } — tracks which media got the auto-zoom
+  const suppressZoomUntilRef = useRef(0); // don't auto-zoom media injected from a saved demo/asset (keeps its saved zoom)
   const customLayers = useRef({});     // per-template user-added layers: [{ id, text, style }]
   const histRef = useRef({});          // undo stacks per template
   const redoRef = useRef({});
@@ -1651,6 +1653,33 @@ function App() {
     }
   };
 
+  // fresh media dropped into a slot defaults to 102% zoom. Self-healing: applies whenever a
+  // populated slot has no explicit zoom yet or its source just changed, so it survives the async
+  // template-default seeding that can wipe mediaXf. While a saved demo/asset injects its media
+  // (suppression window) we instead lock in its saved/implicit zoom so existing records are untouched.
+  function autoZoomNewMedia(root) {
+    const seen = zoomSeenRef.current[sel] = zoomSeenRef.current[sel] || {};
+    const suppressed = Date.now() < suppressZoomUntilRef.current;
+    root.querySelectorAll("[data-vslot]").forEach(slotEl => {
+      const k = slotEl.getAttribute("data-vslot");
+      const m = slotEl.querySelector("video, img");
+      const src = m ? (m.currentSrc || m.getAttribute("src") || m.src || "") : "";
+      if (!src) { delete seen[k]; return; }          // slot emptied
+      const srcChanged = seen[k] !== src;
+      seen[k] = src;
+      const xf = xfFor(sel);
+      const t = xf[k];
+      const hasZoom = t && typeof t.s === "number";
+      if (suppressed) {                              // media from a saved record: keep its zoom (default 100%)
+        if (!hasZoom) (xf[k] = t || { x: 0, y: 0 }).s = 1;
+        return;
+      }
+      if (srcChanged || !hasZoom) {                  // fresh insert / replace: default to 102%
+        (xf[k] = t || { x: 0, y: 0 }).s = 1.02;
+        setInsp(i => (i && i.isMedia && i.slot === k ? { ...i, mediaScale: 1.02, hasMedia: true } : i));
+      }
+    });
+  }
   function solidifyEmptySlots(root) {
     root.querySelectorAll("[data-vslot]").forEach(el => {
       if (el.querySelector("video, img")) { if (el.dataset.opq) { el.style.backgroundColor = ""; delete el.dataset.opq; } return; }
@@ -1712,6 +1741,7 @@ function App() {
       else if (o.text != null && el.tagName !== "INPUT" && el !== active) { if (el.textContent !== o.text) el.textContent = o.text; }
       if (o.style) for (const k of STYLE_PROPS) if (o.style[k] != null) el.style[k] = o.style[k];
     }
+    autoZoomNewMedia(root);
     applyXf(root, sel);
     solidifyEmptySlots(root);
     syncAmbient();
@@ -2793,6 +2823,7 @@ function App() {
       const api = window.__slotAPI;
       if (!api || !api.setVids) { if (tries++ < 50) return setTimeout(inject, 100); return; }
       if (!(opts && opts.skipVids) && rec.vids && Object.keys(rec.vids).length) {
+        suppressZoomUntilRef.current = Date.now() + 2500;   // this media carries its own saved zoom
         const v = {}; for (const k in rec.vids) v[k] = { url: rec.vids[k].url, img: rec.vids[k].img };
         api.setVids(v);
       }
