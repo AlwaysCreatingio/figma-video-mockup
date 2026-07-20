@@ -456,7 +456,7 @@ const server = http.createServer(async (req, res) => {
       const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, scrollSpeed = 1, durationSec = null, customLayers = [], mediaXf = {} } = spec;
       const data = await enqueue(async () => {
         const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-        const { rects, frameBg, bgPlate, scroll, txtPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn, customLayers }, W, H, plate);
+        const { rects, frameBg, bgPlate, scroll, txtPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn, customLayers, mediaXf }, W, H, plate);
         if (scroll) scroll.speed = +scrollSpeed || 1;
         const videoFiles = rects.map(r => path.join(WORK, r.videoId));
         const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
