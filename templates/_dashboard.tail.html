@@ -1749,6 +1749,8 @@ function App() {
           m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${s2})`;
         }
         m.style.transformOrigin = "center"; m.draggable = false;
+        const bl = xf[k].blur;
+        m.style.filter = (bl && bl.on) ? `blur(${bl.amount || 8}px)` : "";
       }
     }
   };
@@ -2626,10 +2628,12 @@ function App() {
     bub.style.outline = "2px solid #2563eb"; bub.style.outlineOffset = "2px";
     const img = bub.querySelector("img");
     const cap = bub.querySelector("span");
-    const bg = parseColor(getComputedStyle(bub).backgroundColor);
+    const bcs = getComputedStyle(bub);
+    const bg = parseColor(bcs.backgroundColor);
+    const bd = parseColor(bub.style.borderColor || bcs.borderTopColor);
     activeRef.current = { el: bub, path: pathOf(bub, root), bubble: true, parentEl: bub.closest("[data-cl], p, h1, h2, h3") };
     setOpenSec("Bubble");
-    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")) });
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex });
   }
   function setBubbleBg(hex) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -2637,6 +2641,15 @@ function App() {
     bub.style.background = hex;
     const p = bubbleParent(); if (p) persistTextHtml(p);
     setInsp(i => ({ ...i, bgHex: hex, bgTransparent: false }));
+  }
+  function setBubbleBorder(w, color) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    pushHistory();
+    const hex = color != null ? color : (insp.bubbleBorderHex || "#000000");
+    const px = w != null ? w : (insp.bubbleBorderW || 0);
+    bub.style.border = px > 0 ? (px + "px solid " + hex) : "";
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, bubbleBorderW: px, bubbleBorderHex: hex }));
   }
   function setBubbleText(show) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -2714,7 +2727,7 @@ function App() {
     const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
     const __bd = parseColor((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor);
     const __grad = tt.grad || {};
-    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: Math.round(parseFloat((__mo.style || {}).borderWidth) || 0), borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6 });
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: Math.round(parseFloat((__mo.style || {}).borderWidth) || 0), borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8 });
     expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
@@ -2981,6 +2994,14 @@ function App() {
     t.grad = { on: true, color: "#000000", dir: "to top", opacity: 0.6, ...(t.grad || {}), ...patch };
     applySlotGradient(containerRef.current.querySelector('[data-vslot="' + k + '"]'), t.grad);
     setInsp(i => ({ ...i, gradOn: !!t.grad.on, gradColor: t.grad.color, gradDir: t.grad.dir, gradOpacity: t.grad.opacity }));
+  }
+  // blur the media inside a slot (frosted look); lives in mediaXf, applied by applyXf
+  function setMediaBlur(k, patch) {
+    pushHistory(patch.amount == null);
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.blur = { on: true, amount: 8, ...(t.blur || {}), ...patch };
+    applyXf(containerRef.current, sel);
+    setInsp(i => ({ ...i, blurOn: !!t.blur.on, blurAmount: t.blur.amount }));
   }
   // border is a style override on the slot element, so it flows into demos + exports
   function setMediaBorder(k, w, color) {
@@ -3985,7 +4006,7 @@ function App() {
                     onChange={e => setMediaSpeed(insp.slot, +e.target.value / 100)}
                     className="w-full accent-white" />
                 </div>}
-                {insp.hasMedia && <div>
+                <div>
                   <label className={LBL}>Border</label>
                   <div className="flex items-center gap-2">
                     <BrandColorField transparent={!(insp.borderW > 0)} value={insp.borderHex || "#ffffff"} onChange={hex => setMediaBorder(insp.slot, insp.borderW > 0 ? insp.borderW : 2, hex)} />
@@ -3994,8 +4015,8 @@ function App() {
                       className="px-3 py-2 rounded-[30px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none" />
                     <button onClick={() => setMediaBorder(insp.slot, 0, insp.borderHex || "#ffffff")} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (!(insp.borderW > 0) ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>None</button>
                   </div>
-                </div>}
-                {insp.hasMedia && <div>
+                </div>
+                <div>
                   <label className={LBL}>Gradient overlay</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max mb-2">
                     <button onClick={() => setMediaGrad(insp.slot, { on: true })} className={insp.gradOn ? SEG_ON : SEG}>On</button>
@@ -4011,6 +4032,18 @@ function App() {
                     <label className={LBL}>Strength · {Math.round((insp.gradOpacity != null ? insp.gradOpacity : 0.6) * 100)}%</label>
                     <input type="range" min="0" max="100" value={Math.round((insp.gradOpacity != null ? insp.gradOpacity : 0.6) * 100)}
                       onChange={e => setMediaGrad(insp.slot, { opacity: +e.target.value / 100 })} className="w-full accent-white" />
+                  </div>}
+                </div>
+                {insp.hasMedia && <div>
+                  <label className={LBL}>Blur overlay</label>
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max mb-2">
+                    <button onClick={() => setMediaBlur(insp.slot, { on: true })} className={insp.blurOn ? SEG_ON : SEG}>On</button>
+                    <button onClick={() => setMediaBlur(insp.slot, { on: false })} className={!insp.blurOn ? SEG_ON : SEG}>Off</button>
+                  </div>
+                  {insp.blurOn && <div>
+                    <label className={LBL}>Amount · {insp.blurAmount || 8}px</label>
+                    <input type="range" min="1" max="40" value={insp.blurAmount || 8}
+                      onChange={e => setMediaBlur(insp.slot, { amount: +e.target.value })} className="w-full accent-white" />
                   </div>}
                 </div>}
                 <div>
@@ -4098,6 +4131,16 @@ function App() {
                 <div className="flex items-center gap-2">
                   <BrandColorField transparent={insp.bgTransparent} value={insp.bgHex} onChange={setBubbleBg} />
                   <span className="text-sm text-zinc-400 flex-1">{insp.bgTransparent ? "None" : insp.bgHex}</span>
+                </div>
+              </div>
+              <div>
+                <label className={LBL}>Border</label>
+                <div className="flex items-center gap-2">
+                  <BrandColorField transparent={!(insp.bubbleBorderW > 0)} value={insp.bubbleBorderHex || "#000000"} onChange={hex => setBubbleBorder(insp.bubbleBorderW > 0 ? insp.bubbleBorderW : 2, hex)} />
+                  <input type="number" min="0" max="20" value={insp.bubbleBorderW || 0} style={{ width: 76 }}
+                    onChange={e => setBubbleBorder(Math.max(0, +e.target.value), insp.bubbleBorderHex || "#000000")}
+                    className="px-3 py-2 rounded-[30px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none" />
+                  <button onClick={() => setBubbleBorder(0, insp.bubbleBorderHex || "#000000")} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (!(insp.bubbleBorderW > 0) ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>None</button>
                 </div>
               </div>
               <div>

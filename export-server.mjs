@@ -351,8 +351,10 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     } else {
       fc.push(`[${i}:v]setpts=${SPTS},scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
     }
+    let vlbl = `vc${i}`;
+    if (t && t.blur && t.blur.on) { const sig = Math.max(1, Math.round((t.blur.amount || 8) * S)); fc.push(`[vc${i}]gblur=sigma=${sig}[vb${i}]`); vlbl = `vb${i}`; }
     fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
-    fc.push(`[vc${i}][mk${i}]alphamerge[vr${i}]`);
+    fc.push(`[${vlbl}][mk${i}]alphamerge[vr${i}]`);
     fc.push(`[${last}][vr${i}]overlay=${x}:${y}:eof_action=repeat[s${i}]`);
     last = `s${i}`;
   });
