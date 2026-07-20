@@ -449,6 +449,23 @@ function applySlotGradient(slot, grad) {
   const op = grad.opacity != null ? grad.opacity : 0.6;
   ov.style.background = `linear-gradient(${dir}, ${hexA(color, op)} 0%, ${hexA(color, 0)} 70%)`;
 }
+// progressive blur overlay: a backdrop-filter blur masked by a gradient so it fades in from one side
+function applySlotBlur(slot, blur) {
+  if (!slot) return;
+  let ov = slot.querySelector(":scope > [data-blur]");
+  if (!blur || !blur.on) { if (ov) ov.remove(); return; }
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.setAttribute("data-blur", "1");
+    slot.appendChild(ov);
+  } else if (slot.lastElementChild !== ov && !slot.querySelector(":scope > [data-grad]")) slot.appendChild(ov);
+  const amt = blur.amount || 8;
+  const dir = blur.dir || "to top";
+  const mask = `linear-gradient(${dir}, #000 0%, #000 25%, transparent 75%)`;
+  ov.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:3;border-radius:inherit;` +
+    `-webkit-backdrop-filter:blur(${amt}px);backdrop-filter:blur(${amt}px);` +
+    `-webkit-mask-image:${mask};mask-image:${mask};`;
+}
 // a bubble caption hidden without the intentional-hide marker is a legacy artifact — make it visible
 function healBubbleCaptions(root) {
   if (!root || !root.querySelectorAll) return;
@@ -1728,6 +1745,7 @@ function App() {
     for (const k in xf) {
       const slotEl0 = root.querySelector('[data-vslot="' + k + '"]');
       applySlotGradient(slotEl0, xf[k].grad);
+      applySlotBlur(slotEl0, xf[k].blur);
       const m = root.querySelector('[data-vslot="' + k + '"] video, [data-vslot="' + k + '"] img');
       if (m && m.tagName === "VIDEO") { try { m.playbackRate = xf[k].speed || 1; } catch (e) {} }
       if (m) {
@@ -1749,8 +1767,7 @@ function App() {
           m.style.transform = `translate(${t.x || 0}px, ${t.y || 0}px) scale(${s2})`;
         }
         m.style.transformOrigin = "center"; m.draggable = false;
-        const bl = xf[k].blur;
-        m.style.filter = (bl && bl.on) ? `blur(${bl.amount || 8}px)` : "";
+        m.style.filter = "";   // blur is now a progressive overlay, not a filter on the media
       }
     }
   };
@@ -2727,7 +2744,7 @@ function App() {
     const __mp = pathOf(slot, containerRef.current); const __mo = ovFor(sel)[__mp] || {}; const __mb = parseColor((__mo.style || {}).backgroundColor || getComputedStyle(slot).backgroundColor);
     const __bd = parseColor((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor);
     const __grad = tt.grad || {};
-    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: Math.round(parseFloat((__mo.style || {}).borderWidth) || 0), borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8 });
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: Math.round(parseFloat((__mo.style || {}).borderWidth) || 0), borderHex: __bd.hex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top" });
     expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
@@ -2999,9 +3016,9 @@ function App() {
   function setMediaBlur(k, patch) {
     pushHistory(patch.amount == null);
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
-    t.blur = { on: true, amount: 8, ...(t.blur || {}), ...patch };
+    t.blur = { on: true, amount: 8, dir: "to top", ...(t.blur || {}), ...patch };
     applyXf(containerRef.current, sel);
-    setInsp(i => ({ ...i, blurOn: !!t.blur.on, blurAmount: t.blur.amount }));
+    setInsp(i => ({ ...i, blurOn: !!t.blur.on, blurAmount: t.blur.amount, blurDir: t.blur.dir }));
   }
   // border is a style override on the slot element, so it flows into demos + exports
   function setMediaBorder(k, w, color) {
@@ -4040,7 +4057,10 @@ function App() {
                     <button onClick={() => setMediaBlur(insp.slot, { on: true })} className={insp.blurOn ? SEG_ON : SEG}>On</button>
                     <button onClick={() => setMediaBlur(insp.slot, { on: false })} className={!insp.blurOn ? SEG_ON : SEG}>Off</button>
                   </div>
-                  {insp.blurOn && <div>
+                  {insp.blurOn && <div className="space-y-2">
+                    <select value={insp.blurDir || "to top"} onChange={e => setMediaBlur(insp.slot, { dir: e.target.value })} className={FIELD} style={SELECT_STYLE}>
+                      {[["to top", "From bottom"], ["to bottom", "From top"], ["to right", "From left"], ["to left", "From right"]].map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
+                    </select>
                     <label className={LBL}>Amount · {insp.blurAmount || 8}px</label>
                     <input type="range" min="1" max="40" value={insp.blurAmount || 8}
                       onChange={e => setMediaBlur(insp.slot, { amount: +e.target.value })} className="w-full accent-white" />

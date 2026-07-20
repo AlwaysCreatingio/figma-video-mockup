@@ -352,7 +352,18 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
       fc.push(`[${i}:v]setpts=${SPTS},scale=${zw}:${zh}:force_original_aspect_ratio=increase,crop=${w}:${h}:x='clip((in_w-out_w)/2-(${ox}),0,in_w-out_w)':y='clip((in_h-out_h)/2-(${oy}),0,in_h-out_h)',setsar=1,format=yuva420p[vc${i}]`);
     }
     let vlbl = `vc${i}`;
-    if (t && t.blur && t.blur.on) { const sig = Math.max(1, Math.round((t.blur.amount || 8) * S)); fc.push(`[vc${i}]gblur=sigma=${sig}[vb${i}]`); vlbl = `vb${i}`; }
+    if (t && t.blur && t.blur.on) {
+      // progressive blur: blend a fully-blurred copy over the sharp one through a directional alpha ramp
+      const sig = Math.max(1, Math.round((t.blur.amount || 8) * S));
+      const dir = t.blur.dir || "to top";
+      const d = dir === "to bottom" ? "Y/H" : dir === "to right" ? "X/W" : dir === "to left" ? "(W-X)/W" : "(H-Y)/H";
+      fc.push(`[vc${i}]split[vcs${i}][vcb${i}]`);
+      fc.push(`[vcb${i}]gblur=sigma=${sig}[vbb${i}]`);
+      fc.push(`color=c=black:s=${w}x${h}:r=30:d=${DUR.toFixed(2)},format=gray,geq=lum='255*clip((0.75-(${d}))/0.5,0,1)'[bmk${i}]`);
+      fc.push(`[vbb${i}][bmk${i}]alphamerge[vbm${i}]`);
+      fc.push(`[vcs${i}][vbm${i}]overlay=0:0[vcp${i}]`);
+      vlbl = `vcp${i}`;
+    }
     fc.push(`[${nVid + i}:v]scale=${w}:${h},format=gray[mk${i}]`);
     fc.push(`[${vlbl}][mk${i}]alphamerge[vr${i}]`);
     fc.push(`[${last}][vr${i}]overlay=${x}:${y}:eof_action=repeat[s${i}]`);
