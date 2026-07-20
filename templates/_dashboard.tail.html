@@ -1909,7 +1909,7 @@ function App() {
     applyAll(); force(x => x + 1);
     setTimeout(() => {
       const el2 = containerRef.current && containerRef.current.querySelector('[data-cl="' + id2 + '"]');
-      if (el2) selectEl(el2, true);
+      if (el2) selectEl(el2, true, true);   // new text layers open ready to type
     }, 80);
   }
   // save the current drawing as one full-frame image layer (replaces any prior drawing)
@@ -2300,7 +2300,7 @@ function App() {
     window.addEventListener("pointercancel", up);
     window.addEventListener("blur", up);
   }
-  function selectEl(el, forceText) {
+  function selectEl(el, forceText, startEdit) {
     const root = containerRef.current; if (!el || !root.contains(el)) return;
     // non-text clicks inside a label pill select the pill itself, so moving and the layer row
     // always target the same box
@@ -2325,7 +2325,9 @@ function App() {
     const path = pathOf(el, root);
     const text = forceText || isTextLeaf(el);
     const slotEl = el.closest(".cursor-pointer");
-    if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = "true"; el.focus(); }
+    // text layers select (movable) on a single click; editing (caret/focus) is entered on
+    // double-click so dragging the body still moves the layer
+    if (text && el.tagName !== "INPUT") { ensureBase(path, el, [], true); el.contentEditable = startEdit ? "true" : "false"; if (startEdit) el.focus(); }
     const outEl = (el.closest && el.closest("[data-scrolltext]")) || el;
     outEl.style.outline = "2px solid #2563eb";
     outEl.style.outlineOffset = (path === "0" || path === "") ? "-2px" : "1px";
@@ -2512,11 +2514,40 @@ function App() {
     if (unit && containerRef.current.contains(unit) && isTextLeaf(unit)) {
       if (unit.tagName !== "INPUT") e.preventDefault();
       e.stopPropagation();
-      selectEl(unit);
+      const path = pathOf(unit, containerRef.current);
+      const already = activeRef.current && activeRef.current.path === path;
+      const editing = already && activeRef.current.el && activeRef.current.el.isContentEditable && document.activeElement === activeRef.current.el;
+      // first click selects (movable); clicking an already-selected text again starts editing
+      if (unit.tagName !== "INPUT" && already && !editing) enterTextEdit(unit, e);
+      else selectEl(unit);
       return;
     }
     e.preventDefault(); e.stopPropagation();
     selectEl(el);
+  }
+  // enter text-edit mode: focus the element for typing and drop the caret where the user clicked
+  // (optionally selecting the word under the pointer, for double-click)
+  function enterTextEdit(el, e, selectWord) {
+    const root = containerRef.current; if (!el || !root.contains(el)) return;
+    if (!activeRef.current || activeRef.current.el !== el) selectEl(el, true, true);
+    el.contentEditable = "true"; el.focus();
+    try {
+      const s = window.getSelection();
+      if (e && document.caretRangeFromPoint) {
+        const r = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (r) { s.removeAllRanges(); s.addRange(r); }
+      }
+      if (selectWord && s.modify) { s.modify("move", "backward", "word"); s.modify("extend", "forward", "word"); }
+    } catch (err) {}
+    requestAnimationFrame(syncHandle);
+  }
+  function onEditorDblClick(e) {
+    if (!editMode || suppressRef.current) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+    const unit = textUnit(e.target);
+    if (!unit || !containerRef.current.contains(unit) || !isTextLeaf(unit) || unit.tagName === "INPUT") return;
+    e.preventDefault(); e.stopPropagation();
+    enterTextEdit(unit, e, true);
   }
   function selectParent() { const el = activeRef.current && activeRef.current.el; if (el && el.parentElement && containerRef.current.contains(el.parentElement) && el.parentElement !== containerRef.current) selectEl(el.parentElement); }
   function uploadIntoSlot() {
@@ -3630,7 +3661,7 @@ function App() {
 
         <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
-            <div ref={containerRef} onClickCapture={onEditorClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
+            <div ref={containerRef} onClickCapture={onEditorClick} onDoubleClick={onEditorDblClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onDragStart={(e) => e.preventDefault()}
               onPaste={(e) => {
                 const t2 = e.target;
                 if (!t2 || !t2.isContentEditable) return;
