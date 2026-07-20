@@ -430,8 +430,10 @@ function stripSelOutline(html) {
 // parse an inset box-shadow ring (our media "border") from inline or computed form -> {w,color}
 function parseInset(bsh) {
   if (!bsh || bsh === "none") return null;
-  let m = bsh.match(/inset\s+\S+\s+\S+\s+([\d.]+)px\s+(#[0-9a-fA-F]+|rgba?\([^)]+\))/);
+  // inline form: "inset offX offY blur spread color" — the 4th value (spread) is our border width
+  let m = bsh.match(/inset\s+\S+\s+\S+\s+\S+\s+([\d.]+)px\s+(#[0-9a-fA-F]+|rgba?\([^)]+\))/);
   if (m) return { w: Math.round(parseFloat(m[1])), color: m[2] };
+  // computed form: "color offX offY blur spread inset"
   m = bsh.match(/(#[0-9a-fA-F]+|rgba?\([^)]+\))\s+[\d.]+px\s+[\d.]+px\s+[\d.]+px\s+([\d.]+)px\s+inset/);
   if (m) return { w: Math.round(parseFloat(m[2])), color: m[1] };
   return null;
