@@ -1753,6 +1753,12 @@ function App() {
   const xfFor = (id) => (mediaXf.current[id] = mediaXf.current[id] || {});
   const applyXf = (root, id) => {
     const xf = xfFor(id);
+    // a scaled/panned media child escapes overflow:hidden's rounded clip, so clip the slot to its
+    // corner radius explicitly (preview only — export rounds via its own mask)
+    root.querySelectorAll("[data-vslot]").forEach(sl => {
+      const r = getComputedStyle(sl).borderTopLeftRadius;
+      sl.style.clipPath = (r && r !== "0px") ? `inset(0 round ${r})` : "";
+    });
     for (const k in xf) {
       const slotEl0 = root.querySelector('[data-vslot="' + k + '"]');
       applySlotGradient(slotEl0, xf[k].grad);
@@ -3006,6 +3012,7 @@ function App() {
     const rec = ovFor(sel)[pathOf(el, root)] = ovFor(sel)[pathOf(el, root)] || {};
     rec.style = rec.style || {}; rec.style.borderRadius = px + "px";
     el.style.borderRadius = px + "px";
+    el.style.clipPath = px > 0 ? `inset(0 round ${px}px)` : "";   // keep the rounded clip in sync
     setInsp(i => ({ ...i, mediaRadius: px }));
   }
   // playback speed lives in mediaXf so it flows into demos + the export spec
