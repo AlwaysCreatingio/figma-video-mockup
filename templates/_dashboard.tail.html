@@ -741,6 +741,12 @@ const CAMPAIGNS = [
     resources: [],
     grad: "radial-gradient(130% 120% at 15% 90%, rgba(191,219,254,.85) 0%, transparent 50%), linear-gradient(120deg, #FF8A5C 0%, #E4572E 55%, #7C2D12 100%)",
     title: "Claude x Agent Opus",
+    setup: [
+      { title: "Copy the MCP endpoint", body: "This is the Agent Opus MCP server. Any MCP client can connect to it.", copy: "https://agent.opus.pro/mcp" },
+      { title: "Add it to Claude", body: "On claude.ai or in the Claude desktop app, go to Settings, then Connectors, then Add custom connector, and paste the endpoint." },
+      { title: "Using Claude Code?", body: "Add it from the terminal with one command.", copy: "claude mcp add --transport http agent-opus https://agent.opus.pro/mcp" },
+      { title: "Ask for a video", body: "Start a new chat, approve the connector when prompted, and ask naturally. Try: make me a 30 second ad for my product." },
+    ],
     brief: "You can generate videos in Claude now. Agent Opus plugs straight into Claude, so a normal chat turns into finished videos, ads, and full content calendars. No timeline, no editor, no exporting between tools.",
     target: "Claude users, AI builders, and operators who live in chat and want video to happen there too.",
     positioning: "Claude can talk. Now it can make videos.",
@@ -4772,6 +4778,29 @@ function App() {
                         <React.Fragment>
                         <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Brief</div>
                         <p className="max-w-3xl text-sm leading-relaxed text-zinc-300">{c.brief}</p>
+                        {c.setup && (
+                          <React.Fragment>
+                            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">How to connect</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-3xl">
+                              {c.setup.map((s, i) => (
+                                <div key={s.title} className="p-4 rounded-[22px] bg-white/[0.03] border border-white/10 flex flex-col">
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-zinc-300">{i + 1}</span>
+                                    <span className="text-sm font-semibold text-white">{s.title}</span>
+                                  </div>
+                                  <p className="text-[13px] leading-relaxed text-zinc-400">{s.body}</p>
+                                  {s.copy && <button onClick={() => navigator.clipboard.writeText(s.copy).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
+                                    className="mt-auto pt-2.5 w-full text-left" title="Copy">
+                                    <span className="flex items-center gap-2 px-3 py-2 rounded-[12px] bg-black/30 border border-white/10 hover:border-white/30 transition text-[12px] font-mono text-zinc-300">
+                                      <span className="truncate flex-1">{s.copy}</span>
+                                      <svg className="shrink-0" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                    </span>
+                                  </button>}
+                                </div>
+                              ))}
+                            </div>
+                          </React.Fragment>
+                        )}
                         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl">
                           <div>
                             <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">Target</div>
