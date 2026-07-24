@@ -4733,6 +4733,19 @@ function App() {
                     <div className="vscroll overflow-y-auto">
                       <div className="relative h-[180px]">
                         <div className="absolute inset-0" style={{ background: c.grad }} />
+                        <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
+                        {c.id === "channels" && (
+                          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 180" preserveAspectRatio="none" aria-hidden="true">
+                            <defs>
+                              <linearGradient id="camp-chart-fill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="rgba(255,255,255,.14)" />
+                                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                              </linearGradient>
+                            </defs>
+                            <path d="M0,158 L45,148 L90,153 L135,126 L180,133 L225,102 L270,111 L315,74 L360,84 L400,44 L400,180 L0,180 Z" fill="url(#camp-chart-fill)" />
+                            <path d="M0,158 L45,148 L90,153 L135,126 L180,133 L225,102 L270,111 L315,74 L360,84 L400,44" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+                          </svg>
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#1f1f1f] via-zinc-950/30 to-transparent" />
                         <button onClick={() => setOpenCampaign(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-zinc-200 hover:bg-black/70 transition">✕</button>
                         <div className="absolute bottom-4 left-7 text-[26px] font-medium tracking-tight text-white">{c.title}</div>
