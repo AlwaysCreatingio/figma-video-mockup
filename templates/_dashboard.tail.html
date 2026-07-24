@@ -777,7 +777,7 @@ const CAMPAIGNS = [
       { title: "I Copied Fern's Faceless YouTube Channel with AI (Claude + Seedance 2.0)", desc: "Case study: recreating Fern's faceless channel with Claude and Seedance.", thumb: "https://i.ytimg.com/vi/2PYfV90AQFo/hqdefault.jpg", url: "https://www.youtube.com/watch?v=2PYfV90AQFo", external: true },
       { title: "Make High RPM Finance Videos with AI (Full Workflow)", desc: "The full workflow for high-RPM finance videos, from idea to upload.", thumb: "https://i.ytimg.com/vi/dCNI-Q1zyhU/hqdefault.jpg", url: "https://www.youtube.com/watch?v=dCNI-Q1zyhU", external: true },
     ],
-    grad: "radial-gradient(140% 120% at 75% 15%, rgba(34,211,238,.8) 0%, transparent 55%), linear-gradient(120deg, #06B6D4 0%, #0E7490 55%, #164E63 100%)",
+    grad: "radial-gradient(140% 120% at 75% 15%, rgba(134,239,172,.8) 0%, transparent 55%), linear-gradient(120deg, #22C55E 0%, #15803D 55%, #14532D 100%)",
     title: "Clone Profitable Channels",
     brief: "There are faceless channels quietly making $300, $500, even $1,000 a day in niches like finance, history, and true crime. Agent Opus lets you copy a proven channel's format, scripts, and output schedule in one click, then run your own version on autopilot.",
     target: "Creators and side-hustlers who want a proven, earning channel format instead of guessing what works.",
@@ -4734,16 +4734,23 @@ function App() {
                       <div className="relative h-[180px]">
                         <div className="absolute inset-0" style={{ background: c.grad }} />
                         <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
+                        {c.id === "mcp" && (
+                          <div className="absolute inset-0 flex items-center justify-center gap-7" aria-hidden="true">
+                            <img src={window.__CLAUDE_LOGO} alt="" className="h-[80px] opacity-[.16]" style={{ filter: "brightness(0) invert(1)" }} />
+                            <span className="text-[38px] font-light text-white/20">×</span>
+                            <img src={window.__AGENT_OPUS_MARK} alt="" className="h-[80px] opacity-[.16]" style={{ filter: "brightness(0) invert(1)" }} />
+                          </div>
+                        )}
                         {c.id === "channels" && (
                           <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 180" preserveAspectRatio="none" aria-hidden="true">
                             <defs>
                               <linearGradient id="camp-chart-fill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="rgba(74,222,128,.22)" />
-                                <stop offset="100%" stopColor="rgba(74,222,128,0)" />
+                                <stop offset="0%" stopColor="rgba(187,247,208,.25)" />
+                                <stop offset="100%" stopColor="rgba(187,247,208,0)" />
                               </linearGradient>
                             </defs>
                             <path d="M0,160 L60,152 L120,156 L180,138 L240,144 L300,122 L360,130 L420,106 L480,114 L540,92 L600,100 L660,76 L720,86 L780,60 L840,70 L900,46 L950,52 L1000,30 L1000,180 L0,180 Z" fill="url(#camp-chart-fill)" />
-                            <path d="M0,160 L60,152 L120,156 L180,138 L240,144 L300,122 L360,130 L420,106 L480,114 L540,92 L600,100 L660,76 L720,86 L780,60 L840,70 L900,46 L950,52 L1000,30" fill="none" stroke="rgba(74,222,128,.55)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+                            <path d="M0,160 L60,152 L120,156 L180,138 L240,144 L300,122 L360,130 L420,106 L480,114 L540,92 L600,100 L660,76 L720,86 L780,60 L840,70 L900,46 L950,52 L1000,30" fill="none" stroke="rgba(220,252,231,.6)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
                           </svg>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#1f1f1f] via-zinc-950/30 to-transparent" />
