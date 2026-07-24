@@ -4766,7 +4766,7 @@ function App() {
                         {(c.resources && c.resources.length > 0) && (
                           <section className="mt-7">
                             <div className="flex items-end justify-between mb-3">
-                              <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Resources</div>
+                              <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Examples</div>
                               <div className="flex gap-1.5">
                                 <button onClick={(e) => { const r = e.currentTarget.closest("section").querySelector(".hscroll"); const card = r.querySelector(".snap-start"); r.scrollBy({ left: -((card ? card.getBoundingClientRect().width : 280) + 16), behavior: "smooth" }); }} aria-label="Scroll left" className="w-8 h-8 flex items-center justify-center rounded-[30px] bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">←</button>
                                 <button onClick={(e) => { const r = e.currentTarget.closest("section").querySelector(".hscroll"); const card = r.querySelector(".snap-start"); r.scrollBy({ left: (card ? card.getBoundingClientRect().width : 280) + 16, behavior: "smooth" }); }} aria-label="Scroll right" className="w-8 h-8 flex items-center justify-center rounded-[30px] bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">→</button>
