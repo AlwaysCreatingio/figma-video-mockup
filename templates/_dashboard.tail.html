@@ -4731,14 +4731,14 @@ function App() {
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={() => setOpenCampaign(null)}>
                     <div className="relative w-[min(980px,94vw)] max-h-[86vh] rounded-[30px] overflow-hidden bg-[#1f1f1f] border border-white/10 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
                     <div className="vscroll overflow-y-auto">
-                      <div className="relative h-[180px]">
+                      <div className="relative h-[180px] md:h-[250px]">
                         <div className="absolute inset-0" style={{ background: c.grad }} />
                         <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "36px 36px" }} />
                         {c.id === "mcp" && (
                           <div className="absolute inset-0 flex items-center justify-center gap-7" aria-hidden="true">
-                            <img src={window.__CLAUDE_LOGO} alt="" className="h-[80px] opacity-[.16]" style={{ filter: "brightness(0) invert(1)" }} />
-                            <span className="text-[38px] font-light text-white/20">×</span>
-                            <img src={window.__AGENT_OPUS_MARK} alt="" className="h-[80px] opacity-[.16]" style={{ filter: "brightness(0) invert(1)" }} />
+                            <img src="/resources/claude-mark-white.png" alt="" className="h-[76px] opacity-[.18]" />
+                            <span className="text-[38px] font-light text-white/25">×</span>
+                            <svg viewBox="0 0 24 24" width="76" height="76" fill="rgba(255,255,255,.18)" aria-hidden="true"><path d="M3.81659 11.9633C3.83636 7.46057 7.49262 3.81651 12 3.81651C16.5196 3.81651 20.1835 7.48039 20.1835 12C20.1835 16.5196 16.5196 20.1835 12 20.1835C11.4083 20.1835 10.8313 20.1207 10.2752 20.0014V23.877C10.8385 23.958 11.4143 24 12 24C18.6274 24 24 18.6274 24 12C24 5.37258 18.6274 0 12 0C5.37258 0 0 5.37258 0 12V23.9633H3.81651C3.81651 23.9633 3.81659 17.1939 3.81659 12.6C3.81659 12.5076 3.81659 11.9633 3.81659 11.9633Z"/><path d="M5.13761 11.9948V24H8.95413L8.95429 12.76V11.9633C8.97119 10.3004 10.3264 8.95413 12 8.95413C13.6841 8.95413 15.0459 10.3174 15.0459 11.9948C15.0459 13.6721 13.6841 15.0354 12 15.0354C11.3594 15.0354 10.7654 14.8381 10.2752 14.5013V18.6335C10.8264 18.776 11.4044 18.8519 12 18.8519C15.7881 18.8519 18.8624 15.7838 18.8624 11.9948C18.8624 8.20576 15.7881 5.13761 12 5.13761C8.21192 5.13761 5.13761 8.20576 5.13761 11.9948Z"/></svg>
                           </div>
                         )}
                         {c.id === "channels" && (
