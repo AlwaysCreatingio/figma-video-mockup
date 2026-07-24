@@ -220,7 +220,7 @@ const demoStore = {
         if (up.error) throw new Error("upload failed for " + k + ": " + up.error.message);
         vids[k] = { url: SB.storage.from(SB_BUCKET).getPublicUrl(p).data.publicUrl, img: v.img };
       }
-      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, customLayers: rec.customLayers || [], durationSec: rec.durationSec || null, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, campaign: rec.campaign || null, showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
+      const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, customLayers: rec.customLayers || [], durationSec: rec.durationSec || null, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, campaign: rec.campaign || null, campaigns: Array.isArray(rec.campaigns) ? rec.campaigns : (rec.campaign ? [rec.campaign] : []), showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
       if (opts && opts.createdAt) row.created_at = opts.createdAt;
       const { error } = await SB.from("demos").insert(row);
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
@@ -671,11 +671,11 @@ function DemoCard({ t, d, rec, pre, uniform, wide, onOpen, onPreview, onRender, 
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><path d="M9 14l2 2 4-4"/></svg>Paste assets</button>}
           {IS_LOCAL && <React.Fragment>
           <div className="border-t border-white/10 my-1" />
-          <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Campaign</div>
+          <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Campaigns</div>
           {CAMPAIGNS.map(c => (
-            <button key={c.id} onClick={() => { setMenu(false); onTag(rec && rec.campaign === c.id ? null : c.id); }}
+            <button key={c.id} onClick={() => onTag(c.id)}
               className="flex w-full items-center justify-between gap-2 h-[32px] rounded-[10px] px-2.5 text-[13px] font-medium text-zinc-200 hover:bg-white/10 transition">
-              {c.title}{rec && rec.campaign === c.id && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+              {c.title}{demoCampaigns(rec).includes(c.id) && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
             </button>
           ))}
           </React.Fragment>}
@@ -700,7 +700,7 @@ const routeFromHash = () => {
   if (parts[0] === "hooks") return { sel: null, page: "hooks" };
   if (parts[0] === "tutorials") return { sel: null, page: "tutorials", filter: parts[1] ? decodeURIComponent(parts[1]) : "all" };
   if (parts[0] === "brand") return { sel: null, page: "brand" };
-  if (parts[0] === "campaigns") return { sel: null, page: "campaigns", campaign: parts[1] ? decodeURIComponent(parts[1]) : null, campTab: (parts[2] === "resources" || parts[2] === "hooks") ? parts[2] : "overview" };
+  if (parts[0] === "campaigns") return { sel: null, page: "campaigns", campaign: parts[1] ? decodeURIComponent(parts[1]) : null, campTab: parts[2] === "hooks" ? "hooks" : "overview" };
   return { sel: null, page: "templates", filter: SLUG_ASPECT[parts[1]] || "all" };
 };
 
@@ -775,8 +775,8 @@ const CAMPAIGNS = [
       { title: "I Copied Fern's Faceless YouTube Channel with AI (Claude + Seedance 2.0)", desc: "Case study: recreating Fern's faceless channel with Claude and Seedance.", thumb: "https://i.ytimg.com/vi/2PYfV90AQFo/hqdefault.jpg", url: "https://www.youtube.com/watch?v=2PYfV90AQFo", external: true },
       { title: "Make High RPM Finance Videos with AI (Full Workflow)", desc: "The full workflow for high-RPM finance videos, from idea to upload.", thumb: "https://i.ytimg.com/vi/dCNI-Q1zyhU/hqdefault.jpg", url: "https://www.youtube.com/watch?v=dCNI-Q1zyhU", external: true },
       { title: "How To Make Animated Ads With OpusClip AI", desc: "Turn products into animated ad creatives with OpusClip AI.", thumb: "https://i.ytimg.com/vi/tyjFXsmMUXk/hqdefault.jpg", url: "https://www.youtube.com/watch?v=tyjFXsmMUXk", external: true },
-      { title: "Claude + Agent Opus, 6 Figures Monthly?", desc: "Reel from @simplydigital.gr on building kids' song video channels with Claude and Agent Opus that pull tons of views.", thumb: "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwww.instagram.com%2Fp%2FDa7oSc5girE%2F?w=600", url: "https://www.instagram.com/p/Da7oSc5girE/", external: true },
-      { title: "Claude 30 Day Profit Plan", desc: "Reel from @simplydigital.gr with a free 30 day plan and step by step tutorial for a Claude powered side hustle.", thumb: "https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwww.instagram.com%2Fp%2FDbDU0UsAQg3%2F?w=600", url: "https://www.instagram.com/p/DbDU0UsAQg3/", external: true },
+      { title: "Claude + Agent Opus, 6 Figures Monthly?", desc: "Reel from @simplydigital.gr on building kids' song video channels with Claude and Agent Opus that pull tons of views.", thumb: "/resources/ig-Da7oSc5girE.jpg", url: "https://www.instagram.com/p/Da7oSc5girE/", external: true },
+      { title: "Claude 30 Day Profit Plan", desc: "Reel from @simplydigital.gr with a free 30 day plan and step by step tutorial for a Claude powered side hustle.", thumb: "/resources/ig-DbDU0UsAQg3.jpg", url: "https://www.instagram.com/p/DbDU0UsAQg3/", external: true },
     ],
     grad: "radial-gradient(140% 120% at 75% 15%, rgba(34,211,238,.8) 0%, transparent 55%), linear-gradient(120deg, #06B6D4 0%, #0E7490 55%, #164E63 100%)",
     title: "Clone Profitable Channels",
@@ -788,6 +788,11 @@ const CAMPAIGNS = [
       "Stop guessing what works. Find a channel already earning in your niche and clone the format in one click.",
       "I found a history channel pulling $500 a day, pasted the link into Agent Opus, and had my own version posting by the weekend.",
       "The fastest way to a monetized channel is not originality. It is copying a format that already prints, and that now takes one prompt.",
+      "I reverse engineered a $1,000 a day faceless channel. Agent Opus rebuilt the whole format in one prompt.",
+      "There's a true crime channel making six figures a year with no face and no crew. Copying it took me one click.",
+      "Everyone asks how to start a faceless channel. Nobody tells you the shortcut: copy one that already earns.",
+      "I gave Agent Opus one link to a winning channel. It came back with the format, the scripts, and a month of videos.",
+      "$500 a day niches are hiding in plain sight. Finance, history, true crime. Pick one, clone the top channel, post.",
     ],
   },
   {
@@ -806,6 +811,9 @@ const CAMPAIGNS = [
     ],
   },
 ];
+
+/* a demo can be tagged with several campaigns; older records carry a single `campaign` string */
+const demoCampaigns = (rec) => !rec ? [] : (Array.isArray(rec.campaigns) ? rec.campaigns : (rec.campaign ? [rec.campaign] : []));
 
 /* ---------- hook copy library (positioning lines per use case) ---------- */
 const HOOKS = [
@@ -1699,7 +1707,7 @@ function App() {
       : page === "hooks" ? "#/hooks"
       : page === "tutorials" ? "#/tutorials" + (tutFilter !== "all" ? "/" + tutFilter : "")
       : page === "brand" ? "#/brand"
-      : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign + (campTab === "resources" ? "/resources" : campTab === "hooks" ? "/hooks" : "") : "#/campaigns")
+      : page === "campaigns" ? (openCampaign ? "#/campaigns/" + openCampaign + (campTab === "hooks" ? "/hooks" : "") : "#/campaigns")
       : "#/templates" + (tplFilter !== "all" ? "/" + ASPECT_SLUG[tplFilter] : "");
     if (location.hash !== want) location.hash = want;
   }, [sel, page, openCampaign, tplFilter, demoFilter, tutFilter, campTab, preview]);
@@ -3355,7 +3363,7 @@ function App() {
         const c = document.createElement("canvas"); c.width = 240; c.height = Math.round(240 * vh / vw);
         c.getContext("2d").drawImage(m, 0, 0, c.width, c.height); thumb = c.toDataURL("image/jpeg", 0.7); }
     } catch (e) {}
-    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, customLayers: JSON.parse(JSON.stringify(clFor(sel))), durationSec: exportDurFor(sel), arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, campaign: saveCampaign || null, showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
+    return { id, name: t.name, templateId: t.id, vids, logos, boxText, labelText, customLayers: JSON.parse(JSON.stringify(clFor(sel))), durationSec: exportDurFor(sel), arrowOn: !!(window.__slotAPI && window.__slotAPI.arrowOn), scrollSpeed: (window.__slotAPI && window.__slotAPI.scrollSpeed) || 1, campaign: saveCampaign || null, campaigns: (() => { const prev = demoCampaigns(demoRecs[id]); return saveCampaign && !prev.includes(saveCampaign) ? prev.concat(saveCampaign) : prev; })(), showPlus, hiddenLogos, logosHidden, mediaXf: JSON.parse(JSON.stringify(xfFor(sel))), overrides: ov, thumb };
   }
   async function saveDemo() {
     const t = templates.find(x => x.id === sel); if (!containerRef.current || !t) return;
@@ -3547,10 +3555,12 @@ function App() {
     finally { if (creep) clearInterval(creep); setTimeout(() => setProg(null), 800); }
   }
   async function tagDemo(id, campaign) {
-    await demoStore.patch(id, { campaign });
+    const cur = demoCampaigns(demoRecs[id]);
+    const next = campaign == null ? [] : (cur.includes(campaign) ? cur.filter(x => x !== campaign) : cur.concat(campaign));
+    await demoStore.patch(id, { campaigns: next, campaign: next[0] || null });
     await refreshDemos();
     const c = CAMPAIGNS.find(x => x.id === campaign);
-    if (window.__toast) window.__toast(c ? "Tagged: " + c.title : "Campaign tag removed");
+    if (window.__toast) window.__toast(c ? (next.includes(campaign) ? "Tagged: " + c.title : "Untagged: " + c.title) : "Campaign tags removed");
   }
   async function duplicateDemo(id) {
     const rec = demoRecs[id]; if (!rec) return;
@@ -3579,7 +3589,11 @@ function App() {
   async function bulkTag(campaign) {
     const ids = selIds.slice(); if (!ids.length) return;
     if (window.__toast) window.__toast("Tagging " + ids.length + "…", { sticky: true });
-    for (const id of ids) { try { await demoStore.patch(id, { campaign }); } catch (e) {} }
+    for (const id of ids) { try {
+      const cur = demoCampaigns(demoRecs[id]);
+      const next = campaign == null ? [] : (cur.includes(campaign) ? cur : cur.concat(campaign));
+      await demoStore.patch(id, { campaigns: next, campaign: next[0] || null });
+    } catch (e) {} }
     await refreshDemos();
     const c = CAMPAIGNS.find(x => x.id === campaign);
     if (window.__toastClear) window.__toastClear();
@@ -4697,7 +4711,7 @@ function App() {
               </div>
               <div className="flex flex-wrap gap-6 justify-center md:justify-start">
                 {CAMPAIGNS.map(c => {
-                  const count = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId)).length;
+                  const count = demos.filter(d => demoCampaigns(demoRecs[d.id]).includes(c.id) && templates.find(x => x.id === d.templateId)).length;
                   return (
                     <button key={c.id} onClick={() => { setOpenCampaign(c.id); setCampTab("overview"); }} className="text-left group/card w-[340px]">
                       <div className="relative h-[190px] rounded-[30px] overflow-hidden border border-white/10 group-hover/card:border-white/25 shadow-sm group-hover/card:shadow-xl group-hover/card:-translate-y-0.5 transition-all duration-200">
@@ -4713,7 +4727,7 @@ function App() {
               {(() => {
                 const c = CAMPAIGNS.find(x => x.id === openCampaign);
                 if (!c) return null;
-                const tagged = demos.filter(d => (demoRecs[d.id] || {}).campaign === c.id && templates.find(x => x.id === d.templateId));
+                const tagged = demos.filter(d => demoCampaigns(demoRecs[d.id]).includes(c.id) && templates.find(x => x.id === d.templateId));
                 return (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-6" onClick={() => setOpenCampaign(null)}>
                     <div className="relative w-[min(980px,94vw)] max-h-[86vh] rounded-[30px] overflow-hidden bg-[#1f1f1f] border border-white/10 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
@@ -4726,45 +4740,14 @@ function App() {
                       </div>
                       <div className="px-7 pb-8">
                         <div className="flex gap-1.5 mt-4 mb-5">
-                          {[["overview", "Overview"], ["hooks", "Hooks"], ["resources", "Resources"]].map(([k, l]) => (
+                          {[["overview", "Overview"], ["hooks", "Hooks"]].map(([k, l]) => (
                             <button key={k} onClick={() => setCampTab(k)}
                               className={"px-3.5 py-1.5 rounded-[30px] text-sm font-medium transition " + (campTab === k ? "bg-[#2F2F2F] text-white ring-1 ring-white/10" : "text-zinc-400 ring-1 ring-white/15 hover:ring-white/30")}>{l}</button>
                           ))}
                         </div>
                         {campTab === "hooks" ? (
                           <div className="pb-2">
-                            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-3">Example hooks · tap to copy</div>
-                            <div className="flex flex-wrap gap-3">
-                              {c.examples.map(h => (
-                                <button key={h} onClick={() => navigator.clipboard.writeText(h).then(() => { if (window.__toast) window.__toast("Copied to clipboard"); })}
-                                  className="w-[300px] text-left p-4 rounded-[22px] bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col gap-3">
-                                  <span className="flex-1 text-[14px] text-zinc-300 leading-relaxed">{h}</span>
-                                  <span className="text-zinc-500 group-hover:text-zinc-300 transition"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : campTab === "resources" ? (
-                          <div className="pb-2">
-                            {(c.resources && c.resources.length)
-                              ? <div className="flex flex-wrap gap-3">
-                                  {c.resources.map(r => (
-                                    <a key={r.title} href={r.url} target={r.external ? "_blank" : undefined} rel={r.external ? "noreferrer" : undefined}
-                                      className="w-[280px] rounded-[22px] overflow-hidden bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col">
-                                      {r.thumb && <div className="aspect-video w-full overflow-hidden"><img src={r.thumb} alt="" className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-300" /></div>}
-                                      <div className="p-4 flex flex-col gap-1.5">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-sm font-semibold text-white">{r.title}</span>
-                                        <span className="text-zinc-500 group-hover:text-zinc-200 transition">
-                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
-                                        </span>
-                                      </div>
-                                      <p className="text-[13px] leading-relaxed text-zinc-400">{r.desc}</p>
-                                      </div>
-                                    </a>
-                                  ))}
-                                </div>
-                              : <div className="flex min-h-[120px] items-center justify-center rounded-[22px] border border-white/10 bg-white/[0.03] px-6 text-sm font-medium text-zinc-500">No resources for this campaign yet.</div>}
+                            <HookRow sec={{ title: "Example hooks", hooks: c.examples }} />
                           </div>
                         ) : (
                         <React.Fragment>
@@ -4780,6 +4763,34 @@ function App() {
                             <p className="text-sm leading-relaxed text-zinc-300">{c.positioning}</p>
                           </div>
                         </div>
+                        {(c.resources && c.resources.length > 0) && (
+                          <section className="mt-7">
+                            <div className="flex items-end justify-between mb-3">
+                              <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Resources</div>
+                              <div className="flex gap-1.5">
+                                <button onClick={(e) => { const r = e.currentTarget.closest("section").querySelector(".hscroll"); const card = r.querySelector(".snap-start"); r.scrollBy({ left: -((card ? card.getBoundingClientRect().width : 280) + 16), behavior: "smooth" }); }} aria-label="Scroll left" className="w-8 h-8 flex items-center justify-center rounded-[30px] bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">←</button>
+                                <button onClick={(e) => { const r = e.currentTarget.closest("section").querySelector(".hscroll"); const card = r.querySelector(".snap-start"); r.scrollBy({ left: (card ? card.getBoundingClientRect().width : 280) + 16, behavior: "smooth" }); }} aria-label="Scroll right" className="w-8 h-8 flex items-center justify-center rounded-[30px] bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/30 transition">→</button>
+                              </div>
+                            </div>
+                            <div className="hscroll flex gap-4 overflow-x-auto snap-x pb-4 pt-1 -mx-2 px-2">
+                              {c.resources.map(r => (
+                                <a key={r.title} href={r.url} target={r.external ? "_blank" : undefined} rel={r.external ? "noreferrer" : undefined}
+                                  className="snap-start shrink-0 w-[280px] rounded-[22px] overflow-hidden bg-white/[0.03] border border-white/10 hover:border-white/30 transition group flex flex-col">
+                                  {r.thumb && <div className="aspect-video w-full overflow-hidden"><img src={r.thumb} alt="" className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-300" /></div>}
+                                  <div className="p-4 flex flex-col gap-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-sm font-semibold text-white">{r.title}</span>
+                                    <span className="text-zinc-500 group-hover:text-zinc-200 transition">
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
+                                    </span>
+                                  </div>
+                                  <p className="text-[13px] leading-relaxed text-zinc-400">{r.desc}</p>
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          </section>
+                        )}
                         <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mt-7 mb-3">Assets</div>
                         {tagged.length
                           ? <div className="flex flex-wrap gap-6 justify-center md:justify-start">

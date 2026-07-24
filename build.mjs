@@ -27,6 +27,11 @@ if (fs.existsSync("brand")) {
   fs.mkdirSync("public/brand", { recursive: true });
   for (const f of fs.readdirSync("brand")) fs.copyFileSync(path.join("brand", f), path.join("public/brand", f));
 }
+// campaign resource thumbnails (served at /resources/*)
+if (fs.existsSync("resources")) {
+  fs.mkdirSync("public/resources", { recursive: true });
+  for (const f of fs.readdirSync("resources")) fs.copyFileSync(path.join("resources", f), path.join("public/resources", f));
+}
 if (fs.existsSync("_supabase.js")) fs.copyFileSync("_supabase.js", "public/_supabase.js");
 fs.writeFileSync("dashboard.html", html); // local dev convenience
 
