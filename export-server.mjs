@@ -149,6 +149,14 @@ function finalize(){
       rects.push({ slot:s.slot, videoId:s.videoId, x:Math.round(r.left), y:Math.round(r.top), w, h, bg:getComputedStyle(el).backgroundColor, mask:c.toDataURL("image/png") });
       // punch the hole
       el.innerHTML=''; el.style.background='transparent'; el.style.backgroundImage='none'; el.style.opacity='1';
+      // an opaque ancestor between this slot and the frame (some templates give an inner
+      // section its own bg-*, independent of the frame's own background) would otherwise sit
+      // behind the "transparent" slot and paint the hole opaque, hiding the composited media
+      for (let p = el.parentElement; p && p !== frame; p = p.parentElement) {
+        const pcs = getComputedStyle(p);
+        if (!/^rgba?\([^)]*,\s*0\)$/.test(pcs.backgroundColor) && pcs.backgroundColor !== "transparent") p.style.backgroundColor = "transparent";
+        if (pcs.backgroundImage !== "none") p.style.backgroundImage = "none";
+      }
       // grad/border overlays below are position:absolute;inset:0 — without a positioned ancestor
       // here, they escape to the nearest one up the tree and cover far more than this slot
       if (getComputedStyle(el).position === "static") el.style.position = "relative";
