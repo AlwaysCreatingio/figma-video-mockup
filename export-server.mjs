@@ -195,6 +195,44 @@ function run(cmd, args) {
     p.on("close", c => c === 0 ? res(err) : rej(new Error(cmd + " exited " + c + "\n" + err.slice(-1500))));
   });
 }
+function probeImageSize(file) {
+  return new Promise((res) => {
+    const p = spawn("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", file]);
+    let out = ""; p.stdout.on("data", d => out += d);
+    p.on("close", () => { const m = out.trim().match(/(\d+)x(\d+)/); res(m ? { w: +m[1], h: +m[2] } : { w: 1080, h: 1080 }); });
+  });
+}
+// image sequence: synthesize one full-span video per slot with each image visible during its own
+// [start, end) window (in seconds) and fully transparent elsewhere — fed into the normal
+// single-media pipeline unchanged afterward, so the slot's own bg color shows through the gaps
+async function buildSequenceVideo(items, outFile) {
+  const sorted = items.slice().sort((a, b) => a.start - b.start);
+  const span = Math.max(0.5, Math.max(...sorted.map(it => it.end)));
+  const { w: W, h: H } = await probeImageSize(sorted[0].file);
+  const segs = [];
+  let cursor = 0;
+  for (const it of sorted) {
+    const start = Math.max(0, it.start), end = Math.max(start, it.end);
+    if (start > cursor + 0.01) segs.push({ gap: true, dur: start - cursor });
+    if (end > start) segs.push({ file: it.file, dur: end - start });
+    cursor = Math.max(cursor, end);
+  }
+  if (span > cursor + 0.01) segs.push({ gap: true, dur: span - cursor });
+  if (!segs.length) segs.push({ gap: true, dur: span });
+  const args = ["-y"];
+  segs.forEach(s => {
+    if (s.gap) args.push("-f", "lavfi", "-i", `color=c=black:s=${W}x${H}:r=30:d=${s.dur.toFixed(3)}`);
+    else args.push("-loop", "1", "-t", s.dur.toFixed(3), "-i", s.file);
+  });
+  // the color source has no alpha plane to carry a transparent spec through format=yuva420p, so
+  // force true zero alpha explicitly (same technique as the ambient-blur layer in composite() below)
+  const fc = segs.map((s, i) => s.gap
+    ? `[${i}:v]format=yuva420p,colorchannelmixer=aa=0.0[v${i}]`
+    : `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,format=yuva420p[v${i}]`);
+  fc.push(segs.map((_, i) => `[v${i}]`).join("") + `concat=n=${segs.length}:v=1:a=0[out]`);
+  args.push("-filter_complex", fc.join(";"), "-map", "[out]", "-c:v", "qtrle", "-pix_fmt", "argb", outFile);
+  await run("ffmpeg", args);
+}
 function probeDur(file) {
   return new Promise((res) => {
     const p = spawn("ffprobe", ["-v","error","-show_entries","format=duration,format_name","-of","json", file]);
@@ -464,10 +502,20 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/export") {
       const spec = JSON.parse((await readBody(req)).toString());
-      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, scrollSpeed = 1, durationSec = null, customLayers = [], mediaXf = {} } = spec;
+      const { templateId, width: W, height: H, overrides = {}, logos = [], videoSlots = [], imageSequences = {}, ambient = null, showPlus = true, visibleLogos = null, logosHidden = false, labelText = {}, arrowOn = false, scrollSpeed = 1, durationSec = null, customLayers = [], mediaXf = {} } = spec;
       const data = await enqueue(async () => {
+        // synthesize a full-span video per image-sequence slot, then hand it to the same pipeline
+        // that composites a normal single video/image into a slot — no other changes needed
+        const seqVideoSlots = [];
+        for (const slotKey in imageSequences) {
+          const items = imageSequences[slotKey]; if (!items || !items.length) continue;
+          const outId = "seqv_" + Date.now() + "_" + Math.floor(Math.random() * 1e6) + ".mov";
+          await buildSequenceVideo(items.map(it => ({ file: path.join(WORK, it.videoId), start: it.start, end: it.end })), path.join(WORK, outId));
+          seqVideoSlots.push({ slot: slotKey, videoId: outId });
+        }
+        const allVideoSlots = [...videoSlots, ...seqVideoSlots];
         const plate = path.join(WORK, "plate_" + Date.now() + ".png");
-        const { rects, frameBg, bgPlate, scroll, txtPlate } = await renderPlate(templateId, { overrides, logos, videoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn, customLayers, mediaXf }, W, H, plate);
+        const { rects, frameBg, bgPlate, scroll, txtPlate } = await renderPlate(templateId, { overrides, logos, videoSlots: allVideoSlots, ambient, showPlus, visibleLogos, logosHidden, labelText, arrowOn, customLayers, mediaXf }, W, H, plate);
         if (scroll) scroll.speed = +scrollSpeed || 1;
         const videoFiles = rects.map(r => path.join(WORK, r.videoId));
         const ambientFile = ambient ? path.join(WORK, ambient.videoId) : null;
