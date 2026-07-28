@@ -1790,6 +1790,10 @@ function App() {
     root.querySelectorAll("[data-vslot]").forEach(sl => {
       const r = getComputedStyle(sl).borderTopLeftRadius;
       sl.style.clipPath = (r && r !== "0px") ? `inset(0 round ${r})` : "";
+      // grad/blur/border overlays are position:absolute;inset:0 children — without a positioned
+      // ancestor here, they escape to the nearest one up the tree (e.g. the centered layout wrapper)
+      // and cover a much larger area than this slot
+      if (getComputedStyle(sl).position === "static") sl.style.position = "relative";
     });
     for (const k in xf) {
       const slotEl0 = root.querySelector('[data-vslot="' + k + '"]');
@@ -3516,7 +3520,7 @@ function App() {
       await Promise.all([...new Set(slots.map(k => rec.vids[k].url))].map(u => up(u).then(i => { idBySrc[u] = i; })));
       const videoSlots = slots.map(k => ({ slot: k, videoId: idBySrc[rec.vids[k].url] }));
       if (!videoSlots.length) { alert("This demo has no media to render."); return; }
-      const logos = Object.entries(rec.logos || {}).map(([slot, v]) => ({ slot, uri: v.uri, fit: (window.__FILL_LOGOS || []).indexOf(v.uri) >= 0 ? "cover" : "contain", bg: v.bg, scale: v.scale }));
+      const logos = Object.entries(rec.logos || {}).map(([slot, v]) => ({ slot, uri: v.uri, fit: v.fit || ((window.__FILL_LOGOS || []).indexOf(v.uri) >= 0 ? "cover" : "contain"), bg: v.bg, scale: v.scale, border: v.border, borderW: v.borderW, radius: v.radius }));
       const ambient = (rec.overrides && rec.overrides.__bgBlur && rec.overrides.__bgBlur.on && videoSlots.length)
         ? { blur: 60, opacity: 0.3, videoId: videoSlots[0].videoId } : null;
       const spec = { templateId: t.baseId || t.id, width: t.width, height: t.height, overrides: rec.overrides || {}, logos, videoSlots, ambient, showPlus: rec.showPlus, visibleLogos: null, logosHidden: rec.logosHidden, labelText: rec.labelText || {}, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, durationSec: rec.durationSec || null, customLayers: rec.customLayers || [], mediaXf: JSON.parse(JSON.stringify(rec.mediaXf || {})) };

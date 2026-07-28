@@ -97,7 +97,7 @@ function finalize(){
   frame.querySelectorAll('[data-bubble] span').forEach(s => { if(s.style.display==="none" && !s.hasAttribute("data-caphide")) s.style.display="inline-block"; });
   // set logos (matched by stable data-lslot id) — background tint + per-logo scale mirror the editor
   for(const l of X.logos){ const el=frame.querySelector('[data-lslot="'+l.slot+'"]'); if(!el)continue;
-    const fit=l.fit||"cover", pad=fit==="cover"?"0":"10px", sc=(l.scale!=null?l.scale:1);
+    const fit=l.fit||"cover", pad=fit==="cover"?"0":"8px", sc=(l.scale!=null?l.scale:1);
     if(l.bg) el.style.backgroundColor=l.bg;
     if(l.border) { el.style.border=(l.borderW || 2)+"px solid "+l.border; el.style.boxSizing="border-box"; } else if(l.border===null) el.style.border="none";
     if(l.radius != null) el.style.borderRadius=l.radius+"px";
@@ -149,6 +149,9 @@ function finalize(){
       rects.push({ slot:s.slot, videoId:s.videoId, x:Math.round(r.left), y:Math.round(r.top), w, h, bg:getComputedStyle(el).backgroundColor, mask:c.toDataURL("image/png") });
       // punch the hole
       el.innerHTML=''; el.style.background='transparent'; el.style.backgroundImage='none'; el.style.opacity='1';
+      // grad/border overlays below are position:absolute;inset:0 — without a positioned ancestor
+      // here, they escape to the nearest one up the tree and cover far more than this slot
+      if (getComputedStyle(el).position === "static") el.style.position = "relative";
       // gradient overlay stays in the plate (on top of the video, inside the border)
       const g = X.mediaXf && X.mediaXf[s.slot] && X.mediaXf[s.slot].grad;
       if (g && g.on) {
