@@ -1431,6 +1431,9 @@ function App() {
   const [editMode, setEditMode] = useState(true);
   const [insp, setInsp] = useState(null);
   const [picker, setPicker] = useState(null);
+  // bumped whenever the template's live DOM changes (e.g. a slot swaps <video> for <img> on
+  // upload) so the Layers panel — which reads the DOM directly in layerList() — re-renders
+  const [, setDomTick] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportProg, setExportProg] = useState(null);   // { pct, label } while an export runs
   const [page, setPage] = useState(() => routeFromHash().page);
@@ -1995,6 +1998,7 @@ function App() {
         ? { x: nx, y: ny, w: er.width, h: er.height } : h);
     }
     requestAnimationFrame(() => { applyingRef.current = false; });
+    setDomTick(t => t + 1);
   }
   useEffect(() => {
     if (!sel) return;
