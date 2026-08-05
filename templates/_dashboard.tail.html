@@ -170,6 +170,15 @@ const IS_LOCAL = typeof location !== "undefined" && (location.hostname === "loca
 
 const aspectOf = (t) => t.width === t.height ? "1:1" : t.width > t.height ? "16:9" : "9:16";
 const fmtClip = (s) => s >= 60 ? Math.floor(s / 60) + "m" + (s % 60 ? " " + (s % 60) + "s" : "") : s + "s";
+/* inline icons for text layers — currentColor + em sizing so they track the text's color and size */
+const TEXT_ICONS = {
+  link: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>',
+  arrow: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
+  globe: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a13.5 13.5 0 014 9 13.5 13.5 0 01-4 9 13.5 13.5 0 01-4-9 13.5 13.5 0 014-9z"/></svg>',
+  play: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l12-7z"/></svg>',
+  check: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+  star: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.26 6.6.7-4.9 4.5 1.35 6.54L12 16.9 6.05 20l1.35-6.54-4.9-4.5 6.6-.7z"/></svg>',
+};
 
 /* light-theme class tokens */
 const ACCENT = "#18181b";
@@ -2799,6 +2808,7 @@ function App() {
       borderW: Math.round(parseFloat(aovs.borderWidth != null ? aovs.borderWidth : acs.borderTopWidth) || 0),
       borderHex: parseColor(aovs.borderColor || acs.borderTopColor).hex,
       radius: parseInt(aovs.borderRadius != null ? aovs.borderRadius : acs.borderRadius) || 0,
+      padding: parseInt(aovs.padding != null ? aovs.padding : acs.paddingTop) || 0,
       lineH: +((parseFloat(aovs.lineHeight || "") || parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.2) / (parseFloat(cs.fontSize) || 16)).toFixed(2),
       font: (ovs.fontFamily || cs.fontFamily || "Geist").replace(/["']/g, "").split(",")[0].trim(),
       weight: parseInt(ovs.fontWeight || cs.fontWeight) || 400,
@@ -2807,6 +2817,7 @@ function App() {
       align: ovs.textAlign || cs.textAlign || "left",
       italic: (ovs.fontStyle || cs.fontStyle) === "italic",
       underline: (ovs.textDecoration || cs.textDecorationLine || "").includes("underline"),
+      textIcon: (() => { const ic = el.querySelector && el.querySelector(":scope > [data-texticon]"); return ic ? { pos: el.firstChild === ic ? "left" : "right", kind: ic.getAttribute("data-texticon") || "link" } : null; })(),
     });
     expandGroupSelection();
   }
@@ -3116,6 +3127,27 @@ function App() {
     else { img.style.width = "1.2em"; img.style.height = "1.2em"; img.style.maxWidth = ""; img.style.objectFit = mode === "fit" ? "contain" : "cover"; img.style.borderRadius = "9999px"; }
     const p = bubbleParent(); if (p) persistTextHtml(p);
     setInsp(i => ({ ...i, bubbleImgMode: mode }));
+  }
+  // inline icon before/after a text layer's content — inherits the text color, scales with the font
+  function setTextIcon(pos, kind) {
+    let el = activeRef.current && activeRef.current.el; if (!el || !insp || !insp.isText) return;
+    if (!el.isConnected) el = nodeAt(containerRef.current, insp.path);
+    if (!el || el.tagName === "INPUT") return;
+    pushHistory(true);
+    el.querySelectorAll(":scope > [data-texticon]").forEach(n => n.remove());
+    const k = kind || (insp.textIcon && insp.textIcon.kind) || "link";
+    if (pos !== "off") {
+      const sp = document.createElement("span");
+      sp.setAttribute("data-texticon", k);
+      sp.setAttribute("contenteditable", "false");
+      sp.style.cssText = "display:inline-flex;vertical-align:-0.08em;" + (pos === "left" ? "margin-right:.35em;" : "margin-left:.35em;");
+      sp.innerHTML = TEXT_ICONS[k] || TEXT_ICONS.link;
+      if (pos === "left") el.insertBefore(sp, el.firstChild);
+      else el.appendChild(sp);
+    }
+    persistTextHtml(el);
+    requestAnimationFrame(syncHandle);
+    setInsp(i => ({ ...i, textIcon: pos === "off" ? null : { pos, kind: k } }));
   }
   // invert the bubble's logo colors (dark logo on a light pill ↔ light logo on a dark pill)
   function setBubbleInvert(on) {
@@ -4974,6 +5006,10 @@ function App() {
                   <label className={LBL}>Corner radius</label>
                   <input type="number" min="0" value={insp.radius} onChange={e => setAp("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
                 </div>
+                <div>
+                  <label className={LBL}>Padding</label>
+                  <input type="number" min="0" value={insp.padding} onChange={e => { const v = Math.max(0, +e.target.value); setAp("padding", v + "px", { padding: v }); }} className={FIELD} />
+                </div>
                 {insp.apPath === insp.path && <div>
                   <label className={LBL}>Style</label>
                   <select value={insp.pattern || "none"} onChange={e => setPattern(e.target.value)} className={FIELD} style={SELECT_STYLE}>
@@ -5088,6 +5124,21 @@ function App() {
                     <button onClick={() => setStyle("fontStyle", insp.italic ? "normal" : "italic", { italic: !insp.italic })} className={"px-3 py-1.5 rounded-[30px] italic text-sm border border-white/10 " + (insp.italic ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>I</button>
                     <button onClick={() => setStyle("textDecoration", insp.underline ? "none" : "underline", { underline: !insp.underline })} className={"px-3 py-1.5 rounded-[30px] underline text-sm border border-white/10 " + (insp.underline ? "bg-zinc-900 text-white border-transparent" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>U</button>
                   </div>
+                </div>
+                <div>
+                  <label className={LBL}>Icon</label>
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                    <button onClick={() => setTextIcon("off")} className={!insp.textIcon ? SEG_ON : SEG}>Off</button>
+                    <button onClick={() => setTextIcon("left")} className={insp.textIcon && insp.textIcon.pos === "left" ? SEG_ON : SEG}>Left</button>
+                    <button onClick={() => setTextIcon("right")} className={insp.textIcon && insp.textIcon.pos === "right" ? SEG_ON : SEG}>Right</button>
+                  </div>
+                  {insp.textIcon && <div className="flex gap-1.5 mt-2">
+                    {Object.keys(TEXT_ICONS).map(k => (
+                      <button key={k} onClick={() => setTextIcon(insp.textIcon.pos, k)} title={k}
+                        className={"w-8 h-8 flex items-center justify-center rounded-[10px] border transition " + (insp.textIcon.kind === k ? "bg-white text-zinc-900 border-transparent" : "bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10")}
+                        dangerouslySetInnerHTML={{ __html: TEXT_ICONS[k].replace('width="1em" height="1em"', 'width="15" height="15"') }} />
+                    ))}
+                  </div>}
                 </div>
               </Sec>}
             </div>}
