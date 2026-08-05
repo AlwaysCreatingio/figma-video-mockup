@@ -2833,10 +2833,14 @@ function App() {
   function insertTextBubble(src) {
     const range = bubbleRangeRef.current; bubbleRangeRef.current = null;
     const root = containerRef.current; if (!range || !root) return;
-    const anc = range.commonAncestorContainer;
-    const host = anc.nodeType === 3 ? anc.parentElement : anc;
-    const editable = host && host.closest && host.closest('[contenteditable="true"]');
+    // selecting ALL the text (cmd+A / triple-click) can land the range's endpoints on the
+    // editable's parent instead of inside the text — resolve the editable from any endpoint
+    // (same quirk selectionEditable handles) and clamp the range inside it before splicing
+    const find = (node) => { const host = node && (node.nodeType === 3 ? node.parentElement : node); return host && host.closest && host.closest('[contenteditable="true"]'); };
+    const editable = find(range.commonAncestorContainer) || find(range.startContainer) || find(range.endContainer);
     if (!editable || !root.contains(editable)) { setBubbleTb(null); return; }
+    if (!editable.contains(range.startContainer)) range.setStart(editable, 0);
+    if (!editable.contains(range.endContainer)) range.setEnd(editable, editable.childNodes.length);
     pushHistory(true);
     const text = range.toString();
     const pill = document.createElement("span");
