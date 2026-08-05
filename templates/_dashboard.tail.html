@@ -3350,7 +3350,7 @@ function App() {
         const cap = a.el.querySelector(":scope > span:not([data-bubble-arrow])");
         if (cap && cap.contains(e.target)) return;
       }
-      if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isSlot && insp.path !== "" && insp.path !== "0" &&
+      if (a && a.el && insp && !insp.isMedia && !insp.isSlot && insp.path !== "" && insp.path !== "0" &&
           !a.el.hasAttribute("data-vslot") && (e.target === a.el || a.el.contains(e.target) ||
             multiRef.current.some(m => m.el && m.el.isConnected && (e.target === m.el || m.el.contains(e.target))))) startMoveDrag(e, false);
       return;
