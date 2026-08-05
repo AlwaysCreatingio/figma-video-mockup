@@ -3026,7 +3026,7 @@ function App() {
       setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
     }
     setOpenSec("Bubble");
-    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex, hasArrow: !!bub.querySelector(":scope > [data-bubble-arrow]"), bubbleInvert: !!(img && /invert/.test(img.style.filter || "")) });
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleImgMode: !img ? "circle" : /auto/.test(img.style.width || "") ? "full" : img.style.objectFit === "contain" ? "fit" : "circle", hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex, hasArrow: !!bub.querySelector(":scope > [data-bubble-arrow]"), bubbleInvert: !!(img && /invert/.test(img.style.filter || "")) });
   }
   function setBubbleBg(hex) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -3076,14 +3076,16 @@ function App() {
     const p = bubbleParent(); if (p) persistTextHtml(p);
     setInsp(i => ({ ...i, textShown: show }));
   }
-  function setBubbleImgFit(full) {
+  // "circle" crops to fill the circle, "fit" contains the whole logo inside it, "full" shows it
+  // at natural width outside the circle shape
+  function setBubbleImgFit(mode) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
     const img = bub.querySelector("img"); if (!img) return;
     pushHistory(true);
-    if (full) { img.style.width = "auto"; img.style.height = "1.2em"; img.style.maxWidth = "8em"; img.style.objectFit = "contain"; img.style.borderRadius = ".3em"; }
-    else { img.style.width = "1.2em"; img.style.height = "1.2em"; img.style.maxWidth = ""; img.style.objectFit = "cover"; img.style.borderRadius = "9999px"; }
+    if (mode === "full") { img.style.width = "auto"; img.style.height = "1.2em"; img.style.maxWidth = "8em"; img.style.objectFit = "contain"; img.style.borderRadius = ".3em"; }
+    else { img.style.width = "1.2em"; img.style.height = "1.2em"; img.style.maxWidth = ""; img.style.objectFit = mode === "fit" ? "contain" : "cover"; img.style.borderRadius = "9999px"; }
     const p = bubbleParent(); if (p) persistTextHtml(p);
-    setInsp(i => ({ ...i, bubbleFull: full }));
+    setInsp(i => ({ ...i, bubbleImgMode: mode }));
   }
   // invert the bubble's logo colors (dark logo on a light pill ↔ light logo on a dark pill)
   function setBubbleInvert(on) {
@@ -4799,8 +4801,9 @@ function App() {
               <div>
                 <label className={LBL}>Image</label>
                 <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
-                  <button onClick={() => setBubbleImgFit(false)} className={!insp.bubbleFull ? SEG_ON : SEG}>Circle</button>
-                  <button onClick={() => setBubbleImgFit(true)} className={insp.bubbleFull ? SEG_ON : SEG}>Full</button>
+                  <button onClick={() => setBubbleImgFit("circle")} className={insp.bubbleImgMode === "circle" ? SEG_ON : SEG}>Circle</button>
+                  <button onClick={() => setBubbleImgFit("fit")} className={insp.bubbleImgMode === "fit" ? SEG_ON : SEG}>Fit</button>
+                  <button onClick={() => setBubbleImgFit("full")} className={insp.bubbleImgMode === "full" ? SEG_ON : SEG}>Full</button>
                 </div>
               </div>
               <div>
