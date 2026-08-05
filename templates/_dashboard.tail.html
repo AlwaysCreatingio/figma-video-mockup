@@ -1864,6 +1864,10 @@ function App() {
       if (tile) {
         tile.style.outline = "2px solid #2563eb"; tile.style.outlineOffset = "1px";
         activeRef.current = { el: tile, path: pathOf(tile, containerRef.current) };
+        if (mainRef.current) {
+          const mr = mainRef.current.getBoundingClientRect(), er = tile.getBoundingClientRect();
+          setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
+        }
       }
       setInsp({ isLogo: true, logoApi: api, logoScale: api.scale != null ? api.scale : 1, logoBg: api.bg || "#ffffff", logoBorder: api.border !== undefined ? api.border : undefined, logoBorderW: api.borderW != null ? api.borderW : 2, logoRadius: api.radius, logoFit: api.fit });
     };
@@ -2590,7 +2594,12 @@ function App() {
     const move = (ev) => {
       const k = Math.max(0.15, Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0);
       if (mode === "font") setStyle("fontSize", Math.max(6, Math.round(f0 * k)) + "px", { size: Math.max(6, Math.round(f0 * k)) });
-      else if (mode === "img") setStyle("height", Math.max(8, Math.round(h0 * k)) + "px", { imgH: Math.max(8, Math.round(h0 * k)) });
+      else if (mode === "img") {
+        // scale both axes so images with an explicit width (logos, placed images) keep their shape
+        const nh = Math.max(8, Math.round(h0 * k));
+        setStyle("height", nh + "px", { imgH: nh });
+        if (el.style.width && el.style.width !== "auto") setStyle("width", Math.max(8, Math.round(w0 * k)) + "px");
+      }
       else {
         let w1, h1;
         if (ev.shiftKey && horiz && vert) {
@@ -4596,12 +4605,19 @@ function App() {
                           {label}
                         </button>
                       ))}
+                      {window.__AO_LOGO && <button onClick={() => {
+                        setAddMenu(false);
+                        addCustomLayer({ img: window.__AO_LOGO, alt: "Agent Opus", style: { left: "64px", top: "64px", width: "160px", height: "160px" } });
+                      }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition flex items-center gap-2">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>
+                        Logo mark
+                      </button>}
                       <button onClick={() => {
                         setAddMenu(false);
                         if (window.__logoPicker) window.__logoPicker(url => addCustomLayer({ img: url, alt: "Logo", style: { left: "64px", top: "64px", width: "160px", height: "160px" } }));
                       }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition flex items-center gap-2">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>
-                        Logo
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                        Image…
                       </button>
                     </div>}
                   </div>
@@ -4789,7 +4805,7 @@ function App() {
               className="absolute z-40 w-5 h-5 rounded-full bg-white ring-2 ring-[#2563eb] flex items-center justify-center text-[#2563eb] select-none cursor-grab">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
             </button>}
-          {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
+          {handle && insp && insp.path !== "" && insp.path !== "0" &&
             [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1], ["n", 0.5, 0], ["s", 0.5, 1], ["w", 0, 0.5], ["e", 1, 0.5]].map(([c, fx, fy]) => (
               <button key={c} onPointerDown={(e) => startResizeDrag(e, c)} title="Drag to resize"
                 style={{ left: handle.x + fx * handle.w - 7, top: handle.y + fy * handle.h - 7,
