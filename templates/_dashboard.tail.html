@@ -2937,6 +2937,7 @@ function App() {
       pattern: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? "blur" : (((ovFor(sel)[apPath] || {}).styleMeta || {}).kind || ((acs.backgroundImage && acs.backgroundImage !== "none") ? "custom" : undefined)),
       styleMeta: (path === "0" && ovFor(sel).__bgBlur && ovFor(sel).__bgBlur.on) ? ovFor(sel).__bgBlur : (ovFor(sel)[apPath] || {}).styleMeta || null,
       imgH: el.tagName === "IMG" ? (parseInt(ovs.height) || Math.round(parseFloat(cs.height)) || 24) : null,
+      imgInvert: el.tagName === "IMG" ? /invert/.test(ovs.filter != null ? ovs.filter : (cs.filter || "")) : null,
       bgHex: bg.hex, bgTransparent: bg.a === 0,
       opacity: Math.round(((path === "0" || path === "") ? bg.a : parseFloat(aovs.opacity != null ? aovs.opacity : acs.opacity)) * 100),
       borderW: Math.round(parseFloat(aovs.borderWidth != null ? aovs.borderWidth : acs.borderTopWidth) || 0),
@@ -5261,6 +5262,13 @@ function App() {
                   <label className={LBL}>Corner radius</label>
                   <input type="number" min="0" value={insp.radius} onChange={e => setAp("borderRadius", (+e.target.value) + "px", { radius: +e.target.value })} className={FIELD} />
                 </div>
+                {insp.tag === "img" && <div>
+                  <label className={LBL}>Invert color</label>
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                    <button onClick={() => setStyle("filter", "", { imgInvert: false })} className={!insp.imgInvert ? SEG_ON : SEG}>Off</button>
+                    <button onClick={() => setStyle("filter", "invert(1)", { imgInvert: true })} className={insp.imgInvert ? SEG_ON : SEG}>On</button>
+                  </div>
+                </div>}
                 <div>
                   <label className={LBL}>Padding</label>
                   <div className="flex gap-1.5">
