@@ -4542,8 +4542,15 @@ function App() {
     return (
       <div className="h-screen flex text-zinc-100 bg-[#1A1A1A]">
         <aside style={{ width: SB }} className="shrink-0 h-screen bg-[#1f1f1f] border-r border-white/10 flex flex-col">
-          <div className="h-14 shrink-0 flex items-center px-5 border-b border-white/10">
-            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as an asset yet.")) return; deselect(); editingDemoRef.current = null; setSel(null); }} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition">← Back</button>
+          <div className="h-14 shrink-0 flex items-center gap-2.5 px-4 border-b border-white/10">
+            <button onClick={() => { if (editorDirty() && !window.confirm("Leave the editor? Your edits aren't saved as an asset yet.")) return; deselect(); editingDemoRef.current = null; setSel(null); }} title="Back to gallery"
+              className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <span className="min-w-0 flex-1 text-sm font-medium text-zinc-100 truncate">
+              {(editingDemoRef.current && demoRecs[editingDemoRef.current] && demoRecs[editingDemoRef.current].name) || (selTplObj && selTplObj.name) || ""}
+            </span>
+            {selTplObj && <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/10 text-zinc-400">{aspectOf(selTplObj)}</span>}
           </div>
 
           <div className="px-5 py-5 flex-1 overflow-y-auto">
@@ -4662,30 +4669,31 @@ function App() {
         </aside>
 
         <div className="flex-1 h-screen flex flex-col relative">
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-[#1A1A1A]/85 backdrop-blur-xl border border-white/10 shadow-2xl">
             <button onClick={undoEdit} disabled={!histFor(sel).length} title="Undo (⌘Z)"
-              className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 bg-[#1A1A1A]/70 backdrop-blur hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+              className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
             </button>
             <button onClick={redoEdit} disabled={!redoFor(sel).length} title="Redo (⇧⌘Z)"
-              className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 bg-[#1A1A1A]/70 backdrop-blur hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
+              className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition disabled:opacity-30 disabled:pointer-events-none">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>
             </button>
             <div className="w-px h-5 bg-white/15 mx-1" />
             <button onClick={() => addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: canvasInkColor() } })} title="Add text"
-              className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 bg-[#1A1A1A]/70 backdrop-blur hover:bg-white/10 hover:text-white transition">
+              className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>
             </button>
             <button onClick={() => addCustomLayer({ kind: "arrow", style: { left: "64px", top: "64px", width: "96px", height: "96px", color: canvasInkColor() } })} title="Add arrow"
-              className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 bg-[#1A1A1A]/70 backdrop-blur hover:bg-white/10 hover:text-white transition">
+              className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>
             </button>
             {IS_LOCAL && <button onClick={() => setDrawMode(d => !d)} title="Draw"
-              className={"w-9 h-9 flex items-center justify-center rounded-full backdrop-blur transition " + (drawMode ? "bg-white text-zinc-900" : "text-zinc-300 bg-[#1A1A1A]/70 hover:bg-white/10 hover:text-white")}>
+              className={"w-8 h-8 flex items-center justify-center rounded-full transition " + (drawMode ? "bg-white text-zinc-900" : "text-zinc-300 hover:bg-white/10 hover:text-white")}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
             </button>}
+            <div className="w-px h-5 bg-white/15 mx-1" />
             <button onClick={() => setShortcuts(s => !s)} title="Shortcuts (?)"
-              className="w-9 h-9 flex items-center justify-center rounded-full text-zinc-300 bg-[#1A1A1A]/70 backdrop-blur hover:bg-white/10 hover:text-white transition text-[15px] font-semibold">?</button>
+              className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition text-[14px] font-semibold">?</button>
           </div>
           {shortcuts && <div className="fixed inset-0 z-[90] bg-black/50 flex items-center justify-center" onClick={() => setShortcuts(false)}>
             <div className="w-[440px] max-h-[80vh] overflow-y-auto rounded-[20px] bg-[#242424] border border-white/10 shadow-2xl p-6" onClick={e => e.stopPropagation()}>
@@ -4729,7 +4737,8 @@ function App() {
             <button onClick={finishDraw} className="px-3.5 h-8 flex items-center rounded-full text-sm font-semibold bg-white text-zinc-900 hover:bg-zinc-200 transition">Done</button>
           </div>}
 
-        <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative">
+        <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative"
+          style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
             <div ref={containerRef} onClickCapture={onEditorClick} onDoubleClick={onEditorDblClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onPointerOver={onEditorHover} onPointerLeave={clearHover} onDragStart={(e) => e.preventDefault()}
               onPaste={(e) => {
