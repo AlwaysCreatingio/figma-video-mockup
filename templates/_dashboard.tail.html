@@ -2567,6 +2567,10 @@ function App() {
     if (!el || !el.isConnected) el = nodeAt(containerRef.current, rec0.path);
     if (!el) return;
     let tPath = rec0.path;
+    // never translate the image inside a logo/media container — dragging any part of a slot
+    // moves the whole slot (frame + image together)
+    const slotHost = el.closest && el.closest("[data-lslot], [data-vslot]");
+    if (slotHost && slotHost !== el) { el = slotHost; tPath = pathOf(el, containerRef.current); }
     if (ins.isMedia && el.parentElement) {
       const pr = el.parentElement.getBoundingClientRect(), sr = el.getBoundingClientRect();
       if (Math.abs(pr.left - sr.left) < 3 && Math.abs(pr.top - sr.top) < 3 && Math.abs(pr.width - sr.width) < 3 && Math.abs(pr.height - sr.height) < 3) {
@@ -2719,6 +2723,10 @@ function App() {
     // always target the same box
     const pillWrap = el.closest && el.closest("[data-pin], [data-swap]");
     if (pillWrap && pillWrap !== el && !forceText && !isTextLeaf(el)) el = pillWrap;
+    // same for logo/media slots: selecting anything inside targets the whole slot, so moving
+    // never separates the image from its container
+    const slotWrap = el.closest && el.closest("[data-lslot], [data-vslot]");
+    if (slotWrap && slotWrap !== el && !forceText && !isTextLeaf(el)) el = slotWrap;
     // heal labels moved before container-selection existed: the move lives on a child, so the
     // container (and its selection box) sits at the original spot — hoist it up
     if (el.hasAttribute && (el.hasAttribute("data-swap") || el.hasAttribute("data-pin"))) {
@@ -2945,7 +2953,9 @@ function App() {
     if ((e.metaKey || e.ctrlKey || e.shiftKey) && activeRef.current) {
       e.preventDefault(); e.stopPropagation();
       const u = textUnit(e.target);
-      toggleMulti(u && isTextLeaf(u) ? u : e.target);
+      // clicks inside a logo/media slot multi-select the slot itself, never the image within it
+      const slotHost = e.target.closest && e.target.closest("[data-lslot], [data-vslot]");
+      toggleMulti(u && isTextLeaf(u) ? u : (slotHost || e.target));
       return;
     }
     const el = e.target;
