@@ -70,7 +70,7 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "boxSizing", "boxShadow", "filter", "lineHeight"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "boxSizing", "boxShadow", "filter", "lineHeight", "flexShrink", "maxHeight", "minHeight"];
 // Agent Opus brand palette (from the brand guidelines) — presets for every color control.
 const BRAND_COLORS = [["#FA9819", "Orange"], ["#D77655", "Terracotta"], ["#C6EBF7", "Baby Blue"], ["#B6C9CF", "Blue Tint"], ["#F9F5F2", "Cream"], ["#1A1A1A", "Black"], ["#FFFFFF", "White"], ["#0F0F13", "Ink"]];
 // A color control: swatch button that opens a popover with brand presets + a native picker + hex.
@@ -512,6 +512,8 @@ function healBubbleCaptions(root) {
     if (s.style.display === "none" && !s.hasAttribute("data-caphide")) s.style.display = "inline-block";
   });
 }
+// shared by the client-rendered custom layer + the export server's own copy of this markup
+const ARROW_SVG = '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>';
 function syncCustomLayersIn(frame, layers) {
   if (!frame) return;
   let wrap = frame.querySelector(":scope > [data-custom]");
@@ -523,12 +525,14 @@ function syncCustomLayersIn(frame, layers) {
     frame.appendChild(wrap);
   } else if (frame.lastElementChild !== wrap) frame.appendChild(wrap);
   layers.forEach((cl, i) => {
-    const want = cl.img ? "IMG" : "P";
+    const isArrow = cl.kind === "arrow";
+    const want = isArrow ? "DIV" : cl.img ? "IMG" : "P";
     let el = wrap.children[i];
     if (!el || el.getAttribute("data-cl") !== cl.id || el.tagName !== want) {
-      el = document.createElement(cl.img ? "img" : "p");
+      el = document.createElement(isArrow ? "div" : cl.img ? "img" : "p");
       el.setAttribute("data-cl", cl.id);
-      if (cl.img) { el.setAttribute("src", cl.img); el.setAttribute("alt", cl.alt || "Drawing"); el.style.pointerEvents = "none"; el.draggable = false; }
+      if (isArrow) { el.innerHTML = ARROW_SVG; el.style.pointerEvents = "auto"; el.style.cursor = "move"; }
+      else if (cl.img) { el.setAttribute("src", cl.img); el.setAttribute("alt", cl.alt || "Drawing"); el.style.pointerEvents = "none"; el.draggable = false; }
       else { el.textContent = cl.text || ""; el.style.pointerEvents = "auto"; el.style.cursor = "move"; }
       el.style.position = "absolute"; el.style.margin = "0";
       for (const k in (cl.style || {})) el.style[k] = cl.style[k];
@@ -537,7 +541,7 @@ function syncCustomLayersIn(frame, layers) {
       el.setAttribute("src", cl.img);
     }
     // text layers hug their content but wrap to new lines once they'd run past the frame edge
-    if (!cl.img && el) {
+    if (!cl.img && !isArrow && el) {
       el.style.whiteSpace = "pre-wrap";
       el.style.wordBreak = "break-word";
       if (!el.style.width || el.style.width === "auto") el.style.width = "max-content";
@@ -1499,7 +1503,15 @@ function App() {
       // every frame forces a synchronous layout and drops frames on slow scrolls.
       if (!measured || now - measured > 400) {
         vids = root ? [...root.querySelectorAll("[data-vslot] video")].filter(v => v.duration) : [];
-        vmax = vids.reduce((a, v) => Math.max(a, v.duration || 0), 0);
+        // a slot played at less than 1x takes proportionally longer to actually finish on screen
+        // than its raw file duration — without this, the master clock (and anything synced to it,
+        // like an image's scroll) would think the clip is over while a slowed-down video keeps going
+        const xf0 = xfFor(sel);
+        vmax = vids.reduce((a, v) => {
+          const slotEl = v.closest("[data-vslot]");
+          const spd = (slotEl && xf0[slotEl.getAttribute("data-vslot")] && xf0[slotEl.getAttribute("data-vslot")].speed) || 1;
+          return Math.max(a, (v.duration || 0) / (spd || 1));
+        }, 0);
         readMin = root ? scrollReadSeconds(root) : 0;
         measured = now;
       }
@@ -1513,6 +1525,25 @@ function App() {
         let t = (window.__PLAYHEAD || 0) + dt;
         if (t >= d) { t -= d; if (cap && cap < vmax) vids.forEach(v => { try { v.currentTime = 0; } catch (e) {} }); }   // trim: restart at the mark
         window.__PLAYHEAD = t;
+        // this wall-clock advances the moment the preview mounts, but the video element itself
+        // starts a beat later (autoplay latency) and can stall to buffer — the clock runs ahead and
+        // anything synced to it (an image's scroll) finishes before the footage does. When a video
+        // spans the whole timeline, IT is the ground truth: snap the clock back onto its actual
+        // playback position whenever they drift apart.
+        if (vids.length) {
+          const xfS = xfFor(sel);
+          let lead = null, leadDur = 0;
+          vids.forEach(v => {
+            const se = v.closest("[data-vslot]");
+            const spd = (se && xfS[se.getAttribute("data-vslot")] && xfS[se.getAttribute("data-vslot")].speed) || 1;
+            const ed = (v.duration || 0) / (spd || 1);
+            if (ed > leadDur) { leadDur = ed; lead = { v, spd: spd || 1 }; }
+          });
+          if (lead && leadDur >= d - 0.05 && !lead.v.paused && lead.v.readyState >= 2) {
+            const eff = lead.v.currentTime / lead.spd;
+            if (Math.abs(window.__PLAYHEAD - eff) > 0.35) window.__PLAYHEAD = Math.min(eff, d);
+          }
+        }
       }
       // image sequences: show whichever item's [start, end) window contains the playhead —
       // runs every tick (not just while playing) so scrubbing a paused preview also updates
@@ -1527,6 +1558,60 @@ function App() {
             window.__slotAPI.setVids(v => ({ ...v, [slotKey]: { url: cur.url, img: cur.img } }));
           }
         }
+      }
+      // image layers with "scroll" enabled: pan from the natural top/left toward the cropped
+      // edge across the clip's duration, synced to the same master clock as the prompt text —
+      // owns the transform every frame, so applyXf's one-shot version steps aside (see t.scroll)
+      if (root) {
+        const xf = xfFor(sel);
+        root.querySelectorAll("[data-vslot]").forEach(slotEl => {
+          const k = slotEl.getAttribute("data-vslot");
+          const t = xf[k];
+          const img = slotEl.querySelector("img");
+          // a stale scroll flag can coexist with Fit/Inset in older saved records — fit wins there
+          if (!t || !t.scroll || t.fit === "fit" || t.fit === "contain") {
+            // scroll just turned off (toggle, undo, or reset): clear every style this tick owned —
+            // applyXf skips slots with no xf entry, so leftovers would otherwise stick around forever
+            if (img && img.__aoScroll) {
+              img.__aoScroll = false;
+              ["position", "left", "top", "width", "height", "maxWidth", "maxHeight", "objectFit", "transform", "transformOrigin"].forEach(p => { img.style[p] = ""; });
+              applyXf(root, sel);
+            }
+            return;
+          }
+          if (!img || slotEl.querySelector("video")) return;
+          const nw = img.naturalWidth, nh = img.naturalHeight, sw = slotEl.clientWidth, sh = slotEl.clientHeight;
+          if (!nw || !nh || !sw || !sh) return;
+          // zoom multiplies straight into the cover scale, so the pan sweeps the FULL zoomed image
+          // edge-to-edge (still lands exactly at the far edge when the clip ends). Whichever axis
+          // overflows at zoom=1 is the pan axis; the other axis's overflow — introduced purely by
+          // the zoom multiplier — stays centered (a constant half-offset), or zooming in drags the
+          // image toward a corner instead of enlarging around the middle of that axis.
+          const baseScale = Math.max(sw / nw, sh / nh);
+          const zoom = Math.max(1, t.s || 1);   // below 100% would under-cover the slot, opening a gap
+          const scale = baseScale * zoom;
+          const overX = Math.max(0, nw * scale - sw), overY = Math.max(0, nh * scale - sh);
+          const panIsY = (nh * baseScale - sh) >= (nw * baseScale - sw);
+          const prog = d > 0 ? Math.min(1, (window.__PLAYHEAD || 0) / d) : 0;
+          const tx = panIsY ? -overX / 2 : -overX * prog;
+          const ty = panIsY ? -overY * prog : -overY / 2;
+          // the slots are flex containers (items-center justify-center): left in normal flow, an
+          // oversized image gets auto-centered by flex FIRST and the translate below then shifts it
+          // a second time — pushed off toward a corner, and the pan hits the image's far edge long
+          // before the clip ends. Absolute positioning anchors it at the slot's true top-left so
+          // this math is the only thing placing it.
+          if (getComputedStyle(slotEl).position === "static") slotEl.style.position = "relative";
+          img.__aoScroll = true;
+          img.style.position = "absolute"; img.style.left = "0"; img.style.top = "0";
+          // Tailwind preflight puts max-width:100% on every img — it would silently clamp the zoomed
+          // width back to the slot while tx still offsets for the full width, shifting the image left
+          img.style.maxWidth = "none"; img.style.maxHeight = "none";
+          img.style.width = Math.round(nw * scale) + "px";
+          img.style.height = Math.round(nh * scale) + "px";
+          img.style.objectFit = "cover";
+          img.style.transformOrigin = "top left";
+          img.style.transform = `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px)`;
+        });
       }
       raf = requestAnimationFrame(tick);
     };
@@ -1547,6 +1632,13 @@ function App() {
   const [toast, setToast] = useState(null);       // transient success toast
   const [navCollapsed, setNavCollapsed] = useState(false); // icon-only sidebar
   const [mobileNav, setMobileNav] = useState(false);       // hamburger drawer on small screens
+  const [addMenu, setAddMenu] = useState(false);           // "+" layer-type picker over the Layers panel
+  useEffect(() => {
+    if (!addMenu) return;
+    const close = () => setAddMenu(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [addMenu]);
   useEffect(() => {
     window.__toast = (m, opts) => {
       setToast(m); clearTimeout(window.__toastT);
@@ -1886,6 +1978,9 @@ function App() {
       if (m && m.tagName === "VIDEO") { try { m.playbackRate = xf[k].speed || 1; } catch (e) {} }
       if (m) {
         const t = xf[k];
+        // scroll mode: the master tick owns sizing/position every frame (panning through the
+        // full image), so a one-shot static transform here would just fight it
+        if (t.scroll && t.fit !== "fit" && t.fit !== "contain" && m.tagName === "IMG") { m.draggable = false; continue; }
         const s2 = t.s || 1;
         const slotEl = m.closest("[data-vslot]");
         const nw = m.videoWidth || m.naturalWidth || 0, nh = m.videoHeight || m.naturalHeight || 0;
@@ -2099,11 +2194,13 @@ function App() {
   function addCustomLayer(base) {
     const id2 = "cl_" + Math.random().toString(36).slice(2, 9);
     pushHistory(true);
-    clFor(sel).push({ id: id2, text: base.text || "New text", style: base.style || {} });
+    // text layers (the only kind this took before) default their text; other kinds (e.g. "arrow")
+    // pass their own shape through untouched
+    clFor(sel).push(base.kind ? { id: id2, ...base } : { id: id2, text: base.text || "New text", style: base.style || {} });
     applyAll(); force(x => x + 1);
     setTimeout(() => {
       const el2 = containerRef.current && containerRef.current.querySelector('[data-cl="' + id2 + '"]');
-      if (el2) selectEl(el2, true, true);   // new text layers open ready to type
+      if (el2) selectEl(el2, !base.kind, !base.kind);   // new text layers open ready to type; other kinds just select
     }, 80);
   }
   // save the current drawing as one full-frame image layer (replaces any prior drawing)
@@ -2708,9 +2805,12 @@ function App() {
     const s = window.getSelection && window.getSelection();
     const root = containerRef.current;
     if (!editMode || !s || s.isCollapsed || !s.rangeCount || !root) return null;
-    const anc = s.getRangeAt(0).commonAncestorContainer;
-    const host = anc.nodeType === 3 ? anc.parentElement : anc;
-    const editable = host && host.closest && host.closest('[contenteditable="true"]');
+    const r = s.getRangeAt(0);
+    // selecting the ENTIRE contents of a text layer can put commonAncestorContainer on the
+    // contenteditable node itself (or, in some browsers, its parent) — the start/end containers
+    // are still inside the text, so check those too instead of only the common ancestor
+    const find = (node) => { const host = node && (node.nodeType === 3 ? node.parentElement : node); return host && host.closest && host.closest('[contenteditable="true"]'); };
+    const editable = find(r.commonAncestorContainer) || find(r.startContainer) || find(r.endContainer);
     return (editable && root.contains(editable)) ? editable : null;
   }
   // highlight text -> replace the selection with an inline pill: image + the highlighted text
@@ -2787,7 +2887,26 @@ function App() {
     }
     // an image bubble selects as its own element (edit its background / image / remove it)
     const bub = el.closest && el.closest("[data-bubble]");
-    if (bub && containerRef.current.contains(bub)) { e.preventDefault(); e.stopPropagation(); selectBubble(bub); return; }
+    if (bub && containerRef.current.contains(bub)) {
+      e.preventDefault(); e.stopPropagation();
+      const cap = bub.querySelector(":scope > span:not([data-bubble-arrow])");
+      const s = window.getSelection && window.getSelection();
+      const r = (cap && s && s.rangeCount && !s.isCollapsed) ? s.getRangeAt(0) : null;
+      // a drag-highlight over the caption means "retype this text", not "reselect the bubble" —
+      // enter caption editing and keep the highlight (clamped to the caption) so typing replaces it
+      if (r && r.intersectsNode(cap)) {
+        const nr = document.createRange();
+        nr.selectNodeContents(cap);
+        if (cap.contains(r.startContainer) && r.startContainer !== cap) nr.setStart(r.startContainer, r.startOffset);
+        if (cap.contains(r.endContainer) && r.endContainer !== cap) nr.setEnd(r.endContainer, r.endOffset);
+        enterTextEdit(cap, null);
+        s.removeAllRanges(); s.addRange(nr);
+        return;
+      }
+      // clicking the caption of an already-selected bubble starts editing, like text layers
+      if (cap && activeRef.current && activeRef.current.el === bub && cap.contains(el)) { enterTextEdit(cap, e); return; }
+      selectBubble(bub); return;
+    }
     const unit = textUnit(el);
     if (unit && containerRef.current.contains(unit) && isTextLeaf(unit)) {
       if (unit.tagName !== "INPUT") e.preventDefault();
@@ -2843,14 +2962,36 @@ function App() {
     const bd = parseColor(bub.style.borderColor || bcs.borderTopColor);
     activeRef.current = { el: bub, path: pathOf(bub, root), bubble: true, parentEl: bub.closest("[data-cl], p, h1, h2, h3") };
     setOpenSec("Bubble");
-    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex });
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex, hasArrow: !!bub.querySelector(":scope > [data-bubble-arrow]") });
   }
   function setBubbleBg(hex) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
     pushHistory();
     bub.style.background = hex;
+    const arrow = bub.querySelector(":scope > [data-bubble-arrow]");
+    if (arrow) arrow.style.borderTopColor = hex;
     const p = bubbleParent(); if (p) persistTextHtml(p);
     setInsp(i => ({ ...i, bgHex: hex, bgTransparent: false }));
+  }
+  // a small downward-pointing tail below the bubble, like a speech-bubble pointer — tracks the
+  // bubble's own background color so it reads as one continuous shape
+  function setBubbleArrow(on) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    pushHistory(true);
+    let arrow = bub.querySelector(":scope > [data-bubble-arrow]");
+    if (on) {
+      if (!arrow) {
+        arrow = document.createElement("span");
+        arrow.setAttribute("data-bubble-arrow", "1");
+        arrow.setAttribute("contenteditable", "false");
+        const col = bub.style.background || getComputedStyle(bub).backgroundColor || "rgba(128,128,128,.6)";
+        arrow.style.cssText = "position:absolute;left:50%;top:100%;transform:translateX(-50%);width:0;height:0;border-left:.4em solid transparent;border-right:.4em solid transparent;border-top:.5em solid " + col + ";pointer-events:none;";
+        bub.appendChild(arrow);
+      }
+      bub.style.position = "relative";
+    } else if (arrow) arrow.remove();
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, hasArrow: on }));
   }
   function setBubbleBorder(w, color) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -2943,7 +3084,10 @@ function App() {
       __bdHex = parseColor(__ins ? __ins.color : ((__mo.style || {}).borderColor || getComputedStyle(slot).borderTopColor)).hex;
     }
     const __grad = tt.grad || {};
-    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, borderW: __bw, borderHex: __bdHex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top", seq: seqFor(sel, kk).slice() });
+    const __aspects = [["16:9", 16, 9], ["9:16", 9, 16], ["1:1", 1, 1], ["4:5", 4, 5], ["4:3", 4, 3]];
+    const __curAr = slot.clientWidth / Math.max(1, slot.clientHeight);
+    const __arMatch = __aspects.find(([, rw, rh]) => Math.abs(rw / rh - __curAr) < 0.02);
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaAspect: __arMatch ? __arMatch[0] : null, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, mediaScroll: !!tt.scroll, borderW: __bw, borderHex: __bdHex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top", seq: seqFor(sel, kk).slice() });
     expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
@@ -3105,8 +3249,12 @@ function App() {
       const a = activeRef.current;
       // while a text layer is focused for editing, let a drag highlight text instead of moving it (move via the ✥ handle)
       if (a && a.text && a.el && document.activeElement === a.el) return;
-      if (a && a.bubble) return;   // bubbles are inline; don't drag-move them
-      if (insp && insp.isBubble) return;
+      // a selected bubble: dragging over its caption text highlights it for retyping — the pill
+      // still moves when dragged by its image or padding
+      if (a && a.bubble && a.el) {
+        const cap = a.el.querySelector(":scope > span:not([data-bubble-arrow])");
+        if (cap && cap.contains(e.target)) return;
+      }
       if (a && a.el && insp && !insp.isMedia && !insp.isLogo && !insp.isSlot && insp.path !== "" && insp.path !== "0" &&
           !a.el.hasAttribute("data-vslot") && (e.target === a.el || a.el.contains(e.target) ||
             multiRef.current.some(m => m.el && m.el.isConnected && (e.target === m.el || m.el.contains(e.target))))) startMoveDrag(e, false);
@@ -3127,6 +3275,8 @@ function App() {
     if (!e.altKey) { startMoveDrag(e, false, { isMedia: true }); return; }
     const k = slot.getAttribute("data-vslot");
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    // scroll mode auto-pans every frame — a manual drag offset would just be overwritten
+    if (t.scroll) { startMoveDrag(e, false, { isMedia: true }); return; }
     const d = { k, media, startX: e.clientX, startY: e.clientY, baseX: t.x || 0, baseY: t.y || 0, moved: false };
     dragRef.current = d;
     const move = (ev) => {
@@ -3165,8 +3315,22 @@ function App() {
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
     t.fit = fit;
     if (fit === "contain" && t.pad == null) t.pad = 14;
+    // scroll only exists for Fill (cover) — Fit/Inset show the whole image, nothing to pan through.
+    // The toggle disappears from the UI in those modes, so the flag MUST clear here too or it keeps
+    // driving the layout invisibly (top-left-anchored cover-pan overriding the chosen fit).
+    if (fit === "fit" || fit === "contain") t.scroll = false;
     applyXf(containerRef.current, sel);
-    setInsp(i => ({ ...i, mediaFit: fit, mediaPad: t.pad != null ? t.pad : 14 }));
+    setInsp(i => ({ ...i, mediaFit: fit, mediaPad: t.pad != null ? t.pad : 14, mediaScroll: !!t.scroll }));
+  }
+  // long images (portrait crop into a landscape slot, or vice versa) can pan through their full
+  // extent over the clip's duration instead of sitting on a fixed crop — mirrors the scrolling
+  // prompt text; owned frame-by-frame by the master tick, not this static transform setter
+  function setMediaScroll(k, on) {
+    pushHistory(true);
+    const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
+    t.scroll = on;
+    applyXf(containerRef.current, sel);
+    setInsp(i => ({ ...i, mediaScroll: on }));
   }
   function setMediaPad(k, pad) {
     pushHistory();
@@ -3195,6 +3359,51 @@ function App() {
     el.style.borderRadius = px + "px";
     el.style.clipPath = px > 0 ? `inset(0 round ${px}px)` : "";   // keep the rounded clip in sync
     setInsp(i => ({ ...i, mediaRadius: px }));
+  }
+  // resize the slot box itself to a chosen aspect ratio, keeping its current width and computing
+  // height from the ratio — a layout-level change (like corner radius), not a crop/fit setting
+  function setSlotAspect(k, rw, rh) {
+    const root = containerRef.current;
+    const el = root.querySelector('[data-vslot="' + k + '"]'); if (!el) return;
+    pushHistory(true);
+    // offsetWidth is layout pixels (unaffected by any ancestor zoom/scale) — more reliable than
+    // getBoundingClientRect here, since this is a target for style.width, not an on-screen measurement
+    const w = el.offsetWidth || Math.round(el.getBoundingClientRect().width);
+    const h = Math.round(w * rh / rw);
+    const oldH = el.offsetHeight;
+    const freeStyle = { flexShrink: "0", maxHeight: "none", minHeight: "0" };
+    // a template often wraps the slot in its own snugly-sized, overflow:hidden "card" (to round its
+    // corners, position a label over it, etc.) — walk up while each ancestor is both hiding overflow
+    // and was sized to match the slot exactly (a real layout container wouldn't happen to be the
+    // same height). If one exists, IT gets the explicit size (the real "container"), and the slot
+    // just stretches to fill it (100%) — one source of truth, so the two can't drift apart. The
+    // slot is very likely position:absolute;inset:0 inside that wrapper, contributing nothing to an
+    // "auto" height, so the wrapper must carry an explicit px value, not hug its own child.
+    let wrapper = null, anc = el.parentElement, guard = 0;
+    while (anc && anc !== root && guard < 5) {
+      guard++;
+      const cs = getComputedStyle(anc);
+      if (cs.overflow !== "hidden" && cs.overflowY !== "hidden") break;
+      if (Math.abs(anc.offsetHeight - oldH) > 4) break;
+      wrapper = anc;
+      anc = anc.parentElement;
+    }
+    const target = wrapper || el;
+    const ap = pathOf(target, root);
+    ensureBase(ap, target, ["width", "height", "flexShrink", "maxHeight", "minHeight"]);
+    const arec = ovFor(sel)[ap] = ovFor(sel)[ap] || {};
+    arec.style = arec.style || {};
+    Object.assign(arec.style, { width: w + "px", height: h + "px", ...freeStyle });
+    Object.assign(target.style, { width: w + "px", height: h + "px", ...freeStyle });
+    if (wrapper) {
+      const sp = pathOf(el, root);
+      ensureBase(sp, el, ["width", "height", "flexShrink", "maxHeight", "minHeight"]);
+      const srec = ovFor(sel)[sp] = ovFor(sel)[sp] || {};
+      srec.style = srec.style || {};
+      Object.assign(srec.style, { width: "100%", height: "100%", ...freeStyle });
+      Object.assign(el.style, { width: "100%", height: "100%", ...freeStyle });
+    }
+    setInsp(i => ({ ...i, mediaAspect: rw + ":" + rh }));
   }
   // playback speed lives in mediaXf so it flows into demos + the export spec
   function setMediaSpeed(k, v) {
@@ -4021,15 +4230,35 @@ function App() {
                   {selectedPaths().length >= 2 && <button onClick={groupSelection} title="Group selected layers (⌘G)" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="12" height="12" rx="2"/><path d="M9 3h9a2 2 0 012 2v9"/></svg>
                   </button>}
-                  <button onClick={() => {
-                    const frame = containerRef.current && containerRef.current.firstElementChild;
-                    const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
-                    const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
-                    const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
-                    addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff" } });
-                  }} title="Add text layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                  </button>
+                  <div className="relative">
+                    <button onClick={(e) => { e.stopPropagation(); setAddMenu(m => !m); }} title="Add layer" className="w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    </button>
+                    {addMenu && <div className="absolute right-0 top-7 z-[80] w-36 rounded-[14px] bg-[#242424] border border-white/10 shadow-2xl py-1.5 overflow-hidden">
+                      <button onClick={() => {
+                        setAddMenu(false);
+                        const frame = containerRef.current && containerRef.current.firstElementChild;
+                        const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
+                        const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
+                        const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
+                        addCustomLayer({ text: "New text", style: { left: "64px", top: "64px", fontSize: "40px", fontWeight: "600", fontFamily: "Geist, sans-serif", color: lum > 0.55 ? "#111111" : "#ffffff" } });
+                      }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition flex items-center gap-2">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Text
+                      </button>
+                      <button onClick={() => {
+                        setAddMenu(false);
+                        const frame = containerRef.current && containerRef.current.firstElementChild;
+                        const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
+                        const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
+                        const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
+                        addCustomLayer({ kind: "arrow", style: { left: "64px", top: "64px", width: "96px", height: "96px", color: lum > 0.55 ? "#111111" : "#ffffff" } });
+                      }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition flex items-center gap-2">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>
+                        Arrow
+                      </button>
+                    </div>}
+                  </div>
                 </div>
               </div>
               {layerTree().map((u, i) => u.type === "group" ? (
@@ -4261,6 +4490,22 @@ function App() {
                     <button onClick={() => setMediaFit(insp.slot, "contain")} className={insp.mediaFit === "contain" ? SEG_ON : SEG}>Inset</button>
                   </div>
                 </div>}
+                {insp.hasMedia && !insp.isVideo && insp.mediaFit !== "contain" && insp.mediaFit !== "fit" && <div>
+                  <label className={LBL}>Scroll through image</label>
+                  <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                    <button onClick={() => setMediaScroll(insp.slot, false)} className={!insp.mediaScroll ? SEG_ON : SEG}>Off</button>
+                    <button onClick={() => setMediaScroll(insp.slot, true)} className={insp.mediaScroll ? SEG_ON : SEG}>On</button>
+                  </div>
+                </div>}
+                <div>
+                  <label className={LBL}>Aspect ratio</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[["16:9", 16, 9], ["9:16", 9, 16], ["1:1", 1, 1], ["4:5", 4, 5], ["4:3", 4, 3]].map(([label, rw, rh]) => (
+                      <button key={label} onClick={() => setSlotAspect(insp.slot, rw, rh)}
+                        className={"px-3 py-1.5 rounded-[30px] text-sm font-medium transition " + (insp.mediaAspect === label ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>{label}</button>
+                    ))}
+                  </div>
+                </div>
                 <div>
                   <label className={LBL}>Corner radius · {insp.mediaRadius}px</label>
                   <input type="range" min="0" max="160" value={insp.mediaRadius}
@@ -4459,6 +4704,13 @@ function App() {
                   <button onClick={() => setBubbleText(false)} className={!insp.textShown ? SEG_ON : SEG}>Hide</button>
                 </div>
               </div>}
+              <div>
+                <label className={LBL}>Arrow below</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => setBubbleArrow(false)} className={!insp.hasArrow ? SEG_ON : SEG}>Off</button>
+                  <button onClick={() => setBubbleArrow(true)} className={insp.hasArrow ? SEG_ON : SEG}>On</button>
+                </div>
+              </div>
               <button onClick={replaceBubbleImg} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-zinc-200 bg-white/10 hover:bg-white/15 transition">Replace image…</button>
               <button onClick={removeBubble} className="w-full px-3 py-2 rounded-[30px] text-sm font-medium text-red-300 bg-red-500/10 hover:bg-red-500/20 transition">Remove bubble</button>
             </div>}
@@ -4534,6 +4786,21 @@ function App() {
                     <button onClick={() => setAp("backgroundColor", "transparent", { bgTransparent: true })} className={"px-2.5 py-1 text-xs rounded-[30px] transition " + (insp.bgTransparent ? "bg-[#2F2F2F] text-white" : "bg-white/10 text-zinc-300 hover:bg-white/15")}>Clear</button>
                   </div>
                 </div>
+                {(insp.path === "0" || insp.path === "") && <div>
+                  <label className={LBL}>Style</label>
+                  <select value={insp.pattern || "none"} onChange={e => setPattern(e.target.value)} className={FIELD} style={SELECT_STYLE}>
+                    {[["none", "Color"], ["gradient", "Gradient"], ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, label]) => (
+                      <option key={k} value={k}>{label}</option>
+                    ))}
+                  </select>
+                </div>}
+                {(insp.path === "0" || insp.path === "") && ["grid", "dots", "lines"].includes(insp.pattern) && <div>
+                  <label className={LBL}>Line color</label>
+                  <div className="flex items-center gap-2">
+                    <BrandColorField value={(insp.styleMeta || {}).color || "#ffffff"} onChange={hex => updateStyleMeta({ color: hex })} />
+                    <span className="text-sm text-zinc-400 flex-1">{(insp.styleMeta || {}).color || "Auto"}</span>
+                  </div>
+                </div>}
                 <div>
                   <label className={LBL}>Border</label>
                   <div className="flex items-center gap-2">
