@@ -434,6 +434,15 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
       fc.push(`[${i}:v]scale=${scrollZw}:${scrollZh}:force_original_aspect_ratio=increase,` +
         `crop=${w}:${h}:x='${xExpr}':y='${yExpr}',` +
         `setsar=1,format=yuva420p[vc${i}]`);
+    } else if (t && (t.kb === "in" || t.kb === "out") && t.fit !== "fit" && t.fit !== "contain" && durs[i] === 0) {
+      // ken burns zoom on a still image: mirror the editor's centered 18% ease across the clip
+      const kbZs = Math.max(1, zs);
+      const bw = Math.round(w * kbZs * 1.25 / 2) * 2, bh = Math.round(h * kbZs * 1.25 / 2) * 2;
+      const NF = Math.max(1, Math.round(DUR * 30));
+      const zex = t.kb === "in" ? `1+0.18*min(1\\,on/${NF})` : `1.18-0.18*min(1\\,on/${NF})`;
+      fc.push(`[${i}:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},` +
+        `zoompan=z='${zex}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${w}x${h}:fps=30,` +
+        `setsar=1,format=yuva420p[vc${i}]`);
     } else if (zs < 1) {
       // shrunk below 100%: scale the WHOLE source down from its cover size (revealing more of
       // it as it shrinks), then crop any overflow and pad the rest with the slot background

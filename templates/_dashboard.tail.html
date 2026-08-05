@@ -1623,7 +1623,8 @@ function App() {
           const t = xf[k];
           const img = slotEl.querySelector("img");
           // a stale scroll flag can coexist with Fit/Inset in older saved records — fit wins there
-          if (!t || !t.scroll || t.fit === "fit" || t.fit === "contain") {
+          const anim = (t && t.fit !== "fit" && t.fit !== "contain") ? (t.scroll ? "scroll" : (t.kb === "in" || t.kb === "out") ? t.kb : null) : null;
+          if (!anim) {
             // scroll just turned off (toggle, undo, or reset): clear every style this tick owned —
             // applyXf skips slots with no xf entry, so leftovers would otherwise stick around forever
             if (img && img.__aoScroll) {
@@ -1643,12 +1644,22 @@ function App() {
           // image toward a corner instead of enlarging around the middle of that axis.
           const baseScale = Math.max(sw / nw, sh / nh);
           const zoom = Math.max(1, t.s || 1);   // below 100% would under-cover the slot, opening a gap
-          const scale = baseScale * zoom;
-          const overX = Math.max(0, nw * scale - sw), overY = Math.max(0, nh * scale - sh);
-          const panIsY = (nh * baseScale - sh) >= (nw * baseScale - sw);
           const prog = d > 0 ? Math.min(1, (window.__PLAYHEAD || 0) / d) : 0;
-          const tx = panIsY ? -overX / 2 : -overX * prog;
-          const ty = panIsY ? -overY * prog : -overY / 2;
+          let scale, tx, ty;
+          if (anim === "scroll") {
+            scale = baseScale * zoom;
+            const overX = Math.max(0, nw * scale - sw), overY = Math.max(0, nh * scale - sh);
+            const panIsY = (nh * baseScale - sh) >= (nw * baseScale - sw);
+            tx = panIsY ? -overX / 2 : -overX * prog;
+            ty = panIsY ? -overY * prog : -overY / 2;
+          } else {
+            // ken burns zoom: ease the cover scale up (in) or down (out) by 18% across the clip,
+            // always centered — the export server mirrors this exact curve
+            const zz = anim === "in" ? 1 + 0.18 * prog : 1.18 - 0.18 * prog;
+            scale = baseScale * zoom * zz;
+            tx = -Math.max(0, nw * scale - sw) / 2;
+            ty = -Math.max(0, nh * scale - sh) / 2;
+          }
           // the slots are flex containers (items-center justify-center): left in normal flow, an
           // oversized image gets auto-centered by flex FIRST and the translate below then shifts it
           // a second time — pushed off toward a corner, and the pan hits the image's far edge long
@@ -1794,6 +1805,7 @@ function App() {
   const [bubbleTb, setBubbleTb] = useState(null); // {x,y} viewport pos of the "Image bubble" toolbar over a text selection
   const [saveMenu, setSaveMenu] = useState(false); // secondary save actions menu (left sidebar)
   const [shortcuts, setShortcuts] = useState(false); // keyboard shortcuts overlay
+  const [ctxMenu, setCtxMenu] = useState(null);      // {x, y} right-click layer menu
   const bubbleRangeRef = useRef(null);            // saved selection Range while the image file picker is open
   const mainRef = useRef(null);
   const overrides = useRef({});
@@ -2387,7 +2399,25 @@ function App() {
     };
   }, [drawMode, sel]);
   function duplicateSelectedLayer() {
-    const a = activeRef.current; if (!a || !insp || !insp.isText || !a.el) return;
+    const a = activeRef.current; if (!a || !insp || !a.el) return;
+    // custom non-text layers (arrows, images, logo marks) clone their record with a small offset
+    const clid = a.el.getAttribute && a.el.getAttribute("data-cl");
+    if (clid) {
+      const src = clFor(sel).find(c => c.id === clid);
+      if (src && (src.kind || src.img)) {
+        const copy = JSON.parse(JSON.stringify(src));
+        copy.id = "cl_" + Math.random().toString(36).slice(2, 9);
+        copy.style = copy.style || {};
+        copy.style.left = (Math.round(parseFloat(copy.style.left) || 0) + 24) + "px";
+        copy.style.top = (Math.round(parseFloat(copy.style.top) || 0) + 24) + "px";
+        pushHistory(true);
+        clFor(sel).push(copy);
+        applyAll(); force(x => x + 1);
+        setTimeout(() => { const e2 = containerRef.current && containerRef.current.querySelector('[data-cl="' + copy.id + '"]'); if (e2) selectEl(e2); }, 80);
+        return;
+      }
+    }
+    if (!insp.isText) return;
     const el2 = a.el, cs2 = getComputedStyle(el2);
     const cont2 = containerRef.current.getBoundingClientRect();
     const r2 = el2.getBoundingClientRect();
@@ -2548,8 +2578,18 @@ function App() {
     // handles scale the type instead of the box — a fixed px box would fight the padding controls.
     // The exception is text in a clipping scroll box, where the handles size the box itself.
     const isScrollText = insp.isText && rec0.outEl && rec0.outEl.isConnected && rec0.outPath != null;
+    // label pills hug their text like text layers do — their handles scale the inner type, and any
+    // fixed box an older resize left behind is cleared so the pill re-hugs
+    const isPill = !insp.isText && !insp.isBubble && el.hasAttribute && (el.hasAttribute("data-pin") || el.hasAttribute("data-swap"));
+    let fontEl = el, fontPath = null;
+    if (isPill) {
+      const p2 = el.querySelector("p, span, input");
+      if (p2) { fontEl = p2; fontPath = pathOf(p2, containerRef.current); }
+      clearBoxOverridesFor(el);
+    }
     const mode = insp.isBubble ? "font"
       : insp.isText && el.tagName !== "INPUT" ? (isScrollText ? "box" : "font")
+      : isPill ? "font"
       : el.tagName === "IMG" ? "img" : "box";
     // a video and its same-size wrapper act as one box: resize the wrapper so layout follows
     let tEl = el, tPath = rec0.path;
@@ -2566,7 +2606,7 @@ function App() {
     const measureEl = mode === "box" ? tEl : el;
     const er0 = measureEl.getBoundingClientRect();
     const cs = getComputedStyle(el);
-    const f0 = parseFloat(cs.fontSize) || 16, h0 = er0.height / sc0, w0 = er0.width / sc0;
+    const f0 = parseFloat(getComputedStyle(fontEl).fontSize) || parseFloat(cs.fontSize) || 16, h0 = er0.height / sc0, w0 = er0.width / sc0;
     const hs0 = handle;
     // anchor at the side/corner opposite the grip being dragged; edges resize one axis only
     const horiz = corner.includes("e") || corner.includes("w");
@@ -2590,10 +2630,18 @@ function App() {
       // resizes) — clear it there as well, or reloads and exports re-apply the stale width
       const clid = tEl.getAttribute && tEl.getAttribute("data-cl");
       if (clid) { const cl0 = clFor(sel).find(c => c.id === clid); if (cl0 && cl0.style) { delete cl0.style.width; delete cl0.style.height; } }
+      // label text inside a pill: the pill's own fixed box (template defaults often carry one)
+      // must go too, or the pill won't grow with the scaled text
+      const pin2 = tEl.closest && tEl.closest("[data-pin], [data-swap]");
+      if (pin2 && pin2 !== tEl && (pin2.style.width || pin2.style.height)) clearBoxOverridesFor(pin2);
     }
     const move = (ev) => {
       const k = Math.max(0.15, Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0);
-      if (mode === "font") setStyle("fontSize", Math.max(6, Math.round(f0 * k)) + "px", { size: Math.max(6, Math.round(f0 * k)) });
+      if (mode === "font") {
+        const nfs = Math.max(6, Math.round(f0 * k));
+        if (fontPath) setStyleAt(fontPath, "fontSize", nfs + "px");   // pill: scale the inner label text
+        else setStyle("fontSize", nfs + "px", { size: nfs });
+      }
       else if (mode === "img") {
         // scale both axes so images with an explicit width (logos, placed images) keep their shape
         const nh = Math.max(8, Math.round(h0 * k));
@@ -2829,6 +2877,18 @@ function App() {
     window.addEventListener("blur", up);
   }
   // nudge one element by (dx,dy) design px, composing onto a translate we own at the end of its transform
+  // clear any fixed width/height override that resolves to this element — the record may live
+  // under a stale or template-default path key, so match by node, not by the current path string
+  function clearBoxOverridesFor(el) {
+    const root = containerRef.current; if (!root || !el) return;
+    const ov = ovFor(sel);
+    for (const pk in ov) {
+      if (pk.startsWith("__")) continue;
+      const r2 = ov[pk];
+      if (r2 && r2.style && (r2.style.width || r2.style.height) && nodeAt(root, pk) === el) { delete r2.style.width; delete r2.style.height; }
+    }
+    el.style.width = ""; el.style.height = "";
+  }
   function nudgeEl(path, el, dx, dy) {
     if (!el || path == null) return;
     ensureBase(path, el, ["transform"]);
@@ -2870,6 +2930,9 @@ function App() {
     // never separates the image from its container
     const slotWrap = el.closest && el.closest("[data-lslot], [data-vslot]");
     if (slotWrap && slotWrap !== el && !forceText && !isTextLeaf(el)) el = slotWrap;
+    // custom layers (arrows especially) select as the layer root, not the svg inside it
+    const clWrap = el.closest && el.closest("[data-cl]");
+    if (clWrap && clWrap !== el && !forceText && !isTextLeaf(el)) el = clWrap;
     // heal labels moved before container-selection existed: the move lives on a child, so the
     // container (and its selection box) sits at the original spot — hoist it up
     if (el.hasAttribute && (el.hasAttribute("data-swap") || el.hasAttribute("data-pin"))) {
@@ -2985,6 +3048,10 @@ function App() {
     const rec = ovFor(sel)[activeRef.current.path] = ovFor(sel)[activeRef.current.path] || {};
     if (el.children.length) { rec.html = stripSelOutline(el.innerHTML); delete rec.text; }
     else { rec.text = el.textContent; delete rec.html; }
+    // a label pill hugs its text — typing longer text must not stay clipped by a fixed box left
+    // behind by an old resize
+    const pin = el.closest && el.closest("[data-pin], [data-swap]");
+    if (pin && pin !== el && (pin.style.width || pin.style.height)) clearBoxOverridesFor(pin);
     // keep the selection/resize box hugging the text as it grows or shrinks while typing
     requestAnimationFrame(syncHandle);
     // mirror the live text into the inspector's Content field
@@ -3376,7 +3443,7 @@ function App() {
     const __aspects = [["16:9", 16, 9], ["9:16", 9, 16], ["1:1", 1, 1], ["4:5", 4, 5], ["4:3", 4, 3]];
     const __curAr = slot.clientWidth / Math.max(1, slot.clientHeight);
     const __arMatch = __aspects.find(([, rw, rh]) => Math.abs(rw / rh - __curAr) < 0.02);
-    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaAspect: __arMatch ? __arMatch[0] : null, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, mediaScroll: !!tt.scroll, borderW: __bw, borderHex: __bdHex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top", seq: seqFor(sel, kk).slice() });
+    setInsp({ isMedia: true, hasMedia: !!slot.querySelector("video, img"), path: __mp, bgHex: __mb.hex, bgTransparent: __mb.a === 0, pattern: (__mo.styleMeta || {}).kind, styleMeta: __mo.styleMeta || null, slot: kk, mediaScale: tt.s || 1, mediaFit: tt.fit || "cover", mediaPad: tt.pad != null ? tt.pad : 14, mediaRadius: parseInt(getComputedStyle(slot).borderTopLeftRadius) || 0, mediaAspect: __arMatch ? __arMatch[0] : null, mediaMute: !!tt.mute, isVideo: !!slot.querySelector("video"), mediaSpeed: tt.speed || 1, mediaScroll: !!tt.scroll, mediaKb: tt.kb || null, borderW: __bw, borderHex: __bdHex, gradOn: !!__grad.on, gradColor: __grad.color || "#000000", gradDir: __grad.dir || "to top", gradOpacity: __grad.opacity != null ? __grad.opacity : 0.6, blurOn: !!(tt.blur && tt.blur.on), blurAmount: (tt.blur && tt.blur.amount) || 8, blurDir: (tt.blur && tt.blur.dir) || "to top", seq: seqFor(sel, kk).slice() });
     expandGroupSelection();
   }
   // layers panel: what's on the canvas, selectable from the sidebar
@@ -3607,19 +3674,21 @@ function App() {
     // scroll only exists for Fill (cover) — Fit/Inset show the whole image, nothing to pan through.
     // The toggle disappears from the UI in those modes, so the flag MUST clear here too or it keeps
     // driving the layout invisibly (top-left-anchored cover-pan overriding the chosen fit).
-    if (fit === "fit" || fit === "contain") t.scroll = false;
+    if (fit === "fit" || fit === "contain") { t.scroll = false; t.kb = null; }
     applyXf(containerRef.current, sel);
     setInsp(i => ({ ...i, mediaFit: fit, mediaPad: t.pad != null ? t.pad : 14, mediaScroll: !!t.scroll }));
   }
   // long images (portrait crop into a landscape slot, or vice versa) can pan through their full
   // extent over the clip's duration instead of sitting on a fixed crop — mirrors the scrolling
   // prompt text; owned frame-by-frame by the master tick, not this static transform setter
-  function setMediaScroll(k, on) {
+  // image animation over the clip: null | "scroll" (pan) | "in" / "out" (ken burns zoom)
+  function setMediaAnim(k, anim) {
     pushHistory(true);
     const t = xfFor(sel)[k] = xfFor(sel)[k] || { x: 0, y: 0, s: 1 };
-    t.scroll = on;
+    t.scroll = anim === "scroll";
+    t.kb = (anim === "in" || anim === "out") ? anim : null;
     applyXf(containerRef.current, sel);
-    setInsp(i => ({ ...i, mediaScroll: on }));
+    setInsp(i => ({ ...i, mediaScroll: t.scroll, mediaKb: t.kb }));
   }
   function setMediaPad(k, pad) {
     pushHistory();
@@ -4448,6 +4517,28 @@ function App() {
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, [saveMenu]);
+  // close the right-click layer menu on any click or scroll
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    return () => { window.removeEventListener("click", close); window.removeEventListener("scroll", close, true); };
+  }, [ctxMenu]);
+  // right-click on the canvas selects what a left-click would, then opens the layer menu
+  function onEditorContext(e) {
+    if (!editMode) return;
+    e.preventDefault(); e.stopPropagation();
+    const el = e.target;
+    const mslot = el.closest && el.closest("[data-vslot], [data-lslot]");
+    const bub = el.closest && el.closest("[data-bubble]");
+    const unit = textUnit(el);
+    if (bub && containerRef.current.contains(bub)) selectBubble(bub);
+    else if (mslot && containerRef.current.contains(mslot) && mslot.hasAttribute("data-vslot")) selectMediaSlot(mslot);
+    else if (unit && containerRef.current.contains(unit) && isTextLeaf(unit)) selectEl(unit);
+    else selectEl(el);
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }
   // esc exits (drawing → text edit → shortcuts → selection); ⌘D duplicates a text layer; ? shows shortcuts
   useEffect(() => {
     if (!sel) return;
@@ -4724,6 +4815,18 @@ function App() {
             <button onClick={() => setShortcuts(s => !s)} title="Shortcuts (?)"
               className="w-8 h-8 flex items-center justify-center rounded-full text-zinc-300 hover:bg-white/10 hover:text-white transition text-[14px] font-semibold">?</button>
           </div>
+          {ctxMenu && insp && <div className="fixed z-[95]" style={{ left: Math.min(ctxMenu.x, window.innerWidth - 190), top: Math.min(ctxMenu.y, window.innerHeight - 120) }} onClick={e => e.stopPropagation()}>
+            <div className="w-[176px] rounded-[14px] bg-[#242424] border border-white/10 shadow-2xl py-1.5">
+              {(insp.isText || (activeRef.current && activeRef.current.el && activeRef.current.el.getAttribute && activeRef.current.el.getAttribute("data-cl"))) &&
+                <button onClick={() => { setCtxMenu(null); duplicateSelectedLayer(); }}
+                  className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition">Duplicate</button>}
+              {!insp.isLogo && !insp.isBubble && insp.path !== "" && insp.path !== "0" &&
+                <button onClick={() => { setCtxMenu(null); deleteSelectedLayer(); }}
+                  className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition">Delete</button>}
+              <button onClick={() => { setCtxMenu(null); deselect(); }}
+                className="w-full text-left px-3 py-2 text-sm text-zinc-400 hover:bg-white/10 transition">Deselect</button>
+            </div>
+          </div>}
           {shortcuts && <div className="fixed inset-0 z-[90] bg-black/50 flex items-center justify-center" onClick={() => setShortcuts(false)}>
             <div className="w-[440px] max-h-[80vh] overflow-y-auto rounded-[20px] bg-[#242424] border border-white/10 shadow-2xl p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
@@ -4769,7 +4872,7 @@ function App() {
         <main ref={mainRef} onClick={(e) => { if (suppressRef.current) return; if (!e.target.closest("[data-canvas]") && !e.target.closest("button")) deselect(); }} className="flex-1 flex items-center justify-center p-8 overflow-auto relative"
           style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
           <div data-canvas style={{ width: t.width * s, height: t.height * s }} className="relative overflow-hidden ring-1 ring-white/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,.35)] shrink-0 group/canvas">
-            <div ref={containerRef} onClickCapture={onEditorClick} onDoubleClick={onEditorDblClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onPointerOver={onEditorHover} onPointerLeave={clearHover} onDragStart={(e) => e.preventDefault()}
+            <div ref={containerRef} onClickCapture={onEditorClick} onDoubleClick={onEditorDblClick} onInput={onTextInput} onPointerDown={onMediaDragStart} onPointerOver={onEditorHover} onPointerLeave={clearHover} onContextMenu={onEditorContext} onDragStart={(e) => e.preventDefault()}
               onPaste={(e) => {
                 const t2 = e.target;
                 if (!t2 || !t2.isContentEditable) return;
@@ -4917,10 +5020,12 @@ function App() {
                   </div>
                 </div>}
                 {insp.hasMedia && !insp.isVideo && insp.mediaFit !== "contain" && insp.mediaFit !== "fit" && <div>
-                  <label className={LBL}>Scroll through image</label>
+                  <label className={LBL}>Animate through clip</label>
                   <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
-                    <button onClick={() => setMediaScroll(insp.slot, false)} className={!insp.mediaScroll ? SEG_ON : SEG}>Off</button>
-                    <button onClick={() => setMediaScroll(insp.slot, true)} className={insp.mediaScroll ? SEG_ON : SEG}>On</button>
+                    <button onClick={() => setMediaAnim(insp.slot, null)} className={(!insp.mediaScroll && !insp.mediaKb) ? SEG_ON : SEG}>Off</button>
+                    <button onClick={() => setMediaAnim(insp.slot, "scroll")} className={insp.mediaScroll ? SEG_ON : SEG}>Scroll</button>
+                    <button onClick={() => setMediaAnim(insp.slot, "in")} className={insp.mediaKb === "in" ? SEG_ON : SEG}>Zoom in</button>
+                    <button onClick={() => setMediaAnim(insp.slot, "out")} className={insp.mediaKb === "out" ? SEG_ON : SEG}>Zoom out</button>
                   </div>
                 </div>}
                 <div>
