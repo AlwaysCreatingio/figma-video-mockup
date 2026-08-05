@@ -2824,7 +2824,7 @@ function App() {
       align: ovs.textAlign || cs.textAlign || "left",
       italic: (ovs.fontStyle || cs.fontStyle) === "italic",
       underline: (ovs.textDecoration || cs.textDecorationLine || "").includes("underline"),
-      textIcon: (() => { const ic = el.querySelector && el.querySelector(":scope > [data-texticon]"); return ic ? { pos: el.firstChild === ic ? "left" : "right", kind: ic.getAttribute("data-texticon") || "link" } : null; })(),
+      textIcon: (() => { const ic = el.querySelector && el.querySelector(":scope > [data-texticon]"); return ic ? { pos: el.firstChild === ic ? "left" : "right", kind: ic.getAttribute("data-texticon") || "link", size: parseFloat(ic.style.fontSize) || 1 } : null; })(),
     });
     expandGroupSelection();
   }
@@ -3141,6 +3141,8 @@ function App() {
     if (!el.isConnected) el = nodeAt(containerRef.current, insp.path);
     if (!el || el.tagName === "INPUT") return;
     pushHistory(true);
+    const prev = el.querySelector(":scope > [data-texticon]");
+    const size = (insp.textIcon && insp.textIcon.size) || (prev && parseFloat(prev.style.fontSize)) || 1;
     el.querySelectorAll(":scope > [data-texticon]").forEach(n => n.remove());
     const k = kind || (insp.textIcon && insp.textIcon.kind) || "link";
     if (pos !== "off") {
@@ -3148,13 +3150,25 @@ function App() {
       sp.setAttribute("data-texticon", k);
       sp.setAttribute("contenteditable", "false");
       sp.style.cssText = "display:inline-flex;vertical-align:-0.08em;" + (pos === "left" ? "margin-right:.35em;" : "margin-left:.35em;");
+      if (size !== 1) sp.style.fontSize = size + "em";
       sp.innerHTML = TEXT_ICONS[k] || TEXT_ICONS.link;
       if (pos === "left") el.insertBefore(sp, el.firstChild);
       else el.appendChild(sp);
     }
     persistTextHtml(el);
     requestAnimationFrame(syncHandle);
-    setInsp(i => ({ ...i, textIcon: pos === "off" ? null : { pos, kind: k } }));
+    setInsp(i => ({ ...i, textIcon: pos === "off" ? null : { pos, kind: k, size } }));
+  }
+  // icon size as a multiple of the text size (the icon is em-sized, so it stays relative)
+  function setTextIconSize(size) {
+    let el = activeRef.current && activeRef.current.el; if (!el || !insp || !insp.isText) return;
+    if (!el.isConnected) el = nodeAt(containerRef.current, insp.path);
+    const ic = el && el.querySelector(":scope > [data-texticon]"); if (!ic) return;
+    pushHistory();
+    ic.style.fontSize = size === 1 ? "" : size + "em";
+    persistTextHtml(el);
+    requestAnimationFrame(syncHandle);
+    setInsp(i => ({ ...i, textIcon: i.textIcon ? { ...i.textIcon, size } : i.textIcon }));
   }
   // invert the bubble's logo colors (dark logo on a light pill ↔ light logo on a dark pill)
   function setBubbleInvert(on) {
@@ -5145,6 +5159,11 @@ function App() {
                         className={"w-8 h-8 flex items-center justify-center rounded-[10px] border transition " + (insp.textIcon.kind === k ? "bg-white text-zinc-900 border-transparent" : "bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10")}
                         dangerouslySetInnerHTML={{ __html: TEXT_ICONS[k].replace('width="1em" height="1em"', 'width="15" height="15"') }} />
                     ))}
+                  </div>}
+                  {insp.textIcon && <div className="mt-2">
+                    <label className={LBL}>Icon size · {(insp.textIcon.size || 1).toFixed(1)}×</label>
+                    <input type="range" min="0.5" max="3" step="0.1" value={insp.textIcon.size || 1}
+                      onChange={e => setTextIconSize(+e.target.value)} className="w-full accent-white" />
                   </div>}
                 </div>
               </Sec>}
