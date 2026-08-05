@@ -3026,7 +3026,7 @@ function App() {
       setHandle({ x: er.left - mr.left + mainRef.current.scrollLeft, y: er.top - mr.top + mainRef.current.scrollTop, w: er.width, h: er.height });
     }
     setOpenSec("Bubble");
-    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex, hasArrow: !!bub.querySelector(":scope > [data-bubble-arrow]") });
+    setInsp({ isBubble: true, path: pathOf(bub, root), bgHex: bg.hex, bgTransparent: bg.a === 0, bubbleFull: !!(img && /auto/.test(img.style.width || "")), hasCaption: !!cap, textShown: !!(cap && !cap.hasAttribute("data-caphide")), bubbleBorderW: Math.round(parseFloat(bub.style.borderTopWidth || bcs.borderTopWidth) || 0), bubbleBorderHex: bd.hex, hasArrow: !!bub.querySelector(":scope > [data-bubble-arrow]"), bubbleInvert: !!(img && /invert/.test(img.style.filter || "")) });
   }
   function setBubbleBg(hex) {
     const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
@@ -3084,6 +3084,15 @@ function App() {
     else { img.style.width = "1.2em"; img.style.height = "1.2em"; img.style.maxWidth = ""; img.style.objectFit = "cover"; img.style.borderRadius = "9999px"; }
     const p = bubbleParent(); if (p) persistTextHtml(p);
     setInsp(i => ({ ...i, bubbleFull: full }));
+  }
+  // invert the bubble's logo colors (dark logo on a light pill ↔ light logo on a dark pill)
+  function setBubbleInvert(on) {
+    const bub = activeRef.current && activeRef.current.el; if (!bub || !insp || !insp.isBubble) return;
+    const img = bub.querySelector("img"); if (!img) return;
+    pushHistory(true);
+    img.style.filter = on ? "invert(1)" : "";
+    const p = bubbleParent(); if (p) persistTextHtml(p);
+    setInsp(i => ({ ...i, bubbleInvert: on }));
   }
   function replaceBubbleImg() {
     const bub = activeRef.current && activeRef.current.el; if (!bub) return;
@@ -4792,6 +4801,13 @@ function App() {
                 <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
                   <button onClick={() => setBubbleImgFit(false)} className={!insp.bubbleFull ? SEG_ON : SEG}>Circle</button>
                   <button onClick={() => setBubbleImgFit(true)} className={insp.bubbleFull ? SEG_ON : SEG}>Full</button>
+                </div>
+              </div>
+              <div>
+                <label className={LBL}>Invert logo</label>
+                <div className="flex rounded-[30px] overflow-hidden border border-white/10 bg-white/5 w-max">
+                  <button onClick={() => setBubbleInvert(false)} className={!insp.bubbleInvert ? SEG_ON : SEG}>Off</button>
+                  <button onClick={() => setBubbleInvert(true)} className={insp.bubbleInvert ? SEG_ON : SEG}>On</button>
                 </div>
               </div>
               {insp.hasCaption && <div>
