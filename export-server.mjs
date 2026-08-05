@@ -87,7 +87,7 @@ function finalize(){
         };
         el.innerHTML = A[cl.shape] || A.straight;
       }
-      else if (cl.img) { el.setAttribute("src", cl.img); }
+      else if (cl.img) { el.setAttribute("src", cl.img); if (!cl.draw) el.style.objectFit = "contain"; }   // match the editor: placed images never stretch to their box
       else { el.textContent = cl.text || ""; }
       el.style.position = "absolute"; el.style.margin = "0";
       for (const k in (cl.style || {})) el.style[k] = cl.style[k];
