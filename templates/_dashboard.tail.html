@@ -245,6 +245,7 @@ const demoStore = {
       }
       const row = { id: rec.id, name: rec.name, template_id: rec.templateId, thumb: rec.thumb, payload: { vids, sequences, logos: rec.logos, boxText: rec.boxText, labelText: rec.labelText, customLayers: rec.customLayers || [], durationSec: rec.durationSec || null, arrowOn: !!rec.arrowOn, scrollSpeed: rec.scrollSpeed || 1, campaign: rec.campaign || null, campaigns: Array.isArray(rec.campaigns) ? rec.campaigns : (rec.campaign ? [rec.campaign] : []), showPlus: rec.showPlus, hiddenLogos: rec.hiddenLogos, logosHidden: rec.logosHidden, mediaXf: rec.mediaXf, overrides: rec.overrides } };
       if (opts && opts.createdAt) row.created_at = opts.createdAt;
+      if (opts && opts.replaceId) await SB.from("demos").delete().eq("id", opts.replaceId);
       const { error } = await SB.from("demos").insert(row);
       if (error) { console.warn("[supabase] insert:", error.message); throw error; }
       return;
@@ -258,19 +259,21 @@ const demoStore = {
     }
     return idbPut({ ...rec, vids, sequences, createdAt: (opts && opts.createdAt) || Date.now() });
   },
-  // overwrite an existing record in place (same id, created_at preserved)
+  // overwrite an existing record in place (same id, created_at preserved). Media uploads run
+  // inside save() BEFORE the row swap; the old row is deleted at the last moment and restored
+  // if the insert still fails — a failed save must never lose the existing asset.
   async replace(rec) {
-    let createdAt = null;
     if (SB) {
-      const { data } = await SB.from("demos").select("created_at").eq("id", rec.id).maybeSingle();
-      createdAt = data && data.created_at;
-      await SB.from("demos").delete().eq("id", rec.id);
-    } else {
-      const old = await idbGet(rec.id);
-      createdAt = old && old.createdAt;
-      await idbDel(rec.id);
+      const { data } = await SB.from("demos").select("*").eq("id", rec.id).maybeSingle();
+      try {
+        return await this.save(rec, { createdAt: (data && data.created_at) || undefined, replaceId: rec.id });
+      } catch (e) {
+        if (data) { const r = await SB.from("demos").insert(data); if (r.error) console.warn("[supabase] restore after failed replace:", r.error.message); }
+        throw e;
+      }
     }
-    return this.save(rec, { createdAt: createdAt || undefined });
+    const old = await idbGet(rec.id);
+    return this.save(rec, { createdAt: (old && old.createdAt) || undefined });   // idbPut overwrites in place
   },
   async remove(id) {
     if (SB) {
@@ -464,6 +467,18 @@ async function downloadUrl(url, name) {
 }
 function htmlOverrideUnsafe(el) {
   return !!(el.querySelector && el.querySelector("[data-vslot], [data-lslot], [data-custom], video"));
+}
+// a rotation/scale baked into the FRONT of a transform (an old collapsed matrix) bends any
+// translate appended after it — convert a screen-space drag delta into that local space so the
+// element follows the pointer exactly. Returns null when the base doesn't bend anything.
+function screenToLocalDelta(baseStr) {
+  const m = /^matrix\(\s*(-?[\d.e+-]+)[,\s]+(-?[\d.e+-]+)[,\s]+(-?[\d.e+-]+)[,\s]+(-?[\d.e+-]+)/.exec(String(baseStr || "").trim());
+  if (!m) return null;
+  const a = +m[1], b = +m[2];
+  const th = Math.atan2(b, a), s2 = a * a + b * b;
+  if (Math.abs(th) < 0.001 && Math.abs(s2 - 1) < 0.01) return null;
+  const cos = Math.cos(th), sin = Math.sin(th), s = Math.sqrt(s2) || 1;
+  return (dx, dy) => [(dx * cos + dy * sin) / s, (-dx * sin + dy * cos) / s];
 }
 // strip the editor's transient selection outline so it never bakes into saved/exported html
 function stripSelOutline(html) {
@@ -2561,6 +2576,10 @@ function App() {
         tEl.style.width = ""; tEl.style.height = "";
         delete rec0f.style.width; delete rec0f.style.height;
       }
+      // a custom layer's own saved style can carry the box too (set at creation or by old
+      // resizes) — clear it there as well, or reloads and exports re-apply the stale width
+      const clid = tEl.getAttribute && tEl.getAttribute("data-cl");
+      if (clid) { const cl0 = clFor(sel).find(c => c.id === clid); if (cl0 && cl0.style) { delete cl0.style.width; delete cl0.style.height; } }
     }
     const move = (ev) => {
       const k = Math.max(0.15, Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0);
@@ -2674,7 +2693,12 @@ function App() {
     const rotM0 = /\s*rotate\(\s*(-?[\d.]+)deg\s*\)\s*$/.exec(tf0);
     const rotSuf = rotM0 ? " rotate(" + rotM0[1] + "deg)" : "";
     if (rotM0) tf0 = tf0.slice(0, rotM0.index);
+    // fold a trailing translate into the start offset so repeated drags don't grow a chain
+    const trM0 = /translate\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*\)\s*$/.exec(tf0.trim());
+    let bx0 = 0, by0 = 0;
+    if (trM0) { bx0 = parseFloat(trM0[1]); by0 = parseFloat(trM0[2]); tf0 = tf0.trim().slice(0, trM0.index); }
     const base = tf0.trim() ? tf0.trim() + " " : "";
+    const toLocal = screenToLocalDelta(base);
     const startX = e.clientX, startY = e.clientY;
     const h0 = handle;
     const sc0 = editorScaleRef.current || 1;
@@ -2687,7 +2711,8 @@ function App() {
       const bel = m.el && m.el.isConnected ? m.el : nodeAt(containerRef.current, m.path);
       if (!bel) return null;
       const bcs = getComputedStyle(bel);
-      return { path: m.path, el: bel, base: bcs.transform === "none" ? "" : bcs.transform + " " };
+      const bbase = bcs.transform === "none" ? "" : bcs.transform + " ";
+      return { path: m.path, el: bel, base: bbase, toLocal: screenToLocalDelta(bbase) };
     }).filter(Boolean);
     // combined bounding box of the moving set (leader + buddies) — snapping targets this box so a
     // whole group aligns by its outer edges/center, not just the clicked leader
@@ -2756,12 +2781,16 @@ function App() {
         y: guideY != null ? guideY : gy + dy + gh / 2,
         cx: cSnapX, cy: cSnapY, ax: guideX != null, ay: guideY != null,
       });
-      const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)` + rotSuf;
+      let adx = dx, ady = dy;
+      if (toLocal) { const v = toLocal(dx, dy); adx = v[0]; ady = v[1]; }
+      const t = base + `translate(${Math.round(bx0 + adx)}px, ${Math.round(by0 + ady)}px)` + rotSuf;
       el.style.transform = t;
       const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {};
       rec.style = rec.style || {}; rec.style.transform = t;
       buddies.forEach(bd => {
-        const bt = bd.base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
+        let bdx = dx, bdy = dy;
+        if (bd.toLocal) { const v = bd.toLocal(dx, dy); bdx = v[0]; bdy = v[1]; }
+        const bt = bd.base + `translate(${Math.round(bdx)}px, ${Math.round(bdy)}px)`;
         if (bd.el.isConnected) bd.el.style.transform = bt;
         ensureBase(bd.path, bd.el, ["transform"]);
         const br = ovFor(sel)[bd.path] = ovFor(sel)[bd.path] || {};
@@ -2791,11 +2820,18 @@ function App() {
     const rec = ovFor(sel)[path] = ovFor(sel)[path] || {}; rec.style = rec.style || {};
     let tf = rec.style.transform;
     if (tf == null || tf === "") { const cs = getComputedStyle(el).transform; tf = (cs && cs !== "none") ? cs + " " : ""; }
+    // keep the trailing rotate() out of the splice and counter-rotate the delta so nudges move
+    // along screen axes even when the base carries a baked rotation
+    const rm = /\s*rotate\(\s*(-?[\d.]+)deg\s*\)\s*$/.exec(tf);
+    let rot = "";
+    if (rm) { rot = " rotate(" + rm[1] + "deg)"; tf = tf.slice(0, rm.index); }
     const m = /translate\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*\)\s*$/.exec(tf);
     let base = tf, x = 0, y = 0;
     if (m) { base = tf.slice(0, m.index); x = parseFloat(m[1]); y = parseFloat(m[2]); }
+    const toLocal = screenToLocalDelta(base);
+    if (toLocal) { const v = toLocal(dx, dy); dx = v[0]; dy = v[1]; }
     x = Math.round(x + dx); y = Math.round(y + dy);
-    const nt = base + `translate(${x}px, ${y}px)`;
+    const nt = base + `translate(${x}px, ${y}px)` + rot;
     el.style.transform = nt; rec.style.transform = nt;
   }
   // arrow-key nudge: move the current selection (and its buddies) by 1px, or 10px with Shift

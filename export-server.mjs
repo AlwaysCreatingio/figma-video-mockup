@@ -91,6 +91,14 @@ function finalize(){
       else { el.textContent = cl.text || ""; }
       el.style.position = "absolute"; el.style.margin = "0";
       for (const k in (cl.style || {})) el.style[k] = cl.style[k];
+      if (cl.kind !== "arrow" && !cl.img) {
+        // text layers hug their content exactly like the editor renders them — without this a
+        // stale width in cl.style wraps the text and the export stops matching the preview
+        el.style.whiteSpace = "pre-wrap"; el.style.wordBreak = "break-word";
+        if (!el.style.width || el.style.width === "auto") el.style.width = "max-content";
+        const leftPx = parseFloat(el.style.left) || 0;
+        el.style.maxWidth = Math.max(80, Math.round((X.width || 1080) - leftPx - 8)) + "px";
+      }
       wrap.appendChild(el);
     });
     frame.appendChild(wrap);
