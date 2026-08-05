@@ -36,7 +36,7 @@ const HEAD = `<!doctype html><html><head>
 <style>html,body{margin:0;background:transparent;}#root{display:inline-block;}*{font-family:'Geist',sans-serif;} @property --ao-a { syntax:'<angle>'; initial-value:0deg; inherits:false; } @keyframes ao-rot { to { --ao-a:360deg; } } .ao-glow::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:3px;background:conic-gradient(from var(--ao-a),transparent 50%,rgba(255,255,255,.85) 74%,#fff 82%,transparent 92%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:5;}</style>
 </head><body><div id="root"></div>`;
 
-const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize","display","borderColor","borderWidth","borderStyle","boxSizing","boxShadow","filter","lineHeight"];
+const STYLE_PROPS = ["fontFamily","fontWeight","fontSize","color","textAlign","fontStyle","textDecoration","letterSpacing","backgroundColor","backgroundImage","opacity","borderRadius","top","right","bottom","left","transform","height","width","backgroundSize","display","borderColor","borderWidth","borderStyle","boxSizing","boxShadow","filter","lineHeight","flexShrink","maxHeight","minHeight"];
 
 let LOGOS_JS = "";
 try { LOGOS_JS = fs.readFileSync(path.join(ROOT, "_logos.js"), "utf8"); } catch {}
@@ -76,9 +76,18 @@ function finalize(){
     wrap.setAttribute("data-custom", "1");
     wrap.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:15";
     X.customLayers.forEach(function (cl) {
-      const el = document.createElement(cl.img ? "img" : "p");
+      const el = document.createElement(cl.kind === "arrow" ? "div" : cl.img ? "img" : "p");
       el.setAttribute("data-cl", cl.id || "");
-      if (cl.img) { el.setAttribute("src", cl.img); }
+      if (cl.kind === "arrow") {
+        // keep in sync with ARROW_SHAPES in templates/_dashboard.tail.html
+        const A = {
+          straight: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>',
+          "curve-right": '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4c11 1 15 5 16 16"/><path d="M20 20l-4-3.4M20 20l3.4-4"/></svg>',
+          "curve-left": '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4C9 5 5 9 4 20"/><path d="M4 20l4-3.4M4 20l-3.4-4"/></svg>',
+        };
+        el.innerHTML = A[cl.shape] || A.straight;
+      }
+      else if (cl.img) { el.setAttribute("src", cl.img); }
       else { el.textContent = cl.text || ""; }
       el.style.position = "absolute"; el.style.margin = "0";
       for (const k in (cl.style || {})) el.style[k] = cl.style[k];
@@ -339,8 +348,23 @@ function cssToHex(c) {
 async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambientFile, frameBg, mediaXf, bgPlate, scroll, txtPlate, durationSec) {
   // default output length = the LONGEST uploaded clip; shorter clips loop to fill it
   const durs = await Promise.all(videoFiles.map(probeDur));
+  // a slot played at less than 1x takes proportionally longer to actually finish than its raw file
+  // duration — the output length (and which clips count as "shorter, so loop") must go by that
+  // real on-screen length, or a slowed-down clip gets cut short / a scroll-enabled image finishes early
+  const effDurs = durs.map((d, i) => {
+    if (d === 0) return 0;
+    const spd = (mediaXf && mediaXf[rects[i].slot] && mediaXf[rects[i].slot].speed) || 1;
+    return d / (spd || 1);
+  });
+  // still images with "scroll" enabled need their true pixel size up front, to know which axis is
+  // the aspect-mismatch pan axis — the other must stay centered once the Zoom slider adds overflow
+  // of its own (see the panIsY branch below), or zooming in drags the image toward a corner
+  const imgSizes = await Promise.all(rects.map((r, i) => {
+    const tt = mediaXf && mediaXf[r.slot];
+    return (tt && tt.scroll && durs[i] === 0) ? probeImageSize(videoFiles[i]) : Promise.resolve(null);
+  }));
   const ambDur = ambient ? await probeDur(ambientFile) : 0;
-  const finite = durs.filter(d => d > 0);
+  const finite = effDurs.filter(d => d > 0);
   let DUR = Math.max(0.5, (finite.length ? Math.max(...finite) : (ambDur > 0 ? ambDur : 4)));
   const wantDur = +durationSec > 0 ? Math.min(+durationSec, 300) : 0;
   if (wantDur) DUR = wantDur;   // an explicit chosen length overrides: shorter clips loop, longer ones trim
@@ -352,7 +376,7 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
   const args = ["-y"];
   rects.forEach((r, i) => {
     if (durs[i] === 0) args.push("-loop", "1");
-    else if (durs[i] < DUR - 0.05) args.push("-stream_loop", "-1");   // loop any clip shorter than the output
+    else if (effDurs[i] < DUR - 0.05) args.push("-stream_loop", "-1");   // loop any clip shorter than the output
     args.push("-i", videoFiles[i]);
   }); // 0..nVid-1 videos
   maskFiles.forEach(f => { args.push("-loop", "1", "-i", f); });                                            // nVid..2n-1 masks
@@ -385,7 +409,24 @@ async function composite(W, H, rects, videoFiles, plate, outFile, ambient, ambie
     const zs = t && t.s ? Math.max(0.25, t.s) : 1;
     const ox = t ? Math.round((t.x || 0) * S) : 0, oy = t ? Math.round((t.y || 0) * S) : 0;
     const zw = Math.round(w * zs / 2) * 2, zh = Math.round(h * zs / 2) * 2;
-    if (zs < 1) {
+    if (t && t.scroll && t.fit !== "fit" && t.fit !== "contain" && durs[i] === 0) {   // stale scroll flag + Fit/Inset in a saved record: fit wins
+      // still image, "scroll" enabled: zoom multiplies straight into the cover scale, so the pan
+      // sweeps the FULL zoomed image edge-to-edge (still lands exactly at the far edge when the
+      // clip ends). Whichever axis overflows at zoom=1 is the pan axis; the other axis's overflow —
+      // introduced purely by the zoom multiplier — stays centered (constant), or zooming in drags
+      // the image toward a corner instead of enlarging around the middle of that axis. Below 100%
+      // would under-cover the slot (opening a gap to the background), so it's floored at 1 here —
+      // unlike zs elsewhere, which a static (non-scroll) media can legitimately shrink below 1.
+      const scrollZs = Math.max(1, zs);
+      const scrollZw = Math.round(w * scrollZs / 2) * 2, scrollZh = Math.round(h * scrollZs / 2) * 2;
+      const sz = imgSizes[i];
+      const panIsY = !sz || (sz.h / sz.w) >= (h / w);   // fall back to vertical pan if the size probe failed
+      const xExpr = panIsY ? "(in_w-out_w)/2" : `min(in_w-out_w,(in_w-out_w)/${DUR.toFixed(2)}*t)`;
+      const yExpr = panIsY ? `min(in_h-out_h,(in_h-out_h)/${DUR.toFixed(2)}*t)` : "(in_h-out_h)/2";
+      fc.push(`[${i}:v]scale=${scrollZw}:${scrollZh}:force_original_aspect_ratio=increase,` +
+        `crop=${w}:${h}:x='${xExpr}':y='${yExpr}',` +
+        `setsar=1,format=yuva420p[vc${i}]`);
+    } else if (zs < 1) {
       // shrunk below 100%: scale the WHOLE source down from its cover size (revealing more of
       // it as it shrinks), then crop any overflow and pad the rest with the slot background
       fc.push(`[${i}:v]setpts=${SPTS},` +

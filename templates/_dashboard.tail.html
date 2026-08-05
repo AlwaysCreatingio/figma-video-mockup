@@ -538,6 +538,12 @@ function healBubbleCaptions(root) {
 }
 // shared by the client-rendered custom layer + the export server's own copy of this markup
 const ARROW_SVG = '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>';
+// arrow layer shapes — cl.shape picks one; the export server keeps a matching copy of this map
+const ARROW_SHAPES = {
+  straight: ARROW_SVG,
+  "curve-right": '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4c11 1 15 5 16 16"/><path d="M20 20l-4-3.4M20 20l3.4-4"/></svg>',
+  "curve-left": '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4C9 5 5 9 4 20"/><path d="M4 20l4-3.4M4 20l-3.4-4"/></svg>',
+};
 function syncCustomLayersIn(frame, layers) {
   if (!frame) return;
   let wrap = frame.querySelector(":scope > [data-custom]");
@@ -555,7 +561,7 @@ function syncCustomLayersIn(frame, layers) {
     if (!el || el.getAttribute("data-cl") !== cl.id || el.tagName !== want) {
       el = document.createElement(isArrow ? "div" : cl.img ? "img" : "p");
       el.setAttribute("data-cl", cl.id);
-      if (isArrow) { el.innerHTML = ARROW_SVG; el.style.pointerEvents = "auto"; el.style.cursor = "move"; }
+      if (isArrow) { el.innerHTML = ARROW_SHAPES[cl.shape] || ARROW_SVG; el.setAttribute("data-arrowshape", cl.shape || "straight"); el.style.pointerEvents = "auto"; el.style.cursor = "move"; }
       else if (cl.img) { el.setAttribute("src", cl.img); el.setAttribute("alt", cl.alt || "Drawing"); el.style.pointerEvents = "none"; el.draggable = false; }
       else { el.textContent = cl.text || ""; el.style.pointerEvents = "auto"; el.style.cursor = "move"; }
       el.style.position = "absolute"; el.style.margin = "0";
@@ -563,6 +569,8 @@ function syncCustomLayersIn(frame, layers) {
       wrap.insertBefore(el, wrap.children[i] || null);
     } else if (cl.img && el.getAttribute("src") !== cl.img) {
       el.setAttribute("src", cl.img);
+    } else if (isArrow && el.getAttribute("data-arrowshape") !== (cl.shape || "straight")) {
+      el.innerHTML = ARROW_SHAPES[cl.shape] || ARROW_SVG; el.setAttribute("data-arrowshape", cl.shape || "straight");
     }
     // text layers hug their content but wrap to new lines once they'd run past the frame edge
     if (!cl.img && !isArrow && el) {
@@ -2503,10 +2511,13 @@ function App() {
     if (!el || !el.isConnected) el = nodeAt(containerRef.current, rec0.path);
     if (!el) return;
     const sc0 = editorScaleRef.current || 1;
-    // text drags resize the box; hold shift to scale the type instead. A bubble is all em-based
-    // (padding, image, gap track the font) so its handles scale the type — a fixed px box would
-    // clip or distort the pill
-    const mode = insp.isBubble ? "font" : insp.isText && el.tagName !== "INPUT" ? (e.shiftKey ? "font" : "box") : el.tagName === "IMG" ? "img" : "box";
+    // text and bubbles hug their content (size = text + padding, set in the inspector), so their
+    // handles scale the type instead of the box — a fixed px box would fight the padding controls.
+    // The exception is text in a clipping scroll box, where the handles size the box itself.
+    const isScrollText = insp.isText && rec0.outEl && rec0.outEl.isConnected && rec0.outPath != null;
+    const mode = insp.isBubble ? "font"
+      : insp.isText && el.tagName !== "INPUT" ? (isScrollText ? "box" : "font")
+      : el.tagName === "IMG" ? "img" : "box";
     // a video and its same-size wrapper act as one box: resize the wrapper so layout follows
     let tEl = el, tPath = rec0.path;
     if (insp.isMedia && el.parentElement) {
@@ -2571,6 +2582,49 @@ function App() {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }
+  // drag the ↻ grip to rotate the selected element around its center; snaps to 15° steps near
+  // them (hold Alt for free rotation). Stored as a trailing rotate() on the transform override
+  // so moves (which splice the translate before it) keep working along screen axes.
+  function startRotateDrag(e) {
+    e.preventDefault(); e.stopPropagation();
+    const rec0 = activeRef.current; if (!rec0 || !insp) return;
+    let el = rec0.el && rec0.el.isConnected ? rec0.el : nodeAt(containerRef.current, rec0.path);
+    if (!el) return;
+    const slotHost = el.closest && el.closest("[data-lslot], [data-vslot]");
+    if (slotHost && slotHost !== el) el = slotHost;
+    if (rec0.outEl && rec0.outEl.isConnected && rec0.outPath != null) el = rec0.outEl;
+    const tPath = pathOf(el, containerRef.current);
+    const er = el.getBoundingClientRect();
+    const cx = er.left + er.width / 2, cy = er.top + er.height / 2;
+    pushHistory(true);
+    ensureBase(tPath, el, ["transform"]);
+    const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {}; rec.style = rec.style || {};
+    let tf = el.style.transform && el.style.transform !== "none" ? el.style.transform : "";
+    if (!tf) { const cs0 = getComputedStyle(el).transform; tf = cs0 && cs0 !== "none" ? cs0 : ""; }
+    const rm = /\s*rotate\(\s*(-?[\d.]+)deg\s*\)\s*$/.exec(tf);
+    let deg0 = 0, base = tf;
+    if (rm) { deg0 = parseFloat(rm[1]); base = tf.slice(0, rm.index); }
+    base = base.trim() ? base.trim() + " " : "";
+    const a0 = Math.atan2(e.clientY - cy, e.clientX - cx);
+    const move = (ev) => {
+      let deg = deg0 + (Math.atan2(ev.clientY - cy, ev.clientX - cx) - a0) * 180 / Math.PI;
+      deg = ((deg % 360) + 360) % 360; if (deg > 180) deg -= 360;
+      if (!ev.altKey) {
+        const s15 = Math.round(deg / 15) * 15;
+        deg = Math.abs(deg - s15) < 4 ? s15 : Math.round(deg);
+      } else deg = Math.round(deg * 10) / 10;
+      const t = deg === 0 ? base.trim() : base + "rotate(" + deg + "deg)";
+      el.style.transform = t; rec.style.transform = t;
+      requestAnimationFrame(syncHandle);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+      suppressRef.current = true; setTimeout(() => { suppressRef.current = false; }, 150);
+      requestAnimationFrame(syncHandle); setInsp(i => (i ? { ...i, moved: true } : i));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
   // drag the floating ✥ handle to move the selected element; offset is stored as a composed
   // transform override so it survives demos and exports. Positions snap to an 8px design-px
   // grid (element top-left lands on grid lines) — hold Alt for free movement.
@@ -2597,8 +2651,13 @@ function App() {
     if (rec0.outEl && rec0.outEl.isConnected && rec0.outPath != null) {
       el = rec0.outEl; tPath = rec0.outPath;
     }
-    const cs = getComputedStyle(el);
-    const base = cs.transform === "none" ? "" : cs.transform + " ";
+    // keep any trailing rotate() out of the base: the new translate is spliced in before it, so
+    // dragging a rotated layer still moves along screen axes and the rotation is re-applied after
+    let tf0 = el.style.transform && el.style.transform !== "none" ? el.style.transform : (() => { const c = getComputedStyle(el).transform; return c === "none" ? "" : c; })();
+    const rotM0 = /\s*rotate\(\s*(-?[\d.]+)deg\s*\)\s*$/.exec(tf0);
+    const rotSuf = rotM0 ? " rotate(" + rotM0[1] + "deg)" : "";
+    if (rotM0) tf0 = tf0.slice(0, rotM0.index);
+    const base = tf0.trim() ? tf0.trim() + " " : "";
     const startX = e.clientX, startY = e.clientY;
     const h0 = handle;
     const sc0 = editorScaleRef.current || 1;
@@ -2680,7 +2739,7 @@ function App() {
         y: guideY != null ? guideY : gy + dy + gh / 2,
         cx: cSnapX, cy: cSnapY, ax: guideX != null, ay: guideY != null,
       });
-      const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
+      const t = base + `translate(${Math.round(dx)}px, ${Math.round(dy)}px)` + rotSuf;
       el.style.transform = t;
       const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {};
       rec.style = rec.style || {}; rec.style.transform = t;
@@ -2815,7 +2874,10 @@ function App() {
       borderW: Math.round(parseFloat(aovs.borderWidth != null ? aovs.borderWidth : acs.borderTopWidth) || 0),
       borderHex: parseColor(aovs.borderColor || acs.borderTopColor).hex,
       radius: parseInt(aovs.borderRadius != null ? aovs.borderRadius : acs.borderRadius) || 0,
-      padding: parseInt(aovs.padding != null ? aovs.padding : acs.paddingTop) || 0,
+      padT: parseInt(aovs.paddingTop != null ? aovs.paddingTop : acs.paddingTop) || 0,
+      padR: parseInt(aovs.paddingRight != null ? aovs.paddingRight : acs.paddingRight) || 0,
+      padB: parseInt(aovs.paddingBottom != null ? aovs.paddingBottom : acs.paddingBottom) || 0,
+      padL: parseInt(aovs.paddingLeft != null ? aovs.paddingLeft : acs.paddingLeft) || 0,
       lineH: +((parseFloat(aovs.lineHeight || "") || parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.2) / (parseFloat(cs.fontSize) || 16)).toFixed(2),
       font: (ovs.fontFamily || cs.fontFamily || "Geist").replace(/["']/g, "").split(",")[0].trim(),
       weight: parseInt(ovs.fontWeight || cs.fontWeight) || 400,
@@ -4443,6 +4505,19 @@ function App() {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>
                         Arrow
                       </button>
+                      {[["curve-right", "Curved arrow →"], ["curve-left", "Curved arrow ←"]].map(([shape, label]) => (
+                        <button key={shape} onClick={() => {
+                          setAddMenu(false);
+                          const frame = containerRef.current && containerRef.current.firstElementChild;
+                          const bg2 = frame ? parseColor(getComputedStyle(frame).backgroundColor) : { hex: "#000000" };
+                          const m2 = (bg2.hex || "#000000").match(/[0-9a-f]{2}/gi) || ["00", "00", "00"];
+                          const lum = (parseInt(m2[0], 16) * 0.299 + parseInt(m2[1], 16) * 0.587 + parseInt(m2[2], 16) * 0.114) / 255;
+                          addCustomLayer({ kind: "arrow", shape, style: { left: "64px", top: "64px", width: "96px", height: "96px", color: lum > 0.55 ? "#111111" : "#ffffff" } });
+                        }} className="w-full text-left px-3 py-2 text-sm text-zinc-200 hover:bg-white/10 transition flex items-center gap-2">
+                          <span dangerouslySetInnerHTML={{ __html: ARROW_SHAPES[shape].replace('width="100%" height="100%"', 'width="13" height="13"') }} />
+                          {label}
+                        </button>
+                      ))}
                     </div>}
                   </div>
                 </div>
@@ -4581,6 +4656,12 @@ function App() {
               Image bubble
             </button>
           </div>}
+          {handle && insp && insp.path !== "" && insp.path !== "0" &&
+            <button onPointerDown={startRotateDrag} title="Drag to rotate (Alt: free)"
+              style={{ left: handle.x + handle.w / 2 - 10, top: handle.y - 34 }}
+              className="absolute z-40 w-5 h-5 rounded-full bg-white ring-2 ring-[#2563eb] flex items-center justify-center text-[#2563eb] select-none cursor-grab">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+            </button>}
           {handle && insp && !insp.isLogo && insp.path !== "" && insp.path !== "0" &&
             [["nw", 0, 0], ["ne", 1, 0], ["sw", 0, 1], ["se", 1, 1], ["n", 0.5, 0], ["s", 0.5, 1], ["w", 0, 0.5], ["e", 1, 0.5]].map(([c, fx, fy]) => (
               <button key={c} onPointerDown={(e) => startResizeDrag(e, c)} title="Drag to resize"
@@ -5029,7 +5110,16 @@ function App() {
                 </div>
                 <div>
                   <label className={LBL}>Padding</label>
-                  <input type="number" min="0" value={insp.padding} onChange={e => { const v = Math.max(0, +e.target.value); setAp("padding", v + "px", { padding: v }); }} className={FIELD} />
+                  <div className="flex gap-1.5">
+                    {[["padT", "paddingTop", "Top"], ["padR", "paddingRight", "Right"], ["padB", "paddingBottom", "Bottom"], ["padL", "paddingLeft", "Left"]].map(([key, prop, lab]) => (
+                      <div key={prop} className="flex-1 min-w-0">
+                        <input type="number" min="0" value={insp[key]} title={lab}
+                          onChange={e => { const v = Math.max(0, +e.target.value); setAp(prop, v + "px", { [key]: v }); }}
+                          className="w-full px-2 py-2 rounded-[14px] bg-white/5 border border-white/10 text-sm text-zinc-200 outline-none text-center" />
+                        <div className="text-[10px] text-zinc-500 text-center mt-0.5">{lab[0]}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {insp.apPath === insp.path && <div>
                   <label className={LBL}>Style</label>
