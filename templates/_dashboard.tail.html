@@ -2550,9 +2550,16 @@ function App() {
           w1 = Math.max(8, Math.round(w0 * kx)); h1 = Math.max(8, Math.round(h0 * ky));
         }
         const live = tEl.isConnected ? tEl : nodeAt(containerRef.current, tPath);
-        if (live) { live.style.width = w1 + "px"; live.style.height = h1 + "px"; }
         const rec = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {}; rec.style = rec.style || {};
-        rec.style.width = w1 + "px"; rec.style.height = h1 + "px";
+        if (insp.isText && tEl === el && el.tagName !== "INPUT") {
+          // a text box hugs its content: resizing adjusts width only, height stays text + padding
+          // (also snaps away any fixed height saved by older resizes)
+          if (live) { live.style.width = w1 + "px"; live.style.height = ""; }
+          rec.style.width = w1 + "px"; delete rec.style.height;
+        } else {
+          if (live) { live.style.width = w1 + "px"; live.style.height = h1 + "px"; }
+          rec.style.width = w1 + "px"; rec.style.height = h1 + "px";
+        }
       }
       requestAnimationFrame(syncHandle);
     };
