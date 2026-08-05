@@ -70,7 +70,7 @@ const LOGO_LIBRARY = [
 /* ---------- helpers ---------- */
 const FONTS = ["Geist", "Inter", "Poppins", "Montserrat", "Roboto", "Oswald", "Bebas Neue", "Playfair Display", "Georgia", "Arial", "Courier New"];
 const WEIGHTS = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Black", 800]];
-const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "boxSizing", "boxShadow", "filter", "lineHeight", "flexShrink", "maxHeight", "minHeight"];
+const STYLE_PROPS = ["fontFamily", "fontWeight", "fontSize", "color", "textAlign", "fontStyle", "textDecoration", "letterSpacing", "backgroundColor", "backgroundImage", "opacity", "borderRadius", "top", "right", "bottom", "left", "transform", "height", "width", "backgroundSize", "display", "borderColor", "borderWidth", "borderStyle", "boxSizing", "boxShadow", "filter", "lineHeight", "flexShrink", "maxHeight", "minHeight", "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"];
 // Agent Opus brand palette (from the brand guidelines) — presets for every color control.
 const BRAND_COLORS = [["#FA9819", "Orange"], ["#D77655", "Terracotta"], ["#C6EBF7", "Baby Blue"], ["#B6C9CF", "Blue Tint"], ["#F9F5F2", "Cream"], ["#1A1A1A", "Black"], ["#FFFFFF", "White"], ["#0F0F13", "Ink"]];
 // A color control: swatch button that opens a popover with brand presets + a native picker + hex.
@@ -2544,7 +2544,16 @@ function App() {
     const dx0 = Math.max(16, Math.abs(e.clientX - ax));
     const dy0 = Math.max(16, Math.abs(e.clientY - ay));
     pushHistory(true);
-    ensureBase(tPath, tEl, mode === "font" ? ["fontSize"] : mode === "img" ? ["height"] : ["width", "height"]);
+    ensureBase(tPath, tEl, mode === "font" ? ["fontSize", "width", "height"] : mode === "img" ? ["height"] : ["width", "height"]);
+    // font-scaling a text layer: clear any fixed box left behind by the old box-resize mode, or
+    // the stale width caps the text and it wraps instead of growing
+    if (mode === "font" && insp.isText && !insp.isBubble) {
+      const rec0f = ovFor(sel)[tPath] = ovFor(sel)[tPath] || {}; rec0f.style = rec0f.style || {};
+      if (tEl.style.width || tEl.style.height || rec0f.style.width || rec0f.style.height) {
+        tEl.style.width = ""; tEl.style.height = "";
+        delete rec0f.style.width; delete rec0f.style.height;
+      }
+    }
     const move = (ev) => {
       const k = Math.max(0.15, Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0);
       if (mode === "font") setStyle("fontSize", Math.max(6, Math.round(f0 * k)) + "px", { size: Math.max(6, Math.round(f0 * k)) });
